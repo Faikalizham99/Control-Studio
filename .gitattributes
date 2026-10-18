@@ -3,3 +3,4 @@
 *.swift text eol=lf
 *.yml text eol=lf
 *.py text eol=lf
+*.pbxproj text eol=lf

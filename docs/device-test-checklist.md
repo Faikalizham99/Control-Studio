@@ -7,7 +7,9 @@ Record:
 - iPhone: iPhone 14 Pro Max
 - iOS version and build: NOT VERIFIED (target: iOS 27)
 - FlareStore version: NOT VERIFIED
-- Workflow URL / commit / artifact SHA-256: NOT VERIFIED
+- Built artifact: [CI run 39133946833](https://github.com/Faikalizham99/Control-Studio/actions/runs/39133946833), commit `ba282216abbf7cab987170f788034e216152db97`
+- Built unsigned IPA SHA-256: `b2b38268f632c00098c25d6b4b38f36bfd23ad904c7e0aa565d4e57de761c3a6`
+- Final installed/re-signed IPA hash: NOT VERIFIED
 - Signing route (CI / FlareStore re-sign): NOT VERIFIED
 - Three profiles cover device, IDs and App Group: NOT VERIFIED
 - Installation date and tester: NOT VERIFIED

@@ -10,8 +10,8 @@ The app increments a persistent SQLite counter, asks WidgetKit to refresh, and r
 |---|---|
 | C# source and automated tests | Implemented; see [validation record](docs/milestone-0.md) |
 | MAUI managed iOS code | Compiled on Windows with pinned SDK/workload; native linking still requires macOS |
-| Native Swift, WidgetKit, App Intents | Implemented; macOS compilation still required |
-| CI workflows and IPA validation | Implemented; no CI run or IPA claimed yet |
+| Native Swift, WidgetKit, App Intents | Compiled and linked successfully on macOS CI; action metadata verified |
+| CI workflows and IPA validation | PASS: [final run](https://github.com/Faikalizham99/Control-Studio/actions/runs/39133946833), 41 tests; unsigned IPA structure and arm64 iOS binary checks passed |
 | Certificate/profile capabilities | NOT VERIFIED; credentials have not been supplied |
 | Installation, widget sharing, Shortcuts discovery/execution | **NOT VERIFIED** until confirmed on the iPhone |
 
@@ -23,6 +23,8 @@ The app increments a persistent SQLite counter, asks WidgetKit to refresh, and r
 4. Download the IPA and validation report from the run's **Artifacts** section. See [FlareStore installation](docs/flarestore-installation.md), then complete the [device checklist](docs/device-test-checklist.md).
 
 Unsigned output: `ControlStudio-m0-unsigned.ipa`. Signed output: `ControlStudio-m0-signed.ipa`. Artifact container: `ControlStudio-m0-<mode>-<run_number>`. An unsigned IPA **cannot be installed directly**. A signed validation result also does not establish successful installation.
+
+Current verified build: [ControlStudio-m0-unsigned-3](https://github.com/Faikalizham99/Control-Studio/actions/runs/39133946833/artifacts/12138538904), from commit `ba282216abbf7cab987170f788034e216152db97` on `codex/milestone-0`. The artifact is retained for 14 days; save a copy. The default branch has not been changed. [Compare the implementation](https://github.com/Faikalizham99/Control-Studio/compare/main...codex/milestone-0) before merging it to enable default-branch manual dispatch.
 
 ## Toolchain
 

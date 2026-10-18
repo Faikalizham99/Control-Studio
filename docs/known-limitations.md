@@ -2,6 +2,7 @@
 
 - iOS compilation requires macOS, Xcode and the pinned .NET workload. This Windows session cannot execute WidgetKit, App Intents, `codesign`, device registration or an iOS simulator. Source/configuration checks do not replace compilation.
 - No CI run or IPA is represented as successful until there is an actual workflow log/report. All device tests remain **NOT VERIFIED** until the owner confirms them.
+- The unsigned CI path has passed with a real IPA. Expected MT7139 warns that requested App Group entitlements have no provisioning profile during unsigned compilation. Profiles and final signatures are validated separately in signed mode; that path is implemented but has not run with real credentials.
 - The physical target is an iPhone 14 Pro Max on iOS 27, but the verified toolchain baseline uses iOS 26.5 SDK APIs and deployment minimum 17.0. Running on a newer OS is intended, not device-tested. Upgrading to an iOS 27 SDK requires a separately verified Microsoft/Xcode pairing; preview support is not silently enabled.
 - Hosted runner images change even with `macos-26`; SDK/workload/Xcode versions are pinned and checked, while the complete runner image cannot be frozen with a standard hosted label. Removed Xcode versions produce an explicit failure.
 - App Groups require actual matching authorization in profiles and signatures for three targets. Existing personal/reseller signing credentials have not been inspected. No capability is fabricated or silently stripped. Private host fallback does not make shared widgets or Shortcuts work.

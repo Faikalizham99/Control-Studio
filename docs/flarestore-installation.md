@@ -1,6 +1,6 @@
 # Install with FlareStore
 
-**Installation and FlareStore's handling of these two extension types are NOT VERIFIED.** No IPA has been built during the initial Windows implementation. Follow these steps once CI produces an artifact.
+**Installation and FlareStore's handling of these two extension types are NOT VERIFIED.** A compiled unsigned IPA has passed CI structure and device-binary checks: [download the verified artifact](https://github.com/Faikalizham99/Control-Studio/actions/runs/39133946833/artifacts/12138538904). It still requires appropriate signing before installation.
 
 1. Open the successful **Build Control Studio IPA** run in GitHub. In **Artifacts**, download `ControlStudio-m0-signed-<run_number>` (preferred) or `ControlStudio-m0-unsigned-<run_number>`. Extract the artifact ZIP; the contained `.ipa` is the file to import. Read `validation-<mode>.json` and distinguish structure, native binary checks and signing results.
 2. Confirm your certificate is valid and the three provisioning profiles cover this iPhone, the correct bundle IDs and the same App Group. The exact group must be authorized; extension support alone is insufficient. See [signing](ios-signing.md).
