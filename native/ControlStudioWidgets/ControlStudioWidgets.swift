@@ -10,7 +10,7 @@ struct CounterEntry: TimelineEntry {
 struct CounterProvider: TimelineProvider {
     func placeholder(in context: Context) -> CounterEntry {
         CounterEntry(date: .now, snapshot: CounterSnapshot(schemaVersion: 1, value: 12,
-            updatedAtUnixMilliseconds: nil, storage: "shared"))
+            updatedAtUnixMilliseconds: Int64(Date().timeIntervalSince1970 * 1000), storage: "shared"))
     }
 
     func getSnapshot(in context: Context, completion: @escaping (CounterEntry) -> Void) {

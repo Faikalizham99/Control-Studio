@@ -22,14 +22,14 @@ jobs:
       DOTNET_CLI_TELEMETRY_OPTOUT: '1'
       SIGNING_MODE: ${{ github.event_name == 'push' && 'signed' || inputs.signing }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - name: Select and verify pinned Xcode
         run: |
           sudo xcode-select -s /Applications/Xcode_26.6.app/Contents/Developer
           test "$(xcodebuild -version | head -1)" = 'Xcode 26.6'
           test "$(xcrun --sdk iphoneos --show-sdk-version)" = '26.5'
           xcodebuild -version
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
         with:
           global-json-file: global.json
       - name: Install pinned MAUI iOS workload
@@ -68,7 +68,7 @@ jobs:
       - name: Package and validate final IPA
         run: bash scripts/package-ios.sh "$SIGNING_MODE"
       - name: Upload IPA and validation report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: ControlStudio-m0-${{ env.SIGNING_MODE }}-${{ github.run_number }}
           path: |
@@ -93,8 +93,8 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
           name: ControlStudio-m0-signed-${{ github.run_number }}
           path: release

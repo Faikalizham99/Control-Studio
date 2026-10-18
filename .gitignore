@@ -53,3 +53,8 @@ __pycache__/
 appsettings.Local.json
 local.settings.json
 NuGet.Config.local
+.aws/
+.azure/
+.codex/
+secrets/
+signing/

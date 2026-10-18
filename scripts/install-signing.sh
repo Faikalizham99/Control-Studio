@@ -9,6 +9,9 @@ signing_dir="$(mktemp -d "$RUNNER_TEMP/controlstudio-signing.XXXXXX")"
 keychain="$signing_dir/build.keychain-db"
 keychain_password="$(openssl rand -hex 32)"
 export SIGNING_TEMP_DIR="$signing_dir"
+# Register cleanup before decoding any secrets, including partial/malformed inputs.
+echo "SIGNING_TEMP_DIR=$signing_dir" >> "$GITHUB_ENV"
+echo "SIGNING_KEYCHAIN=$keychain" >> "$GITHUB_ENV"
 python3 - <<'PY'
 import base64, os
 from pathlib import Path
@@ -20,9 +23,6 @@ for key, name in [('IOS_CERTIFICATE_P12_BASE64', 'certificate.p12'),
     (root / name).write_bytes(base64.b64decode(os.environ[key], validate=True))
 PY
 security create-keychain -p "$keychain_password" "$keychain"
-# Write cleanup coordinates before importing secrets, so cleanup also runs if import fails.
-echo "SIGNING_TEMP_DIR=$signing_dir" >> "$GITHUB_ENV"
-echo "SIGNING_KEYCHAIN=$keychain" >> "$GITHUB_ENV"
 security set-keychain-settings -lut 21600 "$keychain"
 security unlock-keychain -p "$keychain_password" "$keychain"
 security import "$signing_dir/certificate.p12" -k "$keychain" -P "$IOS_CERTIFICATE_PASSWORD" -T /usr/bin/codesign > /dev/null

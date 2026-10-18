@@ -21,14 +21,16 @@
 | Python structure/profile validation tests | PASS, 17 tests using synthetic fixtures |
 | XML/plists/entitlement/pin/project-generation checks | PASS |
 | MAUI managed iOS compilation | PASS on Windows, Compile/CoreCompile targets; 0 warnings, 0 errors; native linking still requires macOS |
-| Swift SQLite tests | NOT RUN here; macOS CI job provided |
-| Native bridge/widget/intent compilation | NOT RUN here; macOS CI required |
-| GitHub Actions build | NOT RUN; no remote workflow execution claimed |
+| Swift SQLite tests | PASS, 7 tests on macOS CI |
+| Native bridge/widget/intent compilation | PASS on macOS CI; expected action metadata extracted |
+| GitHub Actions build | In progress on isolated `codex/milestone-0` branch; host linking/IPA validation pending |
 | IPA structure and Mach-O validation | NOT VERIFIED on a real artifact |
 | Code signatures and provisioning capabilities | NOT VERIFIED; credentials absent |
 | Installation, widget and App Intent discovery/execution | **NOT VERIFIED** |
 
 The fixture tests exercise negative cases such as missing executables, wrong IDs/extension points, misplaced ExtensionKit targets, missing metadata, ZIP traversal, wrong teams, missing App Groups, expired profiles, unsupported distribution and missing device eligibility. They do **not** prove the app is signed or installable. Swift tests cover database persistence/reopening, concurrent connections, schema refusal, overflow rollback, invalid data, inaccessible storage and JSON null serialization.
+
+Native CI evidence: [run 39133461692](https://github.com/Faikalizham99/Control-Studio/actions/runs/39133461692). This record will be updated with the final artifact result; the default branch has not been changed.
 
 ## macOS build sequence used by CI
 
