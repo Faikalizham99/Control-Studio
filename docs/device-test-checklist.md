@@ -10,6 +10,9 @@ Record:
 - Built artifact: [CI run 39133946833](https://github.com/Faikalizham99/Control-Studio/actions/runs/39133946833), commit `ba282216abbf7cab987170f788034e216152db97`
 - Built unsigned IPA SHA-256: `b2b38268f632c00098c25d6b4b38f36bfd23ad904c7e0aa565d4e57de761c3a6`
 - Final installed/re-signed IPA hash: NOT VERIFIED
+- Corrected 0.1.1 build: [CI run 39136235978](https://github.com/Faikalizham99/Control-Studio/actions/runs/39136235978), commit `cc950e76b4ffcc11ef8a74e470ca34f601896043`
+- Corrected unsigned IPA SHA-256: `0ce2c08a950cc2dbd04faa17361bf9e84b6055a854841e230e66f06d63b500f4`
+- Corrected configured App Group: `group.23b5a5355f697168.1`; re-signed artifact/device access NOT VERIFIED
 - Signing route (CI / FlareStore re-sign): NOT VERIFIED
 - Three profiles cover device, IDs and App Group: NOT VERIFIED
 - Installation date and tester: NOT VERIFIED

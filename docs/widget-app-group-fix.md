@@ -42,3 +42,11 @@ Re-sign the new unsigned IPA using the same existing FlareStore setup, install a
 5. If storage is still unavailable, inspect the final re-signed IPA again to check that the selected group remains present. If host sharing works but an extension fails, investigate its actual profile/signature/registration separately.
 
 All corrected-build device results remain **NOT VERIFIED** until the owner confirms them.
+
+## Build evidence
+
+[CI run 39136235978](https://github.com/Faikalizham99/Control-Studio/actions/runs/39136235978) passed on commit `cc950e76b4ffcc11ef8a74e470ca34f601896043`: 9 core tests, 8 bridge/repository tests, 21 configuration/packaging tests and 10 Swift storage tests, **48 tests total**. The host and both native executables compiled and linked. The final IPA passed structure, configured-group consistency, metadata and arm64 iOS binary checks.
+
+Artifact: [ControlStudio-m0-unsigned-4](https://github.com/Faikalizham99/Control-Studio/actions/runs/39136235978/artifacts/12139887970), containing `ControlStudio-m0-unsigned.ipa` and `validation-unsigned.json`. IPA SHA-256: `0ce2c08a950cc2dbd04faa17361bf9e84b6055a854841e230e66f06d63b500f4`. A local delivery copy is named `ControlStudio-0.1.1-widget-fix-unsigned.ipa`; renaming does not change its contents or hash.
+
+The expected unsigned-build warning MT7139 remains because compilation has no provisioning profile. No capability was stripped to suppress it. Signing and all corrected-build device results remain unverified.

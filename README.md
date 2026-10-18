@@ -13,8 +13,8 @@ The app increments a persistent SQLite counter, asks WidgetKit to refresh, and r
 | C# source and automated tests | Implemented; see [validation record](docs/milestone-0.md) |
 | MAUI managed iOS code | Compiled on Windows with pinned SDK/workload; native linking still requires macOS |
 | Native Swift, WidgetKit, App Intents | Compiled and linked successfully on macOS CI; action metadata verified |
-| CI workflows and IPA validation | PASS: [final run](https://github.com/Faikalizham99/Control-Studio/actions/runs/39133946833), 41 tests; unsigned IPA structure and arm64 iOS binary checks passed |
-| Certificate/profile capabilities | NOT VERIFIED; credentials have not been supplied |
+| CI workflows and IPA validation | PASS: [0.1.1 run](https://github.com/Faikalizham99/Control-Studio/actions/runs/39136235978), 48 tests; unsigned IPA structure, configured App Group and arm64 iOS binary checks passed |
+| Certificate/profile capabilities | Supplied signed IPA/profile inspected; selected group is listed. Final signatures and per-extension provisioning remain NOT VERIFIED |
 | Installation, widget sharing, Shortcuts discovery/execution | **NOT VERIFIED** until confirmed on the iPhone |
 
 ## Start here
@@ -26,7 +26,7 @@ The app increments a persistent SQLite counter, asks WidgetKit to refresh, and r
 
 Unsigned output: `ControlStudio-m0-unsigned.ipa`. Signed output: `ControlStudio-m0-signed.ipa`. Artifact container: `ControlStudio-m0-<mode>-<run_number>`. An unsigned IPA **cannot be installed directly**. A signed validation result also does not establish successful installation.
 
-Current verified build: [ControlStudio-m0-unsigned-3](https://github.com/Faikalizham99/Control-Studio/actions/runs/39133946833/artifacts/12138538904), from commit `ba282216abbf7cab987170f788034e216152db97` on `codex/milestone-0`. The artifact is retained for 14 days; save a copy. The default branch has not been changed. [Compare the implementation](https://github.com/Faikalizham99/Control-Studio/compare/main...codex/milestone-0) before merging it to enable default-branch manual dispatch.
+Current verified build: [ControlStudio-m0-unsigned-4](https://github.com/Faikalizham99/Control-Studio/actions/runs/39136235978/artifacts/12139887970), version **0.1.1 (2)** from commit `cc950e76b4ffcc11ef8a74e470ca34f601896043` on `codex/widget-app-group`. The artifact is retained for 14 days; save a copy. The default branch has not been changed. [Compare the implementation](https://github.com/Faikalizham99/Control-Studio/compare/main...codex/widget-app-group) before merging it to enable default-branch manual dispatch.
 
 ## Toolchain
 
