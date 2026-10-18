@@ -14,6 +14,8 @@ python -m unittest discover -s tests/packaging -v
 python scripts/check-source.py
 ```
 
+The current App Group is selected in `config/app-group.json`. After changing it to a group your real profiles authorize, run `python scripts/app_group_config.py` to update the Swift/C# constants and all target manifests/entitlements. The source checker and IPA validator reject targets configured for a different group. See the [provider test configuration](widget-app-group-fix.md).
+
 The shared libraries and managed tests build on Windows. The solution includes the iOS app, so a normal whole-solution build requires iOS tooling and a Mac; use the specific commands above for Windows checks. Python tests use clearly labeled fixtures, not actual IPAs or signing credentials. Swift SQLite tests and all native/iOS compilation run on GitHub's macOS runner. There is no Windows iOS simulator in this workflow.
 
 Native project changes are source changes too. If changing the target list/build settings, edit `scripts/generate-xcode-project.py`, then run:
@@ -61,4 +63,4 @@ git tag -a v0.1.0 -m "Control Studio milestone 0"
 git push origin v0.1.0
 ```
 
-The initial embedded app/native version is 0.1.0/build 1. Update it consistently in the MAUI project and native generator before subsequent releases, regenerate the native project, and commit those changes before tagging. Tag pattern triggers are GitHub glob matching, not a full semantic-version validator.
+The original embedded version was 0.1.0/build 1; the App Group correction is 0.1.1/build 2. Update versions consistently in the MAUI project and native generator before subsequent releases, regenerate the native project, and commit those changes before tagging. Tag pattern triggers are GitHub glob matching, not a full semantic-version validator.

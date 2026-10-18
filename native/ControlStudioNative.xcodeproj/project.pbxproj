@@ -12,6 +12,12 @@
 			"path" = "Shared/CounterStore.swift";
 			"sourceTree" = "<group>";
 		};
+		"04786B615021C841DE4B25D5" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "sourcecode.swift";
+			"path" = "Shared/AppGroupConfiguration.swift";
+			"sourceTree" = "<group>";
+		};
 		"C9FF7C42709595CD3EDE50C0" = {
 			"isa" = "PBXFileReference";
 			"lastKnownFileType" = "sourcecode.swift";
@@ -29,6 +35,10 @@
 			"isa" = "PBXBuildFile";
 			"fileRef" = "12E8AECD5B05A5139654507F";
 		};
+		"6B6C4C4DD3FCEE1032DC64CE" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "04786B615021C841DE4B25D5";
+		};
 		"79CC07C72413E552BC034B32" = {
 			"isa" = "PBXBuildFile";
 			"fileRef" = "C9FF7C42709595CD3EDE50C0";
@@ -38,6 +48,7 @@
 			"buildActionMask" = 2147483647;
 			"files" = (
 				"F430A744B207801389326C9D",
+				"6B6C4C4DD3FCEE1032DC64CE",
 				"79CC07C72413E552BC034B32",
 			);
 			"runOnlyForDeploymentPostprocessing" = 0;
@@ -67,8 +78,8 @@
 				"SWIFT_OPTIMIZATION_LEVEL" = "-O";
 				"SWIFT_EMIT_LOC_STRINGS" = "YES";
 				"TARGETED_DEVICE_FAMILY" = "1";
-				"CURRENT_PROJECT_VERSION" = "1";
-				"MARKETING_VERSION" = "0.1.0";
+				"CURRENT_PROJECT_VERSION" = "2";
+				"MARKETING_VERSION" = "0.1.1";
 				"LD_RUNPATH_SEARCH_PATHS" = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -123,6 +134,10 @@
 			"isa" = "PBXBuildFile";
 			"fileRef" = "12E8AECD5B05A5139654507F";
 		};
+		"4F0671E5C956C1BFA384AE36" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "04786B615021C841DE4B25D5";
+		};
 		"35A4E769309D648BFD716BE3" = {
 			"isa" = "PBXBuildFile";
 			"fileRef" = "0F641DB0626D777B6F91FE44";
@@ -132,6 +147,7 @@
 			"buildActionMask" = 2147483647;
 			"files" = (
 				"68C8EFE988CBAD16433F5014",
+				"4F0671E5C956C1BFA384AE36",
 				"35A4E769309D648BFD716BE3",
 			);
 			"runOnlyForDeploymentPostprocessing" = 0;
@@ -161,8 +177,8 @@
 				"SWIFT_OPTIMIZATION_LEVEL" = "-O";
 				"SWIFT_EMIT_LOC_STRINGS" = "YES";
 				"TARGETED_DEVICE_FAMILY" = "1";
-				"CURRENT_PROJECT_VERSION" = "1";
-				"MARKETING_VERSION" = "0.1.0";
+				"CURRENT_PROJECT_VERSION" = "2";
+				"MARKETING_VERSION" = "0.1.1";
 				"LD_RUNPATH_SEARCH_PATHS" = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -213,6 +229,7 @@
 			"isa" = "PBXGroup";
 			"children" = (
 				"12E8AECD5B05A5139654507F",
+				"04786B615021C841DE4B25D5",
 				"C9FF7C42709595CD3EDE50C0",
 				"0F641DB0626D777B6F91FE44",
 				"0A3E27B8CA818264D75C8D81",

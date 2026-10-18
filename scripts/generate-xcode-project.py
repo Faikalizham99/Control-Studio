@@ -19,7 +19,9 @@ def generate():
 
     source = add("shared-source", "PBXFileReference", lastKnownFileType="sourcecode.swift",
                  path="Shared/CounterStore.swift", sourceTree="<group>")
-    targets, products, children = [], [], [source]
+    group_source = add("app-group-source", "PBXFileReference", lastKnownFileType="sourcecode.swift",
+                       path="Shared/AppGroupConfiguration.swift", sourceTree="<group>")
+    targets, products, children = [], [], [source, group_source]
     for name, suffix, kind in [
         ("ControlStudioWidgets", "widgets", "app-extension"),
         ("ControlStudioIntents", "intents", "extensionkit-extension"),
@@ -30,7 +32,7 @@ def generate():
         product = add(name + "-product", "PBXFileReference", explicitFileType=f"wrapper.{kind}",
                       path=name + ".appex", sourceTree="BUILT_PRODUCTS_DIR", includeInIndex=0)
         products.append(product)
-        build_files = [add(name + "-" + ref, "PBXBuildFile", fileRef=ref) for ref in [source, file]]
+        build_files = [add(name + "-" + ref, "PBXBuildFile", fileRef=ref) for ref in [source, group_source, file]]
         sources = add(name + "-sources", "PBXSourcesBuildPhase", buildActionMask=2147483647,
                       files=build_files, runOnlyForDeploymentPostprocessing=0)
         frameworks = add(name + "-frameworks", "PBXFrameworksBuildPhase", buildActionMask=2147483647,
@@ -43,7 +45,7 @@ def generate():
             "APPLICATION_EXTENSION_API_ONLY": "YES", "IPHONEOS_DEPLOYMENT_TARGET": "17.0",
             "SWIFT_VERSION": "5.0", "SWIFT_OPTIMIZATION_LEVEL": "-O",
             "SWIFT_EMIT_LOC_STRINGS": "YES", "TARGETED_DEVICE_FAMILY": "1",
-            "CURRENT_PROJECT_VERSION": "1", "MARKETING_VERSION": "0.1.0",
+            "CURRENT_PROJECT_VERSION": "2", "MARKETING_VERSION": "0.1.1",
             "LD_RUNPATH_SEARCH_PATHS": ["$(inherited)", "@executable_path/Frameworks", "@executable_path/../../Frameworks"],
             "OTHER_LDFLAGS": ["$(inherited)", "-lsqlite3"],
         }
@@ -82,7 +84,7 @@ def generate():
                                             "objects": objects, "rootObject": project}) + "\n"
     output = ROOT / "native/ControlStudioNative.xcodeproj/project.pbxproj"
     output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(contents, encoding="utf-8")
+    output.write_text(contents, encoding="utf-8", newline="\n")
 
 
 if __name__ == "__main__":

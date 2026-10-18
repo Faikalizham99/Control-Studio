@@ -1,6 +1,6 @@
 # Milestone 0 device verification
 
-**All device results: NOT VERIFIED.** Leave unchecked until the iPhone owner confirms each result. Compilation or IPA structure alone cannot pass these tests.
+**Corrected 0.1.1 build: NOT VERIFIED.** Observations below refer to the owner's screenshots of the installed 0.1.0 build. All other tests remain NOT VERIFIED. Compilation or IPA structure alone cannot pass device tests.
 
 Record:
 
@@ -18,15 +18,15 @@ Record:
 |---|---|
 | IPA installs with host and both extensions intact | NOT VERIFIED |
 | App opens without a crash or unnecessary permission prompts | NOT VERIFIED |
-| Home displays Control Studio and an initial counter | NOT VERIFIED |
+| Home displays Control Studio and a counter | OBSERVED in 0.1.0 screenshot: value 3; corrected build NOT VERIFIED |
 | Update Widget increments exactly once per tap | NOT VERIFIED |
 | Counter persists across force-close/relaunch and reboot | NOT VERIFIED |
-| Shared-storage connected message appears | NOT VERIFIED |
+| Shared-storage connected message appears | FAILED in 0.1.0: local-only/App Group unavailable; corrected build NOT VERIFIED |
 | Settings switches System/Light/Dark and persists after restart | NOT VERIFIED |
 | VoiceOver reads counter, button and status; large text remains usable | NOT VERIFIED |
 | Control Studio appears in Home Screen widget picker | NOT VERIFIED |
-| Small widget displays the shared value and Last Updated | NOT VERIFIED |
-| Medium widget displays the same shared value and Last Updated | NOT VERIFIED |
+| Small widget displays the shared value and Last Updated | FAILED in 0.1.0: widget renders a storage error; corrected build NOT VERIFIED |
+| Medium widget displays the same shared value and Last Updated | FAILED in 0.1.0: widget renders a storage error; corrected build NOT VERIFIED |
 | Updating in app eventually changes both widgets when iOS permits | NOT VERIFIED |
 | Shortcuts lists Increment Control Studio Counter under the app | NOT VERIFIED |
 | Action runs and returns the incremented integer and meaningful dialog | NOT VERIFIED |

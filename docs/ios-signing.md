@@ -9,9 +9,11 @@ The proposed identifiers are:
 | Host | `com.faikalizham.controlstudio` |
 | Widget | `com.faikalizham.controlstudio.widgets` |
 | App Intents extension | `com.faikalizham.controlstudio.intents` |
-| Shared App Group | `group.com.faikalizham.controlstudio` |
+| Shared App Group (current provider test configuration) | `group.23b5a5355f697168.1` |
 
 Register the three explicit App IDs under the same Apple team and enable the exact App Group for each. Generate three development, ad-hoc or eligible enterprise provisioning profiles. For development/ad-hoc profiles, the iPhone's UDID must be included in **every** profile. Each profile must authorize the certificate used for signing. The CI signer rejects App Store profiles because these IPAs are intended for direct device installation.
+
+The original provisional group was `group.com.faikalizham.controlstudio`. Inspection of the owner's installed IPA confirmed it was absent, while the provider group now selected was present in all signatures and the host profile. The supplied IPA still lacks extension profiles and uses mismatched signed app identifiers, so it does not pass this repository's strict signed validator. See [the diagnosis and test configuration](widget-app-group-fix.md). For your own developer account, register a dedicated group you control, select it with `python scripts/app_group_config.py --identifier group.your.authorized.group`, and regenerate before building. A provider-owned group must be authorized by that provider.
 
 A `.p12` certificate/private key identifies a signer. A provisioning profile authorizes an app ID, device/distribution scope and entitlements. A `.p12` alone cannot add App Groups. A reseller/enterprise certificate, wildcard profile or claim of widget support does not prove that these exact identifiers and the shared group are allowed. App Intents has no blanket capability that substitutes for correct target membership, metadata and registration. This POC does not request the legacy SiriKit entitlement.
 

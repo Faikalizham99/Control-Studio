@@ -1,7 +1,15 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<plist version="1.0"><dict>
-  <key>CFBundleDisplayName</key><string>Control Studio</string>
-  <key>NSExtension</key><dict>
-    <key>NSExtensionPointIdentifier</key><string>com.apple.widgetkit-extension</string>
-  </dict>
-</dict></plist>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDisplayName</key>
+	<string>Control Studio</string>
+	<key>ControlStudioAppGroup</key>
+	<string>group.23b5a5355f697168.1</string>
+	<key>NSExtension</key>
+	<dict>
+		<key>NSExtensionPointIdentifier</key>
+		<string>com.apple.widgetkit-extension</string>
+	</dict>
+</dict>
+</plist>

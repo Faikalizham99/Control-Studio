@@ -44,7 +44,7 @@ public sealed class HomePage : ContentPage
             Padding = new Thickness(24), Spacing = 24, Children =
             {
                 new Label { Text = "A little action.\nA useful connection.", FontSize = 30, FontAttributes = FontAttributes.Bold },
-                new Label { Text = "Your app, Home Screen and Shortcuts, connected on this iPhone.", FontSize = 17 },
+                new Label { Text = "Your counter, ready for Home Screen widgets and Shortcuts.", FontSize = 17 },
                 card, status,
                 new Label { Text = "iOS schedules widget updates. A refresh request may take time to appear on your Home Screen.", FontSize = 14 }
             }

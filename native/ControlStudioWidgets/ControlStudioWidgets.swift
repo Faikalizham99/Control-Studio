@@ -5,6 +5,7 @@ import OSLog
 struct CounterEntry: TimelineEntry {
     let date: Date
     let snapshot: CounterSnapshot?
+    var failure: CounterError? = nil
 }
 
 struct CounterProvider: TimelineProvider {
@@ -26,7 +27,7 @@ struct CounterProvider: TimelineProvider {
         catch {
             Logger(subsystem: "com.faikalizham.controlstudio", category: "Widget")
                 .error("Shared counter unavailable. Code=\((error as? CounterError)?.rawValue ?? "unknown", privacy: .public)")
-            return CounterEntry(date: .now, snapshot: nil)
+            return CounterEntry(date: .now, snapshot: nil, failure: (error as? CounterError) ?? .databaseFailure)
         }
     }
 }
@@ -49,8 +50,9 @@ struct CounterWidgetView: View {
                             .font(.caption).lineLimit(1)
                     } else { Text("Not yet").font(.caption) }
                 } else {
-                    Text("Open Control Studio").font(.headline)
-                    Text("Shared counter unavailable. Check App Group signing.").font(.caption)
+                    Text((entry.failure ?? .databaseFailure).widgetTitle).font(.headline)
+                    Text((entry.failure ?? .databaseFailure).widgetMessage).font(.caption)
+                    Text((entry.failure ?? .databaseFailure).rawValue).font(.caption2).foregroundStyle(.secondary)
                 }
             }
             if family == .systemMedium {

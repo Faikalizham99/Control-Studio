@@ -16,9 +16,10 @@ import subprocess
 import sys
 import tempfile
 import zipfile
+from app_group_config import load_identifier
 
 APP_ID = "com.faikalizham.controlstudio"
-GROUP = "group.com.faikalizham.controlstudio"
+GROUP = load_identifier()
 BUNDLES = {
     "": (APP_ID, None),
     "PlugIns/ControlStudioWidgets.appex": (APP_ID + ".widgets", "com.apple.widgetkit-extension"),
@@ -49,6 +50,7 @@ def validate_metadata(app):
     for relative, (identifier, point) in BUNDLES.items():
         bundle = app / relative
         info = read_plist(bundle / "Info.plist")
+        require(info.get("ControlStudioAppGroup") == GROUP, f"Configured App Group mismatch: {relative or 'host'}")
         require(info.get("CFBundleIdentifier") == identifier, f"Bundle ID mismatch: {relative or 'host'}")
         executable = info.get("CFBundleExecutable", "")
         require(executable and Path(executable).name == executable, "Invalid bundle executable name")
@@ -170,7 +172,7 @@ def validate_bundle(app, mode, device=None):
             require(signature_team(framework) == team, "Embedded framework signing team mismatch")
     if mode == "signed":
         run("codesign", "--verify", "--deep", "--strict", app)
-    return {"mode": mode, "structure": "passed", "nativeBinaryChecks": "passed" if native_checked else "NOT VERIFIED",
+    return {"mode": mode, "appGroup": GROUP, "structure": "passed", "nativeBinaryChecks": "passed" if native_checked else "NOT VERIFIED",
             "signaturesAndProfiles": "passed" if mode == "signed" else "NOT VERIFIED — requires signing",
             "deviceInstallation": "NOT VERIFIED", "widgetFunctional": "NOT VERIFIED", "intentFunctional": "NOT VERIFIED"}
 

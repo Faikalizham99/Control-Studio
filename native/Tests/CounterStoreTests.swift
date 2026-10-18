@@ -76,6 +76,33 @@ final class CounterStoreTests: XCTestCase {
         XCTAssertThrowsError(try CounterStore(directory: blocker, storage: "shared").increment())
     }
 
+    func testProviderGroupStorageAvoidsOtherAppsCounterFiles() throws {
+        let shared = CounterStore.sharedDirectory(in: directory, appGroup: "group.provider.slot1")
+        XCTAssertEqual(shared.lastPathComponent, "ControlStudio")
+        let otherApp = CounterStore(directory: shared.deletingLastPathComponent(), storage: "shared")
+        let studio = CounterStore(directory: shared, storage: "shared")
+        _ = try otherApp.increment()
+        _ = try otherApp.increment()
+        XCTAssertEqual(try studio.read().value, 0)
+        XCTAssertEqual(try studio.increment().value, 1)
+        XCTAssertEqual(try otherApp.read().value, 2)
+    }
+
+    func testOriginalDedicatedGroupKeepsExistingStoragePath() throws {
+        let legacy = directory.appendingPathComponent("Library/Application Support", isDirectory: true)
+        let previous = CounterStore(directory: legacy, storage: "shared")
+        _ = try previous.increment()
+        let current = CounterStore(directory: CounterStore.sharedDirectory(in: directory,
+            appGroup: "group.com.faikalizham.controlstudio"), storage: "shared")
+        XCTAssertEqual(try current.read().value, 1)
+    }
+
+    func testDatabaseFailuresDoNotBlameAppGroupSigning() {
+        XCTAssertNotEqual(CounterError.databaseBusy.widgetMessage, CounterError.storageUnavailable.widgetMessage)
+        XCTAssertFalse(CounterError.databaseFailure.widgetMessage.contains("signing"))
+        XCTAssertEqual(CounterError.unsupportedSchema.widgetTitle, "Update Control Studio")
+    }
+
     private func sql(_ text: String) throws {
         var db: OpaquePointer?
         XCTAssertEqual(sqlite3_open(directory.appendingPathComponent("counter.sqlite3").path, &db), SQLITE_OK)

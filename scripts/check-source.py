@@ -8,6 +8,7 @@ import importlib.util
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
+from app_group_config import synchronize
 
 
 def main():
@@ -19,10 +20,7 @@ def main():
             if not {".build", "obj", "bin"}.intersection(path.parts):
                 with path.open("rb") as stream:
                     plistlib.load(stream)
-    group = "group.com.faikalizham.controlstudio"
-    for relative in ["src/ControlStudio.App/Platforms/iOS", "native/ControlStudioWidgets", "native/ControlStudioIntents"]:
-        with (ROOT / relative / "Entitlements.plist").open("rb") as stream:
-            assert plistlib.load(stream) == {"com.apple.security.application-groups": [group]}, "Entitlement drift"
+    synchronize(check=True)
     toolchain = json.loads((ROOT / "global.json").read_text())
     assert toolchain["sdk"]["version"] == "10.0.302"
     assert toolchain["workload"]["version"] == "10.0.302.1"

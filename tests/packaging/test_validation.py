@@ -22,7 +22,8 @@ class PackagingTests(unittest.TestCase):
             bundle.mkdir(parents=True)
             info = dict(CFBundleIdentifier=identifier, CFBundleExecutable="Executable", CFBundleName="Control Studio",
                         CFBundleShortVersionString="0.1.0", CFBundleVersion="1", MinimumOSVersion="17.0",
-                        CFBundleSupportedPlatforms=["iPhoneOS"], CFBundlePackageType="XPC!" if relative else "APPL")
+                        CFBundleSupportedPlatforms=["iPhoneOS"], CFBundlePackageType="XPC!" if relative else "APPL",
+                        ControlStudioAppGroup=GROUP)
             if point:
                 if relative.startswith("Extensions/"):
                     info["EXAppExtensionAttributes"] = {"EXExtensionPointIdentifier": point}
@@ -55,6 +56,17 @@ class PackagingTests(unittest.TestCase):
 
     def test_rejects_bundle_id_change(self):
         self.mutate("PlugIns/ControlStudioWidgets.appex", "CFBundleIdentifier", "wrong.id")
+        with self.assertRaises(ValueError): validate_metadata(self.app)
+
+    def test_rejects_extension_configured_for_different_app_group(self):
+        self.mutate("PlugIns/ControlStudioWidgets.appex", "ControlStudioAppGroup", "group.other.app")
+        with self.assertRaisesRegex(ValueError, "Configured App Group mismatch"): validate_metadata(self.app)
+
+    def test_rejects_missing_group_configuration(self):
+        path = self.app / "Info.plist"
+        info = plistlib.loads(path.read_bytes())
+        del info["ControlStudioAppGroup"]
+        path.write_bytes(plistlib.dumps(info))
         with self.assertRaises(ValueError): validate_metadata(self.app)
 
     def test_rejects_wrong_extension_point(self):

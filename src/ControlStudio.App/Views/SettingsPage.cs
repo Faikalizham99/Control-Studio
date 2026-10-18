@@ -1,3 +1,5 @@
+using ControlStudio.Core;
+
 namespace ControlStudio.App.Views;
 
 public sealed class SettingsPage : ContentPage
@@ -22,9 +24,11 @@ public sealed class SettingsPage : ContentPage
                 new Label { Text = "Everything stays local", FontSize = 20, FontAttributes = FontAttributes.Bold },
                 new Label { Text = "No account, backend or analytics. The counter is stored in SQLite. With valid App Group provisioning, the app, widget and Shortcuts use the same database." },
                 new Label { Text = "Widget & Shortcuts setup", FontSize = 20, FontAttributes = FontAttributes.Bold },
+                new Label { Text = $"Configured App Group: {AppGroupConfiguration.Identifier}", FontSize = 14 },
+                new Label { Text = "The installed app and both extensions must be signed to allow this exact group. A provider group can be shared with other apps signed using the same profile." },
                 new Label { Text = "Open the app once, then add Control Studio from the Home Screen widget picker. In Shortcuts, search for Increment Control Studio Counter. Both extensions must be preserved and signed with matching App Group permissions." },
                 new Label { Text = "If shared storage is unavailable, the app uses a separate local counter. Local values are not automatically merged into the shared counter when signing changes." },
-                new Label { Text = "Control Studio · Milestone 0 · 0.1.0", FontSize = 13 }
+                new Label { Text = $"Control Studio · Milestone 0 · {AppInfo.Current.VersionString} ({AppInfo.Current.BuildString})", FontSize = 13 }
             }
         }};
     }

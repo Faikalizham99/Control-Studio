@@ -2,7 +2,7 @@ import Foundation
 import SQLite3
 
 enum StudioConstants {
-    static let appGroup = "group.com.faikalizham.controlstudio"
+    static let appGroup = StudioAppGroup.identifier
     static let widgetKind = "ControlStudioCounter"
     static let maximumCounter: Int64 = 2_147_483_647
 }
@@ -17,6 +17,28 @@ enum CounterError: String, Error, LocalizedError {
         case .unsupportedSchema: "This database requires a newer version of Control Studio."
         case .counterOverflow: "The counter has reached its supported maximum."
         default: "The counter could not be read or saved. Please try again."
+        }
+    }
+
+    var widgetTitle: String {
+        switch self {
+        case .storageUnavailable: "App Group unavailable"
+        case .databaseBusy: "Counter is busy"
+        case .unsupportedSchema: "Update Control Studio"
+        case .invalidData: "Counter data error"
+        case .counterOverflow: "Counter limit reached"
+        case .databaseFailure: "Counter storage error"
+        }
+    }
+
+    var widgetMessage: String {
+        switch self {
+        case .storageUnavailable: "Open the app and check the configured App Group in Settings."
+        case .databaseBusy: "Another update is in progress. Please try again."
+        case .unsupportedSchema: "The shared database needs a newer app version."
+        case .invalidData: "Open the app to check the stored counter. Data was not reset."
+        case .counterOverflow: "The counter cannot be incremented further."
+        case .databaseFailure: "Unlock your iPhone and open the app to check storage."
         }
     }
 }
@@ -59,10 +81,18 @@ struct CounterStore {
         #if os(iOS)
         guard let container = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: StudioConstants.appGroup)
         else { throw CounterError.storageUnavailable }
-        return CounterStore(directory: container.appendingPathComponent("Library/Application Support", isDirectory: true), storage: "shared")
+        return CounterStore(directory: sharedDirectory(in: container, appGroup: StudioConstants.appGroup), storage: "shared")
         #else
         throw CounterError.storageUnavailable
         #endif
+    }
+
+    static func sharedDirectory(in container: URL, appGroup: String) -> URL {
+        let base = container.appendingPathComponent("Library/Application Support", isDirectory: true)
+        // Preserve the original dedicated-group path. Provider groups can be shared by
+        // several signed apps, so use an app-specific directory to avoid filename collisions.
+        return appGroup == "group.com.faikalizham.controlstudio"
+            ? base : base.appendingPathComponent("ControlStudio", isDirectory: true)
     }
 
     static func forHost() throws -> CounterStore {

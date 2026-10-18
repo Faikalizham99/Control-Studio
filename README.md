@@ -4,6 +4,8 @@ An offline-first .NET MAUI iPhone app with a native SwiftUI counter widget and a
 
 The app increments a persistent SQLite counter, asks WidgetKit to refresh, and reads changes made by **Increment Control Studio Counter** in Shortcuts. SQLite transactions in an App Group serialize updates across processes. Without App Group access, the host reports that it is using a separate local counter; the extensions fail visibly instead of pretending sharing works.
 
+**Current 0.1.1 test build:** the owner's signed IPA authorized provider groups instead of the original provisional group. The selected group is now `group.23b5a5355f697168.1`, configured in `config/app-group.json` and generated consistently for all targets. See the [widget fix and re-test instructions](docs/widget-app-group-fix.md). This addresses the observed identifier mismatch; corrected-build sharing and the provider's extension-signing arrangement still require device verification.
+
 ## Status
 
 | Stage | Evidence |
