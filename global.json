@@ -1,0 +1,4 @@
+{
+  "sdk": { "version": "10.0.302", "rollForward": "disable", "allowPrerelease": false },
+  "workload": { "version": "10.0.302.1" }
+}

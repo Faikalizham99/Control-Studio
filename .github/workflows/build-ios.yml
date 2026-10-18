@@ -1,0 +1,105 @@
+name: Build Control Studio IPA
+on:
+  workflow_dispatch:
+    inputs:
+      signing:
+        description: 'Unsigned for re-signing, or signed using three matching provisioning profiles'
+        type: choice
+        options: [unsigned, signed]
+        default: unsigned
+  push:
+    tags: ['v*.*.*']
+permissions:
+  contents: read
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: macos-26
+    timeout-minutes: 60
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+      SIGNING_MODE: ${{ github.event_name == 'push' && 'signed' || inputs.signing }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select and verify pinned Xcode
+        run: |
+          sudo xcode-select -s /Applications/Xcode_26.6.app/Contents/Developer
+          test "$(xcodebuild -version | head -1)" = 'Xcode 26.6'
+          test "$(xcrun --sdk iphoneos --show-sdk-version)" = '26.5'
+          xcodebuild -version
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - name: Install pinned MAUI iOS workload
+        run: dotnet workload install maui-ios --version 10.0.302.1
+      - name: Record toolchain
+        run: |
+          dotnet --info
+          dotnet workload --info
+          xcrun swift --version
+      - name: Validate source and signing configuration
+        run: |
+          python3 scripts/check-source.py
+          python3 -m unittest discover -s tests/packaging -v
+      - name: Run managed unit tests
+        run: |
+          dotnet test tests/ControlStudio.Core.Tests -c Release -p:RestoreLockedMode=true
+          dotnet test tests/ControlStudio.Infrastructure.Tests -c Release -p:RestoreLockedMode=true
+      - name: Run native SQLite persistence and concurrency tests
+        run: swift test --package-path native
+      - name: Compile Swift bridge, WidgetKit and App Intents extensions
+        run: bash scripts/build-native.sh
+      - name: Restore and compile MAUI host with native extensions
+        run: |
+          dotnet restore src/ControlStudio.App/ControlStudio.App.csproj --locked-mode
+          dotnet publish src/ControlStudio.App/ControlStudio.App.csproj -c Release --no-restore \
+            -p:ArchiveOnBuild=false -p:BuildIpa=false -p:EnableCodeSigning=false
+      - name: Import signing material into temporary keychain
+        if: env.SIGNING_MODE == 'signed'
+        env:
+          IOS_CERTIFICATE_P12_BASE64: ${{ secrets.IOS_CERTIFICATE_P12_BASE64 }}
+          IOS_CERTIFICATE_PASSWORD: ${{ secrets.IOS_CERTIFICATE_PASSWORD }}
+          IOS_HOST_PROFILE_BASE64: ${{ secrets.IOS_HOST_PROFILE_BASE64 }}
+          IOS_WIDGET_PROFILE_BASE64: ${{ secrets.IOS_WIDGET_PROFILE_BASE64 }}
+          IOS_INTENTS_PROFILE_BASE64: ${{ secrets.IOS_INTENTS_PROFILE_BASE64 }}
+        run: bash scripts/install-signing.sh
+      - name: Package and validate final IPA
+        run: bash scripts/package-ios.sh "$SIGNING_MODE"
+      - name: Upload IPA and validation report
+        uses: actions/upload-artifact@v4
+        with:
+          name: ControlStudio-m0-${{ env.SIGNING_MODE }}-${{ github.run_number }}
+          path: |
+            artifacts/ipa/ControlStudio-m0-${{ env.SIGNING_MODE }}.ipa
+            artifacts/ipa/validation-${{ env.SIGNING_MODE }}.json
+          if-no-files-found: error
+          retention-days: 14
+      - name: Remove temporary signing material
+        if: always()
+        shell: bash
+        run: |
+          if [[ -n "${SIGNING_KEYCHAIN:-}" ]]; then
+            security delete-keychain "$SIGNING_KEYCHAIN" || true
+          fi
+          if [[ -n "${SIGNING_TEMP_DIR:-}" ]]; then
+            case "$SIGNING_TEMP_DIR" in "$RUNNER_TEMP"/controlstudio-signing.*) rm -rf -- "$SIGNING_TEMP_DIR" ;; *) exit 1 ;; esac
+          fi
+  draft-release:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: ControlStudio-m0-signed-${{ github.run_number }}
+          path: release
+      - name: Create a reviewable draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: gh release create "$RELEASE_TAG" release/ControlStudio-m0-signed.ipa release/validation-signed.json --verify-tag --generate-notes --draft

@@ -1,0 +1,46 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0-ios26.5</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>ControlStudio.App</RootNamespace>
+    <AssemblyName>ControlStudio</AssemblyName>
+    <UseMaui>true</UseMaui>
+    <SingleProject>true</SingleProject>
+    <ApplicationTitle>Control Studio</ApplicationTitle>
+    <ApplicationId>com.faikalizham.controlstudio</ApplicationId>
+    <ApplicationDisplayVersion>0.1.0</ApplicationDisplayVersion>
+    <ApplicationVersion>1</ApplicationVersion>
+    <SupportedOSPlatformVersion>17.0</SupportedOSPlatformVersion>
+    <RuntimeIdentifier>ios-arm64</RuntimeIdentifier>
+    <CodesignEntitlements>Platforms/iOS/Entitlements.plist</CodesignEntitlements>
+    <LinkWithSwiftSystemLibraries>true</LinkWithSwiftSystemLibraries>
+    <NativeBuildRoot>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)../../artifacts/native'))</NativeBuildRoot>
+    <BuildIpa>false</BuildIpa>
+    <EnableCodeSigning>false</EnableCodeSigning>
+    <CodesignRequireProvisioningProfile>false</CodesignRequireProvisioningProfile>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Maui.Controls" Version="10.0.110" />
+    <ProjectReference Include="../ControlStudio.Infrastructure/ControlStudio.Infrastructure.csproj" />
+    <MauiIcon Include="Resources/AppIcon/appicon.svg" Color="#2458E6" />
+    <MauiSplashScreen Include="Resources/Splash/splash.svg" Color="#2458E6" BaseSize="128,128" />
+    <BundleResource Include="Platforms/iOS/PrivacyInfo.xcprivacy" Link="PrivacyInfo.xcprivacy" />
+    <NativeReference Include="$(NativeBuildRoot)/libControlStudioBridge.a">
+      <Kind>Static</Kind><ForceLoad>true</ForceLoad><SmartLink>false</SmartLink>
+      <Frameworks>Foundation WidgetKit SwiftUI</Frameworks><LinkerFlags>-lsqlite3</LinkerFlags>
+    </NativeReference>
+    <AdditionalAppExtensions Include="$(NativeBuildRoot)">
+      <Name>ControlStudioWidgets</Name><BuildOutput>Release-iphoneos</BuildOutput>
+      <CodesignEntitlements>../../native/ControlStudioWidgets/Entitlements.plist</CodesignEntitlements>
+    </AdditionalAppExtensions>
+    <!-- ExtensionKit uses Extensions/, not the SDK's AdditionalAppExtensions PlugIns/ path. -->
+  </ItemGroup>
+  <Target Name="RequireNativeProducts" BeforeTargets="PrepareForBuild" Condition="'$(DesignTimeBuild)' != 'true'">
+    <Error Condition="!Exists('$(NativeBuildRoot)/libControlStudioBridge.a')" Text="Run scripts/build-native.sh on macOS before building the iOS app. See docs/milestone-0.md." />
+    <Error Condition="!Exists('$(NativeBuildRoot)/Release-iphoneos/ControlStudioWidgets.appex/Info.plist')" Text="The WidgetKit extension has not been built." />
+    <Error Condition="!Exists('$(NativeBuildRoot)/Release-iphoneos/ControlStudioIntents.appex/Info.plist')" Text="The App Intents extension has not been built." />
+  </Target>
+  <Target Name="EmbedAppIntentsExtension" AfterTargets="_CopyAppExtensionsToBundle">
+    <Exec Command="ditto &quot;$(NativeBuildRoot)/Release-iphoneos/ControlStudioIntents.appex&quot; &quot;$(AppBundleDir)/Extensions/ControlStudioIntents.appex&quot;" />
+  </Target>
+</Project>

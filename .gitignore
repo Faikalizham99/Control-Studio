@@ -1,0 +1,55 @@
+# .NET / editors
+**/bin/
+**/obj/
+.vs/
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.DotSettings.user
+# Native / macOS
+.DS_Store
+._*
+DerivedData/
+**/.build/
+**/.swiftpm/
+**/xcuserdata/
+*.xcuserstate
+*.hmap
+*.dSYM/
+*.xcarchive/
+# Builds, caches, logs, local tooling
+artifacts/
+.tmp/
+.tools/
+TestResults/
+coverage/
+*.log
+*.binlog
+__pycache__/
+*.py[cod]
+*.ipa
+# Do not ignore *.app/ globally: Git on Windows also matches ControlStudio.App source.
+*.appex/
+*.a
+*.xcframework/
+# Signing material and local configuration
+*.p12
+*.pfx
+*.p8
+*.pem
+*.key
+*.cer
+*.mobileprovision
+*.provisionprofile
+*.keychain*
+.env
+.env.*
+!.env.example
+*.secrets.json
+appsettings.Local.json
+local.settings.json
+NuGet.Config.local
