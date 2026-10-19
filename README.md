@@ -4,7 +4,7 @@ An offline-first .NET MAUI iPhone app with a native SwiftUI counter widget and a
 
 The app increments a persistent SQLite counter, asks WidgetKit to refresh, and reads changes made by **Increment Control Studio Counter** in Shortcuts. SQLite transactions in an App Group serialize updates across processes. Without App Group access, the host reports that it is using a separate local counter; the extensions fail visibly instead of pretending sharing works.
 
-**Current 0.1.1 test build:** the owner's signed IPA authorized provider groups instead of the original provisional group. The selected group is now `group.23b5a5355f697168.1`, configured in `config/app-group.json` and generated consistently for all targets. See the [widget fix and re-test instructions](docs/widget-app-group-fix.md). This addresses the observed identifier mismatch; corrected-build sharing and the provider's extension-signing arrangement still require device verification.
+**Current 0.1.1 test build:** the owner's signed IPA authorized provider groups instead of the original provisional group. The selected group is now `group.23b5a5355f697168.1`, configured in `config/app-group.json` and generated consistently for all targets. **The owner confirmed app-to-widget sharing is working on 19 October 2026.** See the [widget fix and remaining tests](docs/widget-app-group-fix.md). Detailed widget-family checks, Shortcuts execution and full final-signature validation remain unverified.
 
 ## Status
 
@@ -15,7 +15,8 @@ The app increments a persistent SQLite counter, asks WidgetKit to refresh, and r
 | Native Swift, WidgetKit, App Intents | Compiled and linked successfully on macOS CI; action metadata verified |
 | CI workflows and IPA validation | PASS: [0.1.1 run](https://github.com/Faikalizham99/Control-Studio/actions/runs/39136235978), 48 tests; unsigned IPA structure, configured App Group and arm64 iOS binary checks passed |
 | Certificate/profile capabilities | Supplied signed IPA/profile inspected; selected group is listed. Final signatures and per-extension provisioning remain NOT VERIFIED |
-| Installation, widget sharing, Shortcuts discovery/execution | **NOT VERIFIED** until confirmed on the iPhone |
+| App-to-widget sharing | CONFIRMED by owner, 19 October 2026, after the 0.1.1 correction; detailed family/timestamp tests remain unverified |
+| Shortcuts discovery/execution and remaining device checklist | **NOT VERIFIED** |
 
 ## Start here
 

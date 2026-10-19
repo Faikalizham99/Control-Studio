@@ -1,6 +1,6 @@
 # Milestone 0 device verification
 
-**Corrected 0.1.1 build: NOT VERIFIED.** Observations below refer to the owner's screenshots of the installed 0.1.0 build. All other tests remain NOT VERIFIED. Compilation or IPA structure alone cannot pass device tests.
+**App-to-widget sharing confirmed by the owner on 19 October 2026** after the 0.1.1 App Group correction. The owner reported "ITRS WORKING NOW." This confirms the reported widget issue is resolved; individual widget families, exact status text, persistence, accessibility and Shortcuts tests have not been separately confirmed. Earlier screenshot observations refer to the installed 0.1.0 build.
 
 Record:
 
@@ -12,13 +12,14 @@ Record:
 - Final installed/re-signed IPA hash: NOT VERIFIED
 - Corrected 0.1.1 build: [CI run 39136235978](https://github.com/Faikalizham99/Control-Studio/actions/runs/39136235978), commit `cc950e76b4ffcc11ef8a74e470ca34f601896043`
 - Corrected unsigned IPA SHA-256: `0ce2c08a950cc2dbd04faa17361bf9e84b6055a854841e230e66f06d63b500f4`
-- Corrected configured App Group: `group.23b5a5355f697168.1`; re-signed artifact/device access NOT VERIFIED
+- Corrected configured App Group: `group.23b5a5355f697168.1`; app-to-widget sharing confirmed by owner, final re-signed artifact not inspected
 - Signing route (CI / FlareStore re-sign): NOT VERIFIED
 - Three profiles cover device, IDs and App Group: NOT VERIFIED
 - Installation date and tester: NOT VERIFIED
 
 | Test | Result |
 |---|---|
+| Overall app-to-widget sharing after the 0.1.1 correction | CONFIRMED by owner, 19 October 2026; individual checks below are not implied |
 | IPA installs with host and both extensions intact | NOT VERIFIED |
 | App opens without a crash or unnecessary permission prompts | NOT VERIFIED |
 | Home displays Control Studio and a counter | OBSERVED in 0.1.0 screenshot: value 3; corrected build NOT VERIFIED |

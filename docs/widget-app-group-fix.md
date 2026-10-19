@@ -41,7 +41,7 @@ Re-sign the new unsigned IPA using the same existing FlareStore setup, install a
 4. Find/run the Shortcuts action, then resume/refresh the app and check the counter and widgets.
 5. If storage is still unavailable, inspect the final re-signed IPA again to check that the selected group remains present. If host sharing works but an extension fails, investigate its actual profile/signature/registration separately.
 
-All corrected-build device results remain **NOT VERIFIED** until the owner confirms them.
+On **19 October 2026**, the owner reported **"ITRS WORKING NOW"** after the 0.1.1 correction. The app-to-widget sharing issue is therefore recorded as resolved on the owner's device. Both widget families, timestamps, persistence, accessibility, and Shortcuts discovery/execution have not been individually confirmed; see the [device checklist](device-test-checklist.md).
 
 ## Build evidence
 
@@ -49,4 +49,4 @@ All corrected-build device results remain **NOT VERIFIED** until the owner confi
 
 Artifact: [ControlStudio-m0-unsigned-4](https://github.com/Faikalizham99/Control-Studio/actions/runs/39136235978/artifacts/12139887970), containing `ControlStudio-m0-unsigned.ipa` and `validation-unsigned.json`. IPA SHA-256: `0ce2c08a950cc2dbd04faa17361bf9e84b6055a854841e230e66f06d63b500f4`. A local delivery copy is named `ControlStudio-0.1.1-widget-fix-unsigned.ipa`; renaming does not change its contents or hash.
 
-The expected unsigned-build warning MT7139 remains because compilation has no provisioning profile. No capability was stripped to suppress it. Signing and all corrected-build device results remain unverified.
+The expected unsigned-build warning MT7139 remains because compilation has no provisioning profile. No capability was stripped to suppress it. The owner has confirmed app-to-widget sharing; full final-signature validation and the remaining detailed device tests are unverified.
