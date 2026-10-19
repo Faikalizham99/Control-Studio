@@ -6,7 +6,7 @@ Version **0.2.0 (3)** adds a Shortcuts tab with private SQLite persistence, type
 
 The app increments a persistent SQLite counter, asks WidgetKit to refresh, and reads changes made by **Increment Control Studio Counter** in Shortcuts. SQLite transactions in an App Group serialize updates across processes. Without App Group access, the host reports that it is using a separate local counter; the extensions fail visibly instead of pretending sharing works.
 
-**Current 0.1.1 test build:** the owner's signed IPA authorized provider groups instead of the original provisional group. The selected group is now `group.23b5a5355f697168.1`, configured in `config/app-group.json` and generated consistently for all targets. **The owner confirmed app-to-widget sharing and Shortcuts increment execution are working on 19 October 2026.** See the [widget fix and remaining tests](docs/widget-app-group-fix.md). Detailed widget-family checks, app/widget updates after a Shortcut and full final-signature validation remain unverified.
+**Device-confirmed 0.1.1 baseline:** the owner's signed IPA authorized provider groups instead of the original provisional group. The selected group remains `group.23b5a5355f697168.1`, configured in `config/app-group.json` and generated consistently for all targets. **The owner confirmed app-to-widget sharing and Shortcuts increment execution are working on 19 October 2026.** See the [widget fix and remaining tests](docs/widget-app-group-fix.md). Detailed widget-family checks, app/widget updates after a Shortcut and full final-signature validation remain unverified. These confirmations apply to 0.1.1; the new dashboard binary requires device regression checks.
 
 ## Status
 
@@ -15,7 +15,7 @@ The app increments a persistent SQLite counter, asks WidgetKit to refresh, and r
 | C# source and automated tests | Implemented; see [validation record](docs/milestone-0.md) |
 | MAUI managed iOS code | Compiled on Windows with pinned SDK/workload; native linking still requires macOS |
 | Native Swift, WidgetKit, App Intents | Compiled and linked successfully on macOS CI; action metadata verified |
-| CI workflows and IPA validation | PASS: [0.1.1 run](https://github.com/Faikalizham99/Control-Studio/actions/runs/39136235978), 48 tests; unsigned IPA structure, configured App Group and arm64 iOS binary checks passed |
+| CI workflows and IPA validation | PASS: [0.2.0 run](https://github.com/Faikalizham99/Control-Studio/actions/runs/39258396606), 75 tests; full iOS compile, unsigned IPA structure, configured App Group and arm64 iOS binary checks passed |
 | Certificate/profile capabilities | Supplied signed IPA/profile inspected; selected group is listed. Final signatures and per-extension provisioning remain NOT VERIFIED |
 | App-to-widget sharing | CONFIRMED by owner, 19 October 2026, after the 0.1.1 correction; detailed family/timestamp tests remain unverified |
 | Shortcuts action availability and increment execution | CONFIRMED by owner, 19 October 2026 |
@@ -30,7 +30,7 @@ The app increments a persistent SQLite counter, asks WidgetKit to refresh, and r
 
 Current output: `ControlStudio-m1-unsigned.ipa` or `ControlStudio-m1-signed.ipa`; artifact container `ControlStudio-m1-<mode>-<run_number>`. Older Milestone 0 runs retain `m0` filenames. An unsigned IPA **cannot be installed directly**. A signed validation result also does not establish successful installation.
 
-Current verified build: [ControlStudio-m0-unsigned-4](https://github.com/Faikalizham99/Control-Studio/actions/runs/39136235978/artifacts/12139887970), version **0.1.1 (2)** from commit `cc950e76b4ffcc11ef8a74e470ca34f601896043` on `codex/widget-app-group`. The artifact is retained for 14 days; save a copy. The default branch has not been changed. [Compare the implementation](https://github.com/Faikalizham99/Control-Studio/compare/main...codex/widget-app-group) before merging it to enable default-branch manual dispatch.
+Current CI-verified build: [ControlStudio-m1-unsigned-6](https://github.com/Faikalizham99/Control-Studio/actions/runs/39258396606/artifacts/12188459102), version **0.2.0 (3)** from commit `43786fa6fb98ab918a66f05a471188cfad00640c` on `codex/milestone-1`. The artifact is retained for 14 days; save a copy. The default branch has not been changed. [Compare the implementation](https://github.com/Faikalizham99/Control-Studio/compare/main...codex/milestone-1) before merging it to enable default-branch manual dispatch. New device checks remain unverified; the prior 0.1.1 device evidence is preserved in [Milestone 0](docs/milestone-0.md).
 
 ## Toolchain
 
@@ -50,9 +50,9 @@ This uses established APIs on the newer iOS 27 device; it does not use an iOS 27
 
 ## Repository
 
-- `src/ControlStudio.App`: iOS MAUI host, Home and Settings, theme preference, C interop.
-- `src/ControlStudio.Core`: validated counter contract and repository interface.
-- `src/ControlStudio.Infrastructure`: native response decoding and async adapter.
+- `src/ControlStudio.App`: iOS MAUI host, Home, Shortcuts dashboard/editor, Settings, theme preference, platform adapters and C interop.
+- `src/ControlStudio.Core`: counter contract, typed actions, validation, execution and repository interfaces.
+- `src/ControlStudio.Infrastructure`: native counter response decoding and private SQLite dashboard repository.
 - `native/Shared`: SQLite implementation shared by all three processes.
 - `native/ControlStudioBridge`: static Swift library with a small C ABI.
 - `native/ControlStudioWidgets`: native small/medium WidgetKit extension.

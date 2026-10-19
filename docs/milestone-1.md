@@ -17,7 +17,7 @@ The dashboard's **Shortcuts** tab contains foreground app actions. It is distinc
 
 `IActionDefinition`, `IActionValidator`, `IActionExecutor` and `IActionRepository` live in Core. Typed parameters use an explicit JSON discriminator; unsupported types fail closed. Validation runs when saving and immediately before execution. Names are bounded to 60 characters, web links to 2,048, clipboard text to 10,000 and dashboards to 200 actions. URL schemes other than HTTP(S), embedded credentials, raw whitespace/control characters and backslashes are rejected. Copy text supports line breaks and Unicode. SQL values use bound parameters.
 
-The dashboard uses `<private app data>/ControlStudio/actions.sqlite3`, separate from the provider App Group. It stores a singleton versioned dashboard document inside SQLite, not in a standalone JSON file. Each read/write opens a system SQLite connection and uses a three-second busy timeout and `BEGIN IMMEDIATE` transaction. Edits and reordering commit atomically. Database `user_version` and JSON `schemaVersion` are both 1. Unknown schemas or corrupt data fail without a reset. Tests exercise the real OS SQLite library on Windows and macOS. iOS links the already-used system SQLite library without a new package.
+The dashboard uses `<private app data>/ControlStudio/actions.sqlite3`, separate from the provider App Group. It stores a singleton versioned dashboard document inside SQLite, not in a standalone JSON file. Each read/write opens a system SQLite connection and uses a three-second busy timeout and `BEGIN IMMEDIATE` transaction. Edits and reordering commit atomically. Database `user_version` and JSON `schemaVersion` are both 1. Unknown schemas or corrupt data fail without a reset. Windows persistence tests use real OS SQLite; the repository also resolves the system library for macOS test runs. iOS links the already-used system SQLite library without a new package.
 
 Action data is plain text within the app sandbox; it is not a password vault. No action names, URLs or clipboard contents are logged. Running Copy writes to the system clipboard, which follows iOS clipboard policies. Website navigation may contact the chosen site; storing/editing actions and counter/copy operations work locally. The app does not read the clipboard. No new permission or signing capability is requested.
 
@@ -29,9 +29,21 @@ Platform APIs follow Microsoft's [Launcher](https://learn.microsoft.com/en-us/do
 
 - Windows: 27 Core and 17 Infrastructure tests passed. Coverage includes typed JSON, URL rejection, execution routing, cancellation, privacy of errors, real SQLite reopening, concurrent saves, CRUD/order/favorites and preservation of unknown database/document schemas, unsupported saved action types and corrupt databases. Managed MAUI iOS code compiled on Windows; native linking requires macOS.
 - Python: all 21 packaging/configuration tests and deterministic source checks passed on Windows.
-- macOS Swift tests, full MAUI/native compile and IPA validation: pending CI.
+- macOS: 10 Swift tests passed; full Release MAUI host, Swift bridge, WidgetKit and App Intents builds passed, including native linking, intent metadata and unsigned IPA structure/arm64 iOS binary validation. Expected warning MT7139 reports missing provisioning during the unsigned build; no additional compiler warning was reported.
 - New phone installation, dashboard UI and regression tests: **NOT VERIFIED**.
 - Prior 0.1.1 app-to-widget sharing and Apple Shortcuts increment: **owner confirmed**, 19 October 2026; this does not verify the new binary.
+
+### Build and artifact
+
+- Successful [CI run 39258396606](https://github.com/Faikalizham99/Control-Studio/actions/runs/39258396606), source commit `43786fa6fb98ab918a66f05a471188cfad00640c`, branch `codex/milestone-1`.
+- **75 tests passed:** 27 Core, 17 Infrastructure, 21 Python and 10 Swift.
+- Artifact [ControlStudio-m1-unsigned-6](https://github.com/Faikalizham99/Control-Studio/actions/runs/39258396606/artifacts/12188459102), retained for 14 days.
+- Contents: `ControlStudio-m1-unsigned.ipa` and `validation-unsigned.json`.
+- Version **0.2.0 (3)** on the host and both extensions; App Group remains `group.23b5a5355f697168.1`.
+- Unsigned IPA SHA-256: `64c5b6ba12f3083af86320533b25b5274134fc62f89c7702987bd1206788b1fb`.
+- Downloaded local copy: `artifacts/delivery-milestone-1/ControlStudio-0.2.0-unsigned.ipa`, alongside `validation-unsigned.json`. Its hash matches the CI report; all three downloaded manifests/executables, versions, bundle IDs and configured groups were checked. These artifacts stay ignored by Git.
+- The unsigned IPA requires signing before installation. Use the established working FlareStore settings and retain both embedded extensions. Final re-signed signatures/provisioning and new device behavior remain **NOT VERIFIED**.
+- The default branch has not been changed. [Compare the implementation](https://github.com/Faikalizham99/Control-Studio/compare/main...codex/milestone-1).
 
 ## iPhone acceptance checklist
 

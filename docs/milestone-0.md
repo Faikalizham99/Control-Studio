@@ -81,4 +81,4 @@ CI validates the final ZIP after packaging as well as the assembled bundle befor
 
 ## Acceptance gate
 
-Complete the [device checklist](device-test-checklist.md) using the final installed signature configuration. Preserve the workflow/commit/hash in the test record. Milestone 0 has passed unsigned CI validation; signing and owner device verification remain pending. Milestone 1 has not been started.
+Complete the remaining [device checklist](device-test-checklist.md) using the final installed signature configuration. Preserve the workflow/commit/hash in the test record. After the 0.1.1 correction, the owner confirmed widget sharing and Apple Shortcuts increment execution, accepted Milestone 0 and approved Milestone 1 on 19 October 2026. Detailed device checks and complete final-signature validation remain pending; see the [Milestone 1 record](milestone-1.md) for subsequent implementation and build evidence.
