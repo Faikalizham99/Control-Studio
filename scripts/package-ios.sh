@@ -15,6 +15,6 @@ if [[ "$mode" == signed ]]; then
     --identity "$SIGNING_IDENTITY" --keychain "$SIGNING_KEYCHAIN"
 fi
 python3 scripts/validate_ipa.py "$staged" --mode "$mode"
-output="$PWD/artifacts/ipa/ControlStudio-m0-$mode.ipa"
+output="$PWD/artifacts/ipa/ControlStudio-m1-$mode.ipa"
 (cd artifacts/package && ditto -c -k --keepParent Payload "$output")
 python3 scripts/validate_ipa.py "$output" --mode "$mode" --report "artifacts/ipa/validation-$mode.json"

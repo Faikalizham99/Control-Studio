@@ -1,6 +1,6 @@
-# Future milestones — plan only
+# Milestones
 
-**Do not begin Milestone 1 until the owner accepts Milestone 0 and explicitly approves further work.**
+**Milestone 0 accepted and Milestone 1 approved by the owner on 19 October 2026**, after confirming widget sharing and Shortcuts increment execution. Milestone 1 implements the initial dashboard flow described in [its acceptance record](milestone-1.md). Stop after Milestone 1 until further approval.
 
 Milestone 1 would add the first Shortcut Control Center actions: validated HTTP(S)/explicitly allowed deep links, clipboard text and internal counter commands. Introduce stable IDs, typed parameters and `IActionDefinition`, `IActionExecutor`, `IActionRepository`, `IActionValidator`, with cancellation, validation and user-visible failures. Store dashboard records in local SQLite; plan categories, favorites, ordering, names/icons/colors and accessible tile rendering. Implement a small complete action flow before adding drag-and-drop, image selection or advanced utilities.
 

@@ -6,10 +6,12 @@ public sealed class App : Application
 {
     private readonly HomePage home;
     private readonly SettingsPage settings;
+    private readonly ShortcutsPage shortcuts;
 
-    public App(HomePage home, SettingsPage settings)
+    public App(HomePage home, ShortcutsPage shortcuts, SettingsPage settings)
     {
         this.home = home;
+        this.shortcuts = shortcuts;
         this.settings = settings;
         Resources.Add("Accent", Color.FromArgb("#2458E6"));
         UserAppTheme = Preferences.Default.Get("appearance", 0) switch
@@ -22,6 +24,7 @@ public sealed class App : Application
     {
         var tabs = new TabbedPage();
         tabs.Children.Add(new NavigationPage(home) { Title = "Home" });
+        tabs.Children.Add(new NavigationPage(shortcuts) { Title = "Shortcuts" });
         tabs.Children.Add(new NavigationPage(settings) { Title = "Settings" });
         var window = new Window(tabs);
         window.Resumed += async (_, _) => await home.RefreshAsync();

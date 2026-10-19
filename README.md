@@ -1,6 +1,8 @@
 # Control Studio
 
-An offline-first .NET MAUI iPhone app with a native SwiftUI counter widget and a native Shortcuts action. **Only Milestone 0 is implemented.** The dashboard and widget editor are future work.
+An offline-first .NET MAUI iPhone app with a private shortcut dashboard, native SwiftUI counter widget and native Apple Shortcuts action. **Milestone 1 is approved and implemented:** create, edit, run, favorite, categorize, search, reorder and delete web-link, copy-text and counter actions. The widget editor remains future work.
+
+Version **0.2.0 (3)** adds a Shortcuts tab with private SQLite persistence, typed action parameters, bounded validation and source-generated JSON. Web links support HTTP(S); additional URL schemes and dynamic Apple Shortcuts actions are deferred. See the [Milestone 1 build record and phone checklist](docs/milestone-1.md). The existing App Group and counter schema are retained.
 
 The app increments a persistent SQLite counter, asks WidgetKit to refresh, and reads changes made by **Increment Control Studio Counter** in Shortcuts. SQLite transactions in an App Group serialize updates across processes. Without App Group access, the host reports that it is using a separate local counter; the extensions fail visibly instead of pretending sharing works.
 
@@ -26,7 +28,7 @@ The app increments a persistent SQLite counter, asks WidgetKit to refresh, and r
 3. Push this repository: **Test Control Studio** runs managed tests and an unsigned iOS build. Once the workflow is on the default branch, you can also open **Actions → Build Control Studio IPA → Run workflow**. Choose `unsigned` first to compile without secrets; this artifact requires a compatible signer before installation. Choose `signed` after configuring the documented secrets.
 4. Download the IPA and validation report from the run's **Artifacts** section. See [FlareStore installation](docs/flarestore-installation.md), then complete the [device checklist](docs/device-test-checklist.md).
 
-Unsigned output: `ControlStudio-m0-unsigned.ipa`. Signed output: `ControlStudio-m0-signed.ipa`. Artifact container: `ControlStudio-m0-<mode>-<run_number>`. An unsigned IPA **cannot be installed directly**. A signed validation result also does not establish successful installation.
+Current output: `ControlStudio-m1-unsigned.ipa` or `ControlStudio-m1-signed.ipa`; artifact container `ControlStudio-m1-<mode>-<run_number>`. Older Milestone 0 runs retain `m0` filenames. An unsigned IPA **cannot be installed directly**. A signed validation result also does not establish successful installation.
 
 Current verified build: [ControlStudio-m0-unsigned-4](https://github.com/Faikalizham99/Control-Studio/actions/runs/39136235978/artifacts/12139887970), version **0.1.1 (2)** from commit `cc950e76b4ffcc11ef8a74e470ca34f601896043` on `codex/widget-app-group`. The artifact is retained for 14 days; save a copy. The default branch has not been changed. [Compare the implementation](https://github.com/Faikalizham99/Control-Studio/compare/main...codex/widget-app-group) before merging it to enable default-branch manual dispatch.
 

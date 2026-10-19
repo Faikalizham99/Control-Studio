@@ -2,7 +2,15 @@
 
 The MAUI UI depends on `ICounterRepository`; the repository adapts a small native C ABI and decodes a versioned JSON result using a source-generated `System.Text.Json` context. C# core/infrastructure have no platform dependency or external runtime package. DI supplies the iOS bridge. The application logs operation type, storage scope and error type; it does not log database contents, file paths or signing credentials.
 
-The bridge and both native extensions compile the **same** `native/Shared/CounterStore.swift`. This keeps SQL/schema behavior in one implementation. No database synchronization or C# SQLite driver is necessary. Native calls run on a worker thread; the UI disables duplicate button taps and catches errors. The Home screen reads again when it appears, when the app resumes, or when Refresh is selected.
+The bridge and both native extensions compile the **same** `native/Shared/CounterStore.swift`. This keeps counter SQL/schema behavior in one implementation. No database synchronization is necessary for the counter. Native calls run on a worker thread; the UI disables duplicate button taps and catches errors. The Home screen reads again when it appears, when the app resumes, or when Refresh is selected.
+
+## Private dashboard
+
+The Shortcuts tab uses Core's typed action definitions, validator and executor, with `IActionPlatform` isolating MAUI Launcher/Clipboard calls. The iOS adapter dispatches platform calls on the main thread. Validation runs on save and again before execution. The counter action delegates to the existing `ICounterRepository`, preserving the widget refresh path. Only the statically declared counter App Intent is exposed to Apple's Shortcuts app in this milestone.
+
+`SqliteActionRepository` stores a versioned dashboard document in a private SQLite database, separate from the provider group and counter database. A small C# interop layer calls the existing iOS system SQLite library; Windows/macOS tests resolve the corresponding OS library. No new NuGet/native dependency is added. Prepared statements bind all user content. `BEGIN IMMEDIATE` serializes mutations, including across independent connections; a semaphore prevents overlapping operations per repository instance. Connections/statements close after each operation. Unknown database/document versions and invalid data are preserved. See [Milestone 1](milestone-1.md) for bounds, cancellation and acceptance checks.
+
+The UI has separate Run and Manage controls, accessible action names, full-color tiles, an editor preview, explicit validation/status messages and CollectionView virtualization. Favorites, categories and names filter the saved order; Move earlier/later changes global ordering. Light/dark appearance continues to use Settings. Drag-and-drop and variable tile sizes are deferred.
 
 ## Counter storage
 

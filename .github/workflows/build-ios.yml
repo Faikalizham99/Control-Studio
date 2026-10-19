@@ -70,9 +70,9 @@ jobs:
       - name: Upload IPA and validation report
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
-          name: ControlStudio-m0-${{ env.SIGNING_MODE }}-${{ github.run_number }}
+          name: ControlStudio-m1-${{ env.SIGNING_MODE }}-${{ github.run_number }}
           path: |
-            artifacts/ipa/ControlStudio-m0-${{ env.SIGNING_MODE }}.ipa
+            artifacts/ipa/ControlStudio-m1-${{ env.SIGNING_MODE }}.ipa
             artifacts/ipa/validation-${{ env.SIGNING_MODE }}.json
           if-no-files-found: error
           retention-days: 14
@@ -96,10 +96,10 @@ jobs:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
-          name: ControlStudio-m0-signed-${{ github.run_number }}
+          name: ControlStudio-m1-signed-${{ github.run_number }}
           path: release
       - name: Create a reviewable draft release
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ github.ref_name }}
-        run: gh release create "$RELEASE_TAG" release/ControlStudio-m0-signed.ipa release/validation-signed.json --verify-tag --generate-notes --draft
+        run: gh release create "$RELEASE_TAG" release/ControlStudio-m1-signed.ipa release/validation-signed.json --verify-tag --generate-notes --draft

@@ -44,4 +44,4 @@ Record:
 
 For each failed test, record expected value, actual value, timestamps and visible error. A widget delay alone is not proof of storage failure. Missing discovery must be investigated before accepting Milestone 0C. Attach screenshots/log excerpts only after removing private signing/device data.
 
-**Milestone 0 accepted by owner:** NOT VERIFIED. **Milestone 1 approved:** NO.
+**Milestone 0 accepted by owner:** YES, 19 October 2026. **Milestone 1 approved:** YES, 19 October 2026. This approval does not imply that the remaining individual checks passed. See the [Milestone 1 checklist](milestone-1.md) for new dashboard tests.

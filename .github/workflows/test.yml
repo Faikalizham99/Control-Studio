@@ -44,9 +44,9 @@ jobs:
       - run: bash scripts/package-ios.sh unsigned
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
-          name: ControlStudio-m0-unsigned-${{ github.run_number }}
+          name: ControlStudio-m1-unsigned-${{ github.run_number }}
           path: |
-            artifacts/ipa/ControlStudio-m0-unsigned.ipa
+            artifacts/ipa/ControlStudio-m1-unsigned.ipa
             artifacts/ipa/validation-unsigned.json
           if-no-files-found: error
           retention-days: 14
