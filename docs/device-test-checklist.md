@@ -1,6 +1,6 @@
 # Milestone 0 device verification
 
-**App-to-widget sharing confirmed by the owner on 19 October 2026** after the 0.1.1 App Group correction. The owner reported "ITRS WORKING NOW." This confirms the reported widget issue is resolved; individual widget families, exact status text, persistence, accessibility and Shortcuts tests have not been separately confirmed. Earlier screenshot observations refer to the installed 0.1.0 build.
+**App-to-widget sharing and Shortcuts increment execution confirmed by the owner on 19 October 2026** after the 0.1.1 App Group correction. Individual widget families, exact status/result text, persistence, accessibility and app/widget updates after a Shortcut have not been separately confirmed. Earlier screenshot observations refer to the installed 0.1.0 build.
 
 Record:
 
@@ -32,8 +32,9 @@ Record:
 | Small widget displays the shared value and Last Updated | FAILED in 0.1.0: widget renders a storage error; corrected build NOT VERIFIED |
 | Medium widget displays the same shared value and Last Updated | FAILED in 0.1.0: widget renders a storage error; corrected build NOT VERIFIED |
 | Updating in app eventually changes both widgets when iOS permits | NOT VERIFIED |
-| Shortcuts lists Increment Control Studio Counter under the app | NOT VERIFIED |
-| Action runs and returns the incremented integer and meaningful dialog | NOT VERIFIED |
+| Increment Control Studio Counter is available in Apple Shortcuts | CONFIRMED by owner using the action, 19 October 2026 |
+| Shortcuts action runs and increments the counter | CONFIRMED by owner, 19 October 2026 |
+| Shortcuts returns the expected integer and meaningful dialog | NOT VERIFIED separately |
 | Reopening/resuming app shows the Shortcuts-updated value | NOT VERIFIED |
 | Both widgets eventually reflect the Shortcuts-updated value | NOT VERIFIED |
 | Repeated app/Shortcut operations do not lose updates | NOT VERIFIED |

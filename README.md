@@ -4,7 +4,7 @@ An offline-first .NET MAUI iPhone app with a native SwiftUI counter widget and a
 
 The app increments a persistent SQLite counter, asks WidgetKit to refresh, and reads changes made by **Increment Control Studio Counter** in Shortcuts. SQLite transactions in an App Group serialize updates across processes. Without App Group access, the host reports that it is using a separate local counter; the extensions fail visibly instead of pretending sharing works.
 
-**Current 0.1.1 test build:** the owner's signed IPA authorized provider groups instead of the original provisional group. The selected group is now `group.23b5a5355f697168.1`, configured in `config/app-group.json` and generated consistently for all targets. **The owner confirmed app-to-widget sharing is working on 19 October 2026.** See the [widget fix and remaining tests](docs/widget-app-group-fix.md). Detailed widget-family checks, Shortcuts execution and full final-signature validation remain unverified.
+**Current 0.1.1 test build:** the owner's signed IPA authorized provider groups instead of the original provisional group. The selected group is now `group.23b5a5355f697168.1`, configured in `config/app-group.json` and generated consistently for all targets. **The owner confirmed app-to-widget sharing and Shortcuts increment execution are working on 19 October 2026.** See the [widget fix and remaining tests](docs/widget-app-group-fix.md). Detailed widget-family checks, app/widget updates after a Shortcut and full final-signature validation remain unverified.
 
 ## Status
 
@@ -16,7 +16,8 @@ The app increments a persistent SQLite counter, asks WidgetKit to refresh, and r
 | CI workflows and IPA validation | PASS: [0.1.1 run](https://github.com/Faikalizham99/Control-Studio/actions/runs/39136235978), 48 tests; unsigned IPA structure, configured App Group and arm64 iOS binary checks passed |
 | Certificate/profile capabilities | Supplied signed IPA/profile inspected; selected group is listed. Final signatures and per-extension provisioning remain NOT VERIFIED |
 | App-to-widget sharing | CONFIRMED by owner, 19 October 2026, after the 0.1.1 correction; detailed family/timestamp tests remain unverified |
-| Shortcuts discovery/execution and remaining device checklist | **NOT VERIFIED** |
+| Shortcuts action availability and increment execution | CONFIRMED by owner, 19 October 2026 |
+| App/widget updates after a Shortcut and remaining detailed device checks | **NOT VERIFIED** |
 
 ## Start here
 
