@@ -1,4 +1,5 @@
 using ControlStudio.Core.Actions;
+using System.Text;
 using Xunit;
 
 namespace ControlStudio.Infrastructure.Tests;
@@ -52,6 +53,36 @@ public sealed class SqliteActionRepositoryTests : IDisposable
     {
         await Repository().SaveAsync(NewAction());
         var bytes = File.ReadAllBytes(FilePath); bytes[63] = 2; File.WriteAllBytes(FilePath, bytes);
+        await Assert.ThrowsAsync<InvalidDataException>(() => Repository().SaveAsync(NewAction()));
+        Assert.Equal(bytes, File.ReadAllBytes(FilePath));
+    }
+
+    [Fact]
+    public async Task UnknownDocumentSchemaIsPreservedOnReadAndSave()
+    {
+        await Repository().SaveAsync(NewAction());
+        var bytes = File.ReadAllBytes(FilePath);
+        var marker = Encoding.UTF8.GetBytes("\"schemaVersion\":1");
+        var index = bytes.AsSpan().IndexOf(marker);
+        Assert.True(index >= 0);
+        bytes[index + marker.Length - 1] = (byte)'9';
+        File.WriteAllBytes(FilePath, bytes);
+        await Assert.ThrowsAsync<InvalidDataException>(() => Repository().ReadAsync());
+        await Assert.ThrowsAsync<InvalidDataException>(() => Repository().SaveAsync(NewAction()));
+        Assert.Equal(bytes, File.ReadAllBytes(FilePath));
+    }
+
+    [Fact]
+    public async Task UnknownSavedActionTypeIsPreserved()
+    {
+        await Repository().SaveAsync(NewAction());
+        var bytes = File.ReadAllBytes(FilePath);
+        var marker = Encoding.UTF8.GetBytes("copyText");
+        var index = bytes.AsSpan().IndexOf(marker);
+        Assert.True(index >= 0);
+        Encoding.UTF8.GetBytes("runShell").CopyTo(bytes, index);
+        File.WriteAllBytes(FilePath, bytes);
+        await Assert.ThrowsAsync<InvalidDataException>(() => Repository().ReadAsync());
         await Assert.ThrowsAsync<InvalidDataException>(() => Repository().SaveAsync(NewAction()));
         Assert.Equal(bytes, File.ReadAllBytes(FilePath));
     }

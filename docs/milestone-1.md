@@ -23,9 +23,11 @@ Action data is plain text within the app sandbox; it is not a password vault. No
 
 Cancellation is checked before platform calls and before database commit. An already-dispatched iOS operation or committed counter increment cannot be undone. UI controls prevent duplicate executions while an operation is running; failures are never automatically retried.
 
+Platform APIs follow Microsoft's [Launcher](https://learn.microsoft.com/en-us/dotnet/maui/platform-integration/appmodel/launcher?view=net-maui-10.0) and [Clipboard](https://learn.microsoft.com/en-us/dotnet/maui/platform-integration/data/clipboard?view=net-maui-10.0) documentation. The list uses MAUI [CollectionView](https://learn.microsoft.com/en-us/dotnet/maui/user-interface/controls/collectionview/?view=net-maui-10.0).
+
 ## Validation record
 
-- Windows: 27 Core tests and 15 Infrastructure tests passed, including typed JSON round trips, URL rejection, execution routing, cancellation, privacy of errors, real SQLite reopening, concurrent saves, CRUD/order/favorites and preservation of unknown/corrupt databases.
+- Windows: 27 Core and 17 Infrastructure tests passed. Coverage includes typed JSON, URL rejection, execution routing, cancellation, privacy of errors, real SQLite reopening, concurrent saves, CRUD/order/favorites and preservation of unknown database/document schemas, unsupported saved action types and corrupt databases. Managed MAUI iOS code compiled on Windows; native linking requires macOS.
 - Python: all 21 packaging/configuration tests and deterministic source checks passed on Windows.
 - macOS Swift tests, full MAUI/native compile and IPA validation: pending CI.
 - New phone installation, dashboard UI and regression tests: **NOT VERIFIED**.

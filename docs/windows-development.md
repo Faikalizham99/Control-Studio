@@ -35,7 +35,7 @@ git status --short
 git diff --check
 git add .
 git diff --cached --stat
-git commit -m "Implement Control Studio milestone 0"
+git commit -m "Implement Control Studio milestone 1"
 git push origin HEAD
 ```
 
@@ -59,8 +59,8 @@ The workflow must already exist on the repository's default branch before manual
 Configure signing secrets and complete the desired validation before tagging. The tag workflow requires signed mode and fails if any secret/profile/capability is missing. It creates a **draft** release, which you review and publish separately.
 
 ```powershell
-git tag -a v0.1.0 -m "Control Studio milestone 0"
-git push origin v0.1.0
+git tag -a v0.2.0 -m "Control Studio milestone 1"
+git push origin v0.2.0
 ```
 
-The original embedded version was 0.1.0/build 1; the App Group correction is 0.1.1/build 2. Update versions consistently in the MAUI project and native generator before subsequent releases, regenerate the native project, and commit those changes before tagging. Tag pattern triggers are GitHub glob matching, not a full semantic-version validator.
+The original embedded version was 0.1.0/build 1; the App Group correction is 0.1.1/build 2 and the first dashboard is 0.2.0/build 3. Update versions consistently in the MAUI project and native generator before subsequent releases, regenerate the native project, and commit those changes before tagging. Tag pattern triggers are GitHub glob matching, not a full semantic-version validator.

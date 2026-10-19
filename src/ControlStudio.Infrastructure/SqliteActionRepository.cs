@@ -64,10 +64,13 @@ public sealed class SqliteActionRepository(string path, IActionValidator validat
                         throw new InvalidDataException("This dashboard was created by a newer version. Update Control Studio to open it.");
                     if (version == "0")
                     {
-                        db.Execute("CREATE TABLE IF NOT EXISTS dashboard (id INTEGER PRIMARY KEY CHECK(id = 1), payload TEXT NOT NULL)");
+                        if (db.Read("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'dashboard'") is not null)
+                            throw InvalidDocument();
+                        db.Execute("CREATE TABLE dashboard (id INTEGER PRIMARY KEY CHECK(id = 1), payload TEXT NOT NULL)");
+                        db.Write(JsonSerializer.Serialize(new DashboardDocument(1, []), ActionJsonContext.Default.DashboardDocument));
                         db.Execute("PRAGMA user_version = 1");
                     }
-                    var json = db.Read("SELECT payload FROM dashboard WHERE id = 1");
+                    var json = db.Read("SELECT payload FROM dashboard WHERE id = 1") ?? throw InvalidDocument();
                     List<ActionDefinition> actions = [];
                     if (json is not null)
                     {
@@ -110,9 +113,12 @@ public sealed class SqliteActionRepository(string path, IActionValidator validat
         private IntPtr handle;
         public Database(string file)
         {
-            var result = Sqlite.Open(Utf8(file), out handle, 0x00000002 | 0x00000004 | 0x00010000, IntPtr.Zero);
-            if (result != 0) { Dispose(); Check(result); }
-            Check(Sqlite.BusyTimeout(handle, 3000));
+            try
+            {
+                Check(Sqlite.Open(Utf8(file), out handle, 0x00000002 | 0x00000004 | 0x00010000, IntPtr.Zero));
+                Check(Sqlite.BusyTimeout(handle, 3000));
+            }
+            catch { Dispose(); throw; }
         }
 
         public void Execute(string sql)
