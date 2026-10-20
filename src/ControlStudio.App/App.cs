@@ -8,21 +8,18 @@ public sealed class App : Application
     private readonly SettingsPage settings;
     private readonly ShortcutsPage shortcuts;
 
-    public App(HomePage home, ShortcutsPage shortcuts, SettingsPage settings)
+    public App(HomePage home, ShortcutsPage shortcuts, SettingsPage settings, AppearancePreferences preferences)
     {
         this.home = home;
         this.shortcuts = shortcuts;
         this.settings = settings;
-        Resources.Add("Accent", Color.FromArgb("#2458E6"));
-        UserAppTheme = Preferences.Default.Get("appearance", 0) switch
-        {
-            1 => AppTheme.Light, 2 => AppTheme.Dark, _ => AppTheme.Unspecified
-        };
+        preferences.Attach(this);
     }
 
     protected override Window CreateWindow(IActivationState? activationState)
     {
         var tabs = new TabbedPage();
+        tabs.SetDynamicResource(TabbedPage.SelectedTabColorProperty, "Accent");
         tabs.Children.Add(new NavigationPage(home) { Title = "Home", IconImageSource = "tab_home.png" });
         tabs.Children.Add(new NavigationPage(shortcuts) { Title = "Shortcuts", IconImageSource = "tab_shortcuts.png" });
         tabs.Children.Add(new NavigationPage(settings) { Title = "Settings", IconImageSource = "tab_settings.png", AutomationId = "SettingsTab" });

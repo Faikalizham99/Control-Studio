@@ -1,0 +1,22 @@
+using ControlStudio.Core;
+
+namespace ControlStudio.App.Views;
+
+public sealed class AboutPage : ContentPage
+{
+    public AboutPage()
+    {
+        Title = "Widget & Shortcuts setup"; SafeAreaEdges = SafeAreaEdges.All; DashboardStyle.Page(this);
+        Content = new ScrollView { Content = new VerticalStackLayout { Padding = 24, Spacing = 18, Children = {
+            SettingsControls.Text("Everything stays local", 24, bold: true),
+            SettingsControls.Text("No account, backend or analytics. Your profile, appearance and dashboard are stored privately on this iPhone. Profile photos are chosen from Files, cropped locally, and never uploaded.", 16),
+            SettingsControls.Text("Widget & Shortcuts", 22, bold: true),
+            SettingsControls.Text($"Configured App Group: {AppGroupConfiguration.Identifier}", 14),
+            SettingsControls.Text("The app and both extensions must be signed to allow this exact group. A provider group can be shared with other apps signed using the same profile.", 16),
+            SettingsControls.Text("Open the app once, then add Control Studio from the Home Screen widget picker. In Apple's Shortcuts app, search for Increment Control Studio Counter. Both extensions must be preserved and signed with matching App Group permissions.", 16),
+            SettingsControls.Text("If shared storage is unavailable, the app uses a separate local counter. Local values are not automatically merged into the shared counter when signing changes. iOS decides when widgets refresh.", 16),
+            SettingsControls.Text("Dashboard actions are saved in a separate private SQLite database. Web links open through iOS; copy actions write to the system clipboard only when run. Avoid storing passwords in action tiles.", 16),
+            SettingsControls.Text($"Control Studio · {AppInfo.Current.VersionString} ({AppInfo.Current.BuildString})", 13, true)
+        } } };
+    }
+}

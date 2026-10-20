@@ -13,8 +13,12 @@ internal static class DashboardStyle
         card.SetAppThemeColor(VisualElement.BackgroundColorProperty, Colors.White, Color.FromArgb("#1C1E27"));
         return card;
     }
-    public static Button Button(string text) => new() { Text = text, CornerRadius = 14,
-        MinimumHeightRequest = 48, BackgroundColor = Color.FromArgb("#2458E6"), TextColor = Colors.White };
+    public static Button Button(string text)
+    {
+        var button = new Button { Text = text, CornerRadius = 14, MinimumHeightRequest = 48, TextColor = Colors.White };
+        button.SetDynamicResource(VisualElement.BackgroundColorProperty, "AccentButton");
+        return button;
+    }
     public static string Icon(ActionIcon icon) => icon switch {
         ActionIcon.Link => "↗", ActionIcon.Copy => "▣", ActionIcon.Counter => "+1",
         ActionIcon.Star => "★", ActionIcon.Book => "▤", _ => "ϟ" };

@@ -24,6 +24,7 @@ public sealed class HomePage : ContentPage
         SemanticProperties.SetHint(update, "Increments the counter and requests a widget refresh");
         AutomationId = "HomePage";
         update.AutomationId = "UpdateWidgetButton";
+        update.SetDynamicResource(Button.BackgroundColorProperty, "AccentButton");
         counter.AutomationId = "CounterValue";
         var card = new Border
         {

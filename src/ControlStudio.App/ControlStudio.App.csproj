@@ -8,8 +8,8 @@
     <SingleProject>true</SingleProject>
     <ApplicationTitle>Control Studio</ApplicationTitle>
     <ApplicationId>com.faikalizham.controlstudio</ApplicationId>
-    <ApplicationDisplayVersion>0.2.0</ApplicationDisplayVersion>
-    <ApplicationVersion>3</ApplicationVersion>
+    <ApplicationDisplayVersion>0.2.1</ApplicationDisplayVersion>
+    <ApplicationVersion>4</ApplicationVersion>
     <SupportedOSPlatformVersion>17.0</SupportedOSPlatformVersion>
     <RuntimeIdentifier>ios-arm64</RuntimeIdentifier>
     <CodesignEntitlements>Platforms/iOS/Entitlements.plist</CodesignEntitlements>
@@ -25,6 +25,7 @@
     <MauiIcon Include="Resources/AppIcon/appicon.svg" Color="#2458E6" />
     <MauiSplashScreen Include="Resources/Splash/splash.svg" Color="#2458E6" BaseSize="128,128" />
     <MauiImage Include="Resources/Images/*.svg" BaseSize="24,24" />
+    <MauiImage Update="Resources/Images/theme_*.svg" BaseSize="52,52" />
     <BundleResource Include="Platforms/iOS/PrivacyInfo.xcprivacy" Link="PrivacyInfo.xcprivacy" />
     <NativeReference Include="$(NativeBuildRoot)/libControlStudioBridge.a">
       <Kind>Static</Kind><ForceLoad>true</ForceLoad><SmartLink>false</SmartLink>

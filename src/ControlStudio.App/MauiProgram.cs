@@ -12,8 +12,15 @@ public static class MauiProgram
     public static MauiApp CreateMauiApp()
     {
         var builder = MauiApp.CreateBuilder().UseMauiApp<App>();
-        builder.ConfigureMauiHandlers(handlers => handlers.AddHandler<TabbedPage, SpinningGearTabbedRenderer>());
+        builder.ConfigureMauiHandlers(handlers =>
+        {
+            handlers.AddHandler<TabbedPage, SpinningGearTabbedRenderer>();
+            handlers.AddHandler<GlassCard, GlassCardHandler>();
+        });
         builder.Logging.AddProvider(new DeviceLoggerProvider());
+        builder.Services.AddSingleton<AppearancePreferences>();
+        builder.Services.AddSingleton<AppleColorPicker>();
+        builder.Services.AddSingleton<ProfilePhotoStore>();
         builder.Services.AddSingleton<INativeCounterBridge, AppleCounterBridge>();
         builder.Services.AddSingleton<ICounterRepository, NativeCounterRepository>();
         builder.Services.AddSingleton<IActionValidator, ActionValidator>();

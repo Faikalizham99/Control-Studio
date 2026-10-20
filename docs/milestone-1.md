@@ -71,4 +71,6 @@ Keep the same signing identity and app bundle identifier when updating. An unins
 
 ## Deferred
 
-Drag-and-drop, images, tile sizes, extra URL schemes, external Shortcuts launching, App Entities, utility actions, accent settings, widget editing and interactive widget actions are later work. No unsupported background execution is advertised.
+The owner requested a [Settings appearance refinement](settings-appearance.md) on 20 October 2026. It adds local profile editing, theme tiles, accent presets/custom colors and a live preview on plain light/black backgrounds. These local changes are not included in the earlier 0.2.0 CI artifact above and require a future approved tag build and phone checks.
+
+Drag-and-drop, action-tile images/sizes, extra URL schemes, external Shortcuts launching, App Entities, utility actions, widget editing and interactive widget actions are later work. No unsupported background execution is advertised.
