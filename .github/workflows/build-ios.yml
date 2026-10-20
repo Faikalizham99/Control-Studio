@@ -1,12 +1,5 @@
 name: Build Control Studio IPA
 on:
-  workflow_dispatch:
-    inputs:
-      signing:
-        description: 'Unsigned for re-signing, or signed using three matching provisioning profiles'
-        type: choice
-        options: [unsigned, signed]
-        default: unsigned
   push:
     tags: ['v*.*.*']
 permissions:
@@ -16,12 +9,24 @@ concurrency:
   cancel-in-progress: false
 jobs:
   build:
+    if: github.event.created == true && github.event.deleted == false
     runs-on: macos-26
     timeout-minutes: 60
+    outputs:
+      signing_mode: ${{ steps.signing-mode.outputs.mode }}
     env:
       DOTNET_CLI_TELEMETRY_OPTOUT: '1'
-      SIGNING_MODE: ${{ github.event_name == 'push' && 'signed' || inputs.signing }}
+      SIGNING_MODE: ${{ vars.IOS_SIGNING_MODE || 'unsigned' }}
     steps:
+      - name: Validate signing mode
+        id: signing-mode
+        shell: bash
+        run: |
+          case "$SIGNING_MODE" in
+            unsigned|signed) ;;
+            *) echo 'IOS_SIGNING_MODE must be unsigned or signed' >&2; exit 1 ;;
+          esac
+          echo "mode=$SIGNING_MODE" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - name: Select and verify pinned Xcode
         run: |
@@ -87,19 +92,20 @@ jobs:
             case "$SIGNING_TEMP_DIR" in "$RUNNER_TEMP"/controlstudio-signing.*) rm -rf -- "$SIGNING_TEMP_DIR" ;; *) exit 1 ;; esac
           fi
   draft-release:
-    if: startsWith(github.ref, 'refs/tags/')
     needs: build
     runs-on: ubuntu-24.04
+    env:
+      SIGNING_MODE: ${{ needs.build.outputs.signing_mode }}
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
-          name: ControlStudio-m1-signed-${{ github.run_number }}
+          name: ControlStudio-m1-${{ needs.build.outputs.signing_mode }}-${{ github.run_number }}
           path: release
       - name: Create a reviewable draft release
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ github.ref_name }}
-        run: gh release create "$RELEASE_TAG" release/ControlStudio-m1-signed.ipa release/validation-signed.json --verify-tag --generate-notes --draft
+        run: gh release create "$RELEASE_TAG" "release/ControlStudio-m1-$SIGNING_MODE.ipa" "release/validation-$SIGNING_MODE.json" --verify-tag --generate-notes --draft

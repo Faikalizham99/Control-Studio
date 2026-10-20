@@ -24,27 +24,40 @@ Native project changes are source changes too. If changing the target list/build
 python scripts/generate-xcode-project.py
 ```
 
-Commit both the generator and generated `.pbxproj`. Regeneration is deterministic; the source check catches drift. CI does not install CocoaPods, XcodeGen or third-party Swift packages.
+Include both the generator and generated `.pbxproj` in a commit only after the owner explicitly approves committing. Regeneration is deterministic; the source check catches drift. CI does not install CocoaPods, XcodeGen or third-party Swift packages.
 
-## Commit and run CI
+## Review, commit and push
 
-Review all changes and ensure no signing files are staged:
+**Never commit or push without the owner's explicit permission for that action**, including tag pushes. Editing/building/testing approval does not grant commit or push permission. Review the local changes first:
 
 ```powershell
 git status --short
 git diff --check
-git add .
-git diff --cached --stat
-git commit -m "Implement Control Studio milestone 1"
-git push origin HEAD
 ```
 
-In GitHub, open **Actions → Build Control Studio IPA → Run workflow**. Select your branch and `unsigned` to run without signing secrets. The build compiles the two native executables/static bridge and MAUI host, packages an IPA, and validates it before upload. Only macOS can perform these checks.
+After explicit permission to commit, stage the intended files and commit. Obtain permission before pushing the commit. A regular branch push or pull request runs managed/Python tests only; it does not compile/package/upload an IPA.
 
-With GitHub CLI installed and authenticated:
+## Build an IPA with a new version tag
+
+Only pushing a **new** tag matching `v*.*.*` runs **Build Control Studio IPA**. Manual workflow dispatch is disabled. The build job checks the push payload's `created` and `deleted` flags, so moving or deleting an existing tag does not produce a new IPA. The tagged commit must contain the updated workflow. Tagging an older commit uses that commit's workflow rules.
+
+The default output is **unsigned**, suitable for the existing FlareStore signing route. No CI signing secrets are needed for this mode. To use CI signing, first configure all documented secrets/profiles and set the GitHub Actions **repository variable** `IOS_SIGNING_MODE` to `signed`. Unset or `unsigned` uses unsigned mode; any other value fails explicitly. The workflow never silently falls back from failed signing. See [signing](ios-signing.md).
+
+After the owner approves the exact commit and new tag push, the release commands are:
 
 ```powershell
-gh workflow run build-ios.yml --ref main -f signing=unsigned
+# Example only: choose a fresh version and match all embedded app/extension versions.
+git tag -a v0.2.1 -m "Control Studio 0.2.1"
+git push origin v0.2.1
+```
+
+Do not reuse or force-move an existing version tag. This document does not authorize running the commands.
+
+The tag build runs managed/Python/Swift tests, compiles the native extensions and MAUI app on macOS, packages and validates the IPA, uploads the artifact and creates a **draft** release. The artifact/release filenames follow the selected signing mode. Publishing the draft is separate.
+
+With GitHub CLI installed and authenticated, inspect the resulting run:
+
+```powershell
 gh run list --workflow build-ios.yml
 # Replace 123456789 with the actual run ID.
 gh run watch 123456789 --exit-status
@@ -52,15 +65,6 @@ gh run view 123456789 --log-failed
 gh run download 123456789 --dir artifacts/download
 ```
 
-The workflow must already exist on the repository's default branch before manual dispatch is available. For a working branch, select it in the Actions UI/`--ref`. Open the log step that failed; do not regard an uploaded ZIP as signing or device proof.
-
-## Release tags
-
-Configure signing secrets and complete the desired validation before tagging. The tag workflow requires signed mode and fails if any secret/profile/capability is missing. It creates a **draft** release, which you review and publish separately.
-
-```powershell
-git tag -a v0.2.0 -m "Control Studio milestone 1"
-git push origin v0.2.0
-```
+Open the log step that failed; do not regard an uploaded ZIP as signing or device proof. GitHub documents [tag filters](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onpushbranchestagsbranches-ignoretags-ignore) and the push payload's [created/deleted flags](https://docs.github.com/en/webhooks/webhook-events-and-payloads#push).
 
 The original embedded version was 0.1.0/build 1; the App Group correction is 0.1.1/build 2 and the first dashboard is 0.2.0/build 3. Update versions consistently in the MAUI project and native generator before subsequent releases, regenerate the native project, and commit those changes before tagging. Tag pattern triggers are GitHub glob matching, not a full semantic-version validator.

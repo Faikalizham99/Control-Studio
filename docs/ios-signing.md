@@ -21,6 +21,8 @@ Until the actual profiles pass validation, identifiers and sharing support remai
 
 ## CI encrypted secrets
 
+New version-tag pushes build an **unsigned** IPA by default for later FlareStore signing. CI signing is opt-in: set the Actions repository variable `IOS_SIGNING_MODE` to `signed` and configure all secrets below before the approved tag push. The build fails if signed mode cannot validate its credentials/profiles; it never switches silently to unsigned output. Ordinary branch pushes and manual dispatch do not generate an IPA.
+
 In GitHub, open **Repository → Settings → Secrets and variables → Actions → New repository secret**:
 
 | Secret | Value |
