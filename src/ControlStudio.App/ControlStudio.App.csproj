@@ -24,6 +24,7 @@
     <ProjectReference Include="../ControlStudio.Infrastructure/ControlStudio.Infrastructure.csproj" />
     <MauiIcon Include="Resources/AppIcon/appicon.svg" Color="#2458E6" />
     <MauiSplashScreen Include="Resources/Splash/splash.svg" Color="#2458E6" BaseSize="128,128" />
+    <MauiImage Include="Resources/Images/*.svg" BaseSize="24,24" />
     <BundleResource Include="Platforms/iOS/PrivacyInfo.xcprivacy" Link="PrivacyInfo.xcprivacy" />
     <NativeReference Include="$(NativeBuildRoot)/libControlStudioBridge.a">
       <Kind>Static</Kind><ForceLoad>true</ForceLoad><SmartLink>false</SmartLink>

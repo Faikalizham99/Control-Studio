@@ -12,6 +12,7 @@ public static class MauiProgram
     public static MauiApp CreateMauiApp()
     {
         var builder = MauiApp.CreateBuilder().UseMauiApp<App>();
+        builder.ConfigureMauiHandlers(handlers => handlers.AddHandler<TabbedPage, SpinningGearTabbedRenderer>());
         builder.Logging.AddProvider(new DeviceLoggerProvider());
         builder.Services.AddSingleton<INativeCounterBridge, AppleCounterBridge>();
         builder.Services.AddSingleton<ICounterRepository, NativeCounterRepository>();

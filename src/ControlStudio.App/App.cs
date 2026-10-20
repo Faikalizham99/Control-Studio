@@ -23,9 +23,9 @@ public sealed class App : Application
     protected override Window CreateWindow(IActivationState? activationState)
     {
         var tabs = new TabbedPage();
-        tabs.Children.Add(new NavigationPage(home) { Title = "Home" });
-        tabs.Children.Add(new NavigationPage(shortcuts) { Title = "Shortcuts" });
-        tabs.Children.Add(new NavigationPage(settings) { Title = "Settings" });
+        tabs.Children.Add(new NavigationPage(home) { Title = "Home", IconImageSource = "tab_home.png" });
+        tabs.Children.Add(new NavigationPage(shortcuts) { Title = "Shortcuts", IconImageSource = "tab_shortcuts.png" });
+        tabs.Children.Add(new NavigationPage(settings) { Title = "Settings", IconImageSource = "tab_settings.png", AutomationId = "SettingsTab" });
         var window = new Window(tabs);
         window.Resumed += async (_, _) => await home.RefreshAsync();
         return window;

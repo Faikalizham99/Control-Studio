@@ -64,6 +64,9 @@ Keep the same signing identity and app bundle identifier when updating. An unins
 | Cancel editor leaves records unchanged; rapidly tapping Run does not cause simultaneous operations | NOT VERIFIED |
 | Airplane Mode permits local dashboard changes, Copy and counter; failed web opening gives a useful outcome | NOT VERIFIED |
 | Light/Dark and large accessibility text remain readable; VoiceOver distinguishes Run from Manage | NOT VERIFIED |
+| Home, Shortcuts and Settings tabs display house, stacked-layer and gear icons with readable labels in Light/Dark; selected/unselected states remain clear | NOT VERIFIED |
+| Settings gear rotates slowly with the tab bar visible, including while scrolling; labels and tap targets remain unchanged | NOT VERIFIED |
+| Gear stops when leaving the app or hiding the tab bar, resumes on return, and stays static with Reduce Motion enabled (including changes while the app is open) | NOT VERIFIED |
 | Small/medium widget and Increment Control Studio Counter in Apple Shortcuts still work after updating | NOT VERIFIED |
 
 ## Deferred
