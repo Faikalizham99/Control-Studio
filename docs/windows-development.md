@@ -1,6 +1,10 @@
 # Windows 11 development
 
-Install the exact .NET SDK **10.0.302**, Git, and optionally Python 3.13.7 and GitHub CLI. The repository's `global.json` deliberately refuses other SDK versions. The initial implementation used a workspace-local SDK in `.tools/dotnet`; that ignored download is not required if you install the SDK normally.
+Install the exact .NET SDK **10.0.302**, Git, and optionally Python 3.13.7 and GitHub CLI. The repository's `global.json` deliberately refuses other SDK versions. SDK discovery searches `.tools/dotnet` first, then the running `dotnet` host's installation (`$host$`). This allows the existing ignored local SDK to work with normal .NET 10 CLI commands, while CI and machines with the exact SDK installed normally use their host installation.
+
+If you see **“A compatible .NET SDK was not found”**, run `dotnet --list-sdks` and `dotnet --version` from this repository. A system SDK such as 10.0.201 does not satisfy the 10.0.302 pin. The existing local SDK can be checked directly with `& .\.tools\dotnet\dotnet.exe --version`; normal `dotnet --version` should also return **10.0.302** after this configuration change. Fresh clones do not include `.tools`: install the exact SDK before building. Keep the pin aligned with the tested iOS toolchain.
+
+The [SDK search paths](https://learn.microsoft.com/en-us/dotnet/core/tools/global-json#paths) require a .NET 10 or later host and affect SDK commands. They do not switch the host's runtime/workload installation. For local MAUI tooling, use `& .\.tools\dotnet\dotnet.exe ...` to use the workloads installed alongside that local SDK. IDE integration was not verified by the CLI checks; if an IDE still reports the SDK missing, restart it and ensure its SDK installation/configuration includes 10.0.302. Full Swift/iOS compilation still runs on macOS CI.
 
 Run in PowerShell from the repository:
 
