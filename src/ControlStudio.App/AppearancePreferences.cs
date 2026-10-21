@@ -75,7 +75,10 @@ public sealed class AppearancePreferences : BindableObject
         application.Resources["AccentButtonText"] = AppearanceColors.ButtonForeground(accent);
         application.Resources["AccentActionText"] = AppearanceColors.ButtonForeground(accent, 19, bold: true);
         application.Resources["AccentOnLight"] = AppearanceColors.TextAccent(accent, false);
-        application.Resources["AccentText"] = AppearanceColors.TextAccent(accent, application.RequestedTheme == AppTheme.Dark);
+        var textAccent = AppearanceColors.TextAccent(accent, application.RequestedTheme == AppTheme.Dark);
+        application.Resources["AccentText"] = textAccent;
+        application.Resources["AccentSelectionBrush"] = new SolidColorBrush(accent.WithAlpha(.12f));
+        application.Resources["AccentSelectionStroke"] = new SolidColorBrush(textAccent.WithAlpha(.6f));
         application.Resources["AccentGlow"] = new SolidColorBrush(accent.WithAlpha(.38f));
     }
 

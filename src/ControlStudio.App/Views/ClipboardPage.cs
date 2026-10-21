@@ -152,13 +152,13 @@ public sealed class ClipboardPage : ContentPage
         {
             this.kind = kind;
             icon = new StudioGlyph(Symbol(kind), useAccent: false) { WidthRequest = 21, HeightRequest = 21, HorizontalOptions = LayoutOptions.Center };
-            label = SettingsControls.Text(kind.ToString(), 11, bold: true); label.HorizontalTextAlignment = TextAlignment.Center;
+            label = new Label { Text = kind.ToString(), FontSize = 11, HorizontalTextAlignment = TextAlignment.Center };
             label.InputTransparent = true;
             surface = new Border
             {
                 Content = new VerticalStackLayout { Padding = new Thickness(2, 8), Spacing = 4, Children = { icon, label }, InputTransparent = true },
-                StrokeShape = new RoundRectangle { CornerRadius = 19 }, StrokeThickness = 0, InputTransparent = true,
-                Background = Brush.Transparent
+                StrokeShape = new RoundRectangle { CornerRadius = 19 }, StrokeThickness = 1, InputTransparent = true,
+                Background = Brush.Transparent, Stroke = Brush.Transparent
             };
             tap = SettingsControls.TapTarget(kind.ToString(), "ClipboardTab" + kind); tap.Clicked += (_, _) => select();
             Content = new Grid { Children = { tap, surface } };
@@ -166,14 +166,21 @@ public sealed class ClipboardPage : ContentPage
         }
         public void Update(bool selected)
         {
+            // Theme bindings and dynamic resources must not compete when a tab changes state.
+            label.RemoveBinding(Label.TextColorProperty); icon.RemoveBinding(StudioGlyph.TintProperty);
+            label.RemoveDynamicResource(Label.TextColorProperty); icon.RemoveDynamicResource(StudioGlyph.TintProperty);
+            surface.RemoveDynamicResource(Border.BackgroundProperty); surface.RemoveDynamicResource(Border.StrokeProperty);
+            label.FontAttributes = selected ? FontAttributes.Bold : FontAttributes.None;
             if (selected)
             {
-                surface.SetDynamicResource(BackgroundProperty, "AccentButtonBrush");
-                label.SetDynamicResource(Label.TextColorProperty, "AccentButtonText"); icon.SetDynamicResource(StudioGlyph.TintProperty, "AccentButtonText");
+                surface.SetDynamicResource(Border.BackgroundProperty, "AccentSelectionBrush");
+                surface.SetDynamicResource(Border.StrokeProperty, "AccentSelectionStroke");
+                label.SetDynamicResource(Label.TextColorProperty, "AccentText"); icon.SetDynamicResource(StudioGlyph.TintProperty, "AccentText");
             }
             else
             {
                 surface.Background = Brush.Transparent;
+                surface.Stroke = Brush.Transparent;
                 label.SetAppThemeColor(Label.TextColorProperty, Color.FromArgb("#626570"), Color.FromArgb("#AFB3BD"));
                 icon.SetAppThemeColor(StudioGlyph.TintProperty, Color.FromArgb("#626570"), Color.FromArgb("#AFB3BD"));
             }
