@@ -72,7 +72,9 @@ internal static class ProfilePhotoCropper
             cancel.TouchUpInside += Cancel;
             use.TouchUpInside += Confirm;
             use.BackgroundColor = accent.ToPlatform();
-            use.SetTitleColor(AppearanceColors.ButtonForeground(accent).ToPlatform(), UIControlState.Normal);
+            use.TitleLabel!.Font = UIFontMetrics.GetMetrics(UIFontTextStyle.Headline.GetConstant()!).GetScaledFont(UIFont.BoldSystemFontOfSize(19)!);
+            use.TitleLabel.AdjustsFontForContentSizeCategory = true;
+            UpdateConfirmForeground();
             use.Layer.CornerRadius = 14;
             crop.Layer.BorderColor = UIColor.Separator.CGColor;
             crop.Layer.BorderWidth = 1;
@@ -84,6 +86,7 @@ internal static class ProfilePhotoCropper
             base.ViewDidLayoutSubviews();
             var bounds = View!.Bounds;
             View.TintColor = AppearanceColors.TextAccent(accent, TraitCollection.UserInterfaceStyle == UIUserInterfaceStyle.Dark).ToPlatform();
+            UpdateConfirmForeground();
             var safe = View.SafeAreaInsets;
             var width = bounds.Width - safe.Left - safe.Right;
             var left = safe.Left + 20;
@@ -102,6 +105,14 @@ internal static class ProfilePhotoCropper
             use.Frame = new CGRect(left, below + 102, width - 40, 48);
             status.Frame = new CGRect(left, below + 154, width - 40, 40);
             if (cropSide != side) { cropSide = side; FitImage(); }
+        }
+
+        private void UpdateConfirmForeground()
+        {
+            var foreground = AppearanceColors.ButtonForeground(accent, (double)(use.TitleLabel?.Font.PointSize ?? 19), bold: true).ToPlatform();
+            use.SetTitleColor(foreground, UIControlState.Normal);
+            use.SetTitleColor(foreground, UIControlState.Highlighted);
+            use.SetTitleColor(foreground, UIControlState.Disabled);
         }
 
         private void FitImage()

@@ -18,9 +18,6 @@ internal static class DashboardStyle
     }
     public static Button Button(string text)
     {
-        var button = new Button { Text = text, CornerRadius = 14, MinimumHeightRequest = 48 };
-        button.SetDynamicResource(VisualElement.BackgroundColorProperty, "AccentButton");
-        button.SetDynamicResource(Microsoft.Maui.Controls.Button.TextColorProperty, "AccentButtonText");
-        return button;
+        return new AccentButton { Text = text };
     }
 }

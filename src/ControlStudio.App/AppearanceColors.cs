@@ -11,7 +11,20 @@ internal static class AppearanceColors
 
     public static double Luminance(Color color) => AppearanceValues.Luminance(ToRgbHex(color));
 
-    public static Color ButtonForeground(Color accent) => Luminance(accent) > .179 ? Colors.Black : Colors.White;
+    // Prefer white when it passes the contrast requirement for the actual label.
+    // 19 device-independent units in bold exceeds 14pt (18.67 CSS px).
+    // Small text retains 4.5:1; large text requires 3:1. Never alter the accent.
+    public static Color ButtonForeground(Color accent, double fontSize = 14, bool bold = false)
+    {
+        var minimum = fontSize >= 24 || (bold && fontSize >= 19) ? 3d : 4.5d;
+        return Contrast(accent, Colors.White) >= minimum ? Colors.White : Colors.Black;
+    }
+
+    public static double Contrast(Color first, Color second)
+    {
+        var a = Luminance(first); var b = Luminance(second);
+        return (Math.Max(a, b) + .05) / (Math.Min(a, b) + .05);
+    }
 
     public static Color TextAccent(Color accent, bool dark)
     {

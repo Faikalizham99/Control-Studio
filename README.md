@@ -1,6 +1,6 @@
 # Control Studio
 
-Local work adds functional **Text / Photo / Link / Snippet** sections in Clipboard, with photo import/copy/preview/sharing and offline syntax-coloured code previews plus Beautify. Existing saved data is preserved. See [Clipboard behavior and pending phone checks](docs/clipboard.md). This work has not been released.
+Release **0.2.5 (8)** adds functional **Text / Photo / Link / Snippet** sections in Clipboard, with photo import/copy/preview/sharing, offline code highlighting and Beautify including C/C++/C#, and improved button-label contrast while preserving the exact selected accent. Existing saved data is preserved. The owner authorized the version tag and will monitor its build; native CI and phone checks remain pending. See [Clipboard behavior](docs/clipboard.md) and [button appearance checks](docs/settings-appearance.md).
 
 Release **0.2.4 (7)** replaces the Shortcuts tab with **Studio**, a two-card hub for **Widgets** and **Clipboard**. Widgets previews the existing Small/Medium counter; Clipboard keeps saved-text creation, editing, copying and deletion using the existing private data. The owner authorized the release and will monitor the tag build. See [Studio behavior and pending device checks](docs/studio.md); native CI and phone verification remain pending.
 

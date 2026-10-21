@@ -49,4 +49,4 @@ python scripts/bundle-clang.py --check
 
 Phone checks remain **NOT VERIFIED**: switcher layout, Light/Dark/accents and VoiceOver, all four editors and keyboard behavior, old data after update/relaunch, PHPicker/Files cancellation, oriented/transparent/large/missing images, actual image pasting and Photos share-sheet saving (including permission refusal), WKWebView loading/CSP, syntax colours, horizontal scrolling, format/reset/save/cancel, fast navigation and native app linking. Node tests execute the shipped scripts with a minimal DOM; they do not substitute for WKWebView/device rendering.
 
-The owner authorized committing and pushing the Clipboard implementation and C/C++/C# support on 21 October 2026. No release tag was requested. The owner monitors future tag builds personally.
+The owner authorized committing and pushing the Clipboard implementation and C/C++/C# support on 21 October 2026. The owner subsequently authorized tag **v0.2.5**, version **0.2.5 (8)**, with the button-label contrast refinement. The owner monitors the tag build personally; native CI, final IPA and phone results remain unverified here.

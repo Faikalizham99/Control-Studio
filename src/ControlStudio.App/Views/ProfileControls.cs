@@ -60,17 +60,13 @@ internal sealed class ProfileActionButton : ContentView
     public ProfileActionButton(string text, ProfileSymbol symbol, string automationId, bool primary = true, double radius = 18)
     {
         MinimumHeightRequest = 48;
-        var glyph = new ProfileGlyph(symbol, primary ? "AccentButtonText" : "AccentText");
-        var label = SettingsControls.Text(text, 14, bold: primary);
-        label.SetDynamicResource(Label.TextColorProperty, primary ? "AccentButtonText" : "AccentText");
+        var glyph = new ProfileGlyph(symbol, primary ? "AccentActionText" : "AccentText");
+        var label = SettingsControls.Text(text, primary ? 19 : 14, bold: primary);
+        label.SetDynamicResource(Label.TextColorProperty, primary ? "AccentActionText" : "AccentText");
         AutomationProperties.SetIsInAccessibleTree(label, false);
         var caption = new HorizontalStackLayout { Spacing = 10, HorizontalOptions = LayoutOptions.Center, VerticalOptions = LayoutOptions.Center, InputTransparent = true, Children = { glyph, label } };
         var content = new Grid();
-        if (primary)
-            content.Background = new LinearGradientBrush(new GradientStopCollection
-            {
-                new(Colors.White.WithAlpha(.25f), 0), new(Colors.Transparent, .4f), new(Colors.Black.WithAlpha(.16f), 1)
-            }, new Point(0, 0), new Point(0, 1));
+        // The caption sits directly on the exact accent, without a contrasting gloss overlay.
         content.Add(caption);
         var hit = new Button { Text = "", Padding = 0, CornerRadius = (int)radius, BackgroundColor = Colors.Transparent, BorderWidth = 0, MinimumHeightRequest = 48, AutomationId = automationId };
         SemanticProperties.SetDescription(hit, text);
@@ -82,15 +78,15 @@ internal sealed class ProfileActionButton : ContentView
             surface.SetDynamicResource(BackgroundColorProperty, "AccentButton");
             surface.SetAppTheme<Brush>(Border.StrokeProperty, new SolidColorBrush(Colors.White.WithAlpha(.8f)), new SolidColorBrush(Colors.White.WithAlpha(.35f)));
         }
-        hit.Pressed += (_, _) => surface.Opacity = .8;
-        hit.Released += (_, _) => surface.Opacity = 1;
+        hit.Pressed += (_, _) => surface.Scale = .98;
+        hit.Released += (_, _) => surface.Scale = 1;
         Content = surface;
     }
 
     protected override void OnPropertyChanged(string? propertyName = null)
     {
         base.OnPropertyChanged(propertyName);
-        if (propertyName == nameof(IsEnabled)) Opacity = IsEnabled ? 1 : .45;
+        if (propertyName == nameof(IsEnabled)) Opacity = IsEnabled ? 1 : .7;
     }
 }
 
