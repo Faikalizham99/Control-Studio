@@ -2,6 +2,14 @@
 
 The owner requested replacing the Shortcuts dashboard with **Studio** on 21 October 2026. The landing page has only two entry cards, **Widgets** and **Clipboard**, on the established plain Light/Dark background. A four-panel layout icon replaces the layered Shortcuts tab icon. Home, Settings, the spinning gear and Apple's native Shortcuts counter action remain separate.
 
+## Reference landing-page styling
+
+The owner supplied a dark Studio reference after release 0.2.4 and requested UI styling only, with category functionality deferred. The local landing page now has the subtitle “Create, capture and customise your content,” charcoal gradient glass cards, inset icon tiles, circular chevrons and category pills. Widgets uses blue icons with Counters / Dates / Photos; Clipboard uses purple icons with Text / Links / Images / Snippets. The Studio tab icon is a four-square outline matching the reference. Light mode has an equivalent neutral surface treatment; the existing native tab bar, selected accent and spinning Settings gear remain.
+
+The owner subsequently requested a broader Widgets description that allows additional widget types and four planned sizes. The landing card now reads “Small, Medium, Large and Extra Large widgets.” This is prototype copy; the native extension and current preview library still support Small and Medium counter widgets only. No additional family support is implemented by this wording change.
+
+Category pills are static visual previews and have no individual action handlers. Existing whole-card navigation to the Widgets/Clipboard libraries is retained. No date/photo/image/link/snippet backend, schema or permission change is included. Pills wrap on narrow screens and with larger type. Managed iOS compilation, asset generation, source/whitespace checks and 30 existing app tests pass. Final phone rendering, spacing, touch behavior and accessibility remain **NOT VERIFIED**. The owner authorized committing and pushing this styling and description update on 21 October 2026. No new release tag was requested; native CI and phone checks remain pending.
+
 ## Widgets
 
 Widgets opens previews of the existing **Small** and **Medium** counter widgets. The previews show the shared counter and its update time; opening or refreshing them does not increment the counter. The medium preview includes the native design's blue four-square mark. A private fallback counter is never displayed as the widget's shared counter. Missing shared storage and read errors produce an unavailable state and setup guidance.
