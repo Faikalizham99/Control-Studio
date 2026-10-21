@@ -10,7 +10,7 @@ public sealed class HomePage : ContentPage
     private readonly Label counter = new() { Text = "—", FontSize = 68, FontAttributes = FontAttributes.Bold };
     private readonly Label updated = new() { Text = "Loading your counter…", FontSize = 15 };
     private readonly Label status = new() { FontSize = 15 };
-    private readonly Button update = new() { Text = "Update Widget", CornerRadius = 16, HeightRequest = 54, BackgroundColor = Color.FromArgb("#2458E6"), TextColor = Colors.White };
+    private readonly Button update = DashboardStyle.Button("Update Widget");
     private bool busy;
 
     public HomePage(ICounterRepository repository, ILogger<HomePage> logger)
@@ -18,13 +18,14 @@ public sealed class HomePage : ContentPage
         this.repository = repository;
         this.logger = logger;
         Title = "Control Studio";
+        DashboardStyle.NavigationAccent(this);
+        update.CornerRadius = 16; update.HeightRequest = 54;
         this.SetAppThemeColor(BackgroundColorProperty, Color.FromArgb("#F2F3F8"), Color.FromArgb("#101116"));
         counter.SetAppThemeColor(Label.TextColorProperty, Color.FromArgb("#141722"), Colors.White);
         SemanticProperties.SetDescription(counter, "Current counter value");
         SemanticProperties.SetHint(update, "Increments the counter and requests a widget refresh");
         AutomationId = "HomePage";
         update.AutomationId = "UpdateWidgetButton";
-        update.SetDynamicResource(Button.BackgroundColorProperty, "AccentButton");
         counter.AutomationId = "CounterValue";
         var card = new Border
         {

@@ -23,6 +23,8 @@ public sealed class ShortcutsPage : ContentPage
         this.repository = repository; this.validator = validator; this.executor = executor; this.logger = logger;
         Title = "Shortcuts"; AutomationId = "ShortcutsPage";
         DashboardStyle.Page(this);
+        favorites.SetDynamicResource(Switch.OnColorProperty, "Accent");
+        search.SetDynamicResource(SearchBar.CancelButtonColorProperty, "AccentText");
         var add = new ToolbarItem { Text = "Add", AutomationId = "AddActionButton" };
         add.Clicked += async (_, _) => await GuardAsync(_ => Navigation.PushAsync(new ActionEditorPage(repository, validator)));
         var refresh = new ToolbarItem { Text = "Refresh" };
@@ -132,8 +134,8 @@ public sealed class ShortcutsPage : ContentPage
             card = DashboardStyle.Card(new VerticalStackLayout { Spacing = 16, Children = { top, buttons } });
             Content = card;
             name.TextColor = Colors.White; detail.TextColor = Colors.White;
-            run.BackgroundColor = Colors.White; run.TextColor = Colors.Black;
-            options.BackgroundColor = Colors.Transparent; options.TextColor = Colors.White;
+            options.BackgroundColor = Colors.White;
+            options.SetDynamicResource(Button.TextColorProperty, "AccentOnLight");
             options.BorderColor = Colors.White; options.BorderWidth = 1;
             run.Clicked += async (_, _) => { if (BindingContext is ActionDefinition action) await execute(action); };
             options.Clicked += async (_, _) => { if (BindingContext is ActionDefinition action) await manage(action); };

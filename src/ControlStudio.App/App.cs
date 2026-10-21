@@ -19,7 +19,7 @@ public sealed class App : Application
     protected override Window CreateWindow(IActivationState? activationState)
     {
         var tabs = new TabbedPage();
-        tabs.SetDynamicResource(TabbedPage.SelectedTabColorProperty, "Accent");
+        tabs.SetDynamicResource(TabbedPage.SelectedTabColorProperty, "AccentText");
         tabs.Children.Add(new NavigationPage(home) { Title = "Home", IconImageSource = "tab_home.png" });
         tabs.Children.Add(new NavigationPage(shortcuts) { Title = "Shortcuts", IconImageSource = "tab_shortcuts.png" });
         tabs.Children.Add(new NavigationPage(settings) { Title = "Settings", IconImageSource = "tab_settings.png", AutomationId = "SettingsTab" });

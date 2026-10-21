@@ -9,7 +9,7 @@ public sealed class AboutPage : ContentPage
         Title = "Widget & Shortcuts setup"; SafeAreaEdges = SafeAreaEdges.All; DashboardStyle.Page(this);
         Content = new ScrollView { Content = new VerticalStackLayout { Padding = 24, Spacing = 18, Children = {
             SettingsControls.Text("Everything stays local", 24, bold: true),
-            SettingsControls.Text("No account, backend or analytics. Your profile, appearance and dashboard are stored privately on this iPhone. Profile photos are chosen from Files, cropped locally, and never uploaded.", 16),
+            SettingsControls.Text("No account, backend or analytics. Your profile, appearance and dashboard are stored privately on this iPhone. Profile photos are chosen from Photo Library or Files, cropped locally, and never uploaded.", 16),
             SettingsControls.Text("Widget & Shortcuts", 22, bold: true),
             SettingsControls.Text($"Configured App Group: {AppGroupConfiguration.Identifier}", 14),
             SettingsControls.Text("The app and both extensions must be signed to allow this exact group. A provider group can be shared with other apps signed using the same profile.", 16),

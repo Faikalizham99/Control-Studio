@@ -6,14 +6,14 @@ public sealed class GlassCard : ContentView
 {
     public GlassCard(View content)
     {
-        Content = new Border
+        var border = new Border
         {
             StrokeShape = new RoundRectangle { CornerRadius = 24 }, StrokeThickness = 1,
-            Stroke = new LinearGradientBrush(new GradientStopCollection
-            {
-                new(Colors.White.WithAlpha(.8f), 0), new(Colors.White.WithAlpha(.15f), .6f), new(Colors.White.WithAlpha(.5f), 1)
-            }, new Point(0, 0), new Point(1, 1)),
             Padding = 12, Content = content
         };
+        border.SetAppTheme<Brush>(Border.StrokeProperty,
+            new SolidColorBrush(Color.FromArgb("#C8CEDA")), new SolidColorBrush(Colors.White.WithAlpha(.22f)));
+        border.SetAppThemeColor(BackgroundColorProperty, Colors.White.WithAlpha(.42f), Colors.White.WithAlpha(.035f));
+        Content = border;
     }
 }

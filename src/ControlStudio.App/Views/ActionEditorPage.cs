@@ -28,6 +28,7 @@ public sealed class ActionEditorPage : ContentPage
         Title = original is null ? "New action" : "Edit action";
         AutomationId = "ActionEditorPage";
         DashboardStyle.Page(this);
+        favorite.SetDynamicResource(Switch.OnColorProperty, "Accent");
         previewCard = DashboardStyle.Card(preview);
         previewCard.MinimumHeightRequest = 84;
         if (original is not null)

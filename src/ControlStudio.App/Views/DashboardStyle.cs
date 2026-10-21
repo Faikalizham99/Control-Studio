@@ -5,8 +5,12 @@ namespace ControlStudio.App.Views;
 
 internal static class DashboardStyle
 {
-    public static void Page(ContentPage page) => page.SetAppThemeColor(VisualElement.BackgroundColorProperty,
-        Color.FromArgb("#F2F3F8"), Color.FromArgb("#101116"));
+    public static void Page(ContentPage page)
+    {
+        page.SetAppThemeColor(VisualElement.BackgroundColorProperty, Color.FromArgb("#F2F3F8"), Color.FromArgb("#101116"));
+        NavigationAccent(page);
+    }
+    public static void NavigationAccent(ContentPage page) => page.SetDynamicResource(NavigationPage.IconColorProperty, "AccentText");
     public static Border Card(View content) {
         var card = new Border { Content = content, Padding = 20, StrokeThickness = 0,
             StrokeShape = new RoundRectangle { CornerRadius = 22 } };
@@ -15,8 +19,9 @@ internal static class DashboardStyle
     }
     public static Button Button(string text)
     {
-        var button = new Button { Text = text, CornerRadius = 14, MinimumHeightRequest = 48, TextColor = Colors.White };
+        var button = new Button { Text = text, CornerRadius = 14, MinimumHeightRequest = 48 };
         button.SetDynamicResource(VisualElement.BackgroundColorProperty, "AccentButton");
+        button.SetDynamicResource(Microsoft.Maui.Controls.Button.TextColorProperty, "AccentButtonText");
         return button;
     }
     public static string Icon(ActionIcon icon) => icon switch {

@@ -13,10 +13,12 @@ internal static class SettingsControls
     public static Border Rounded(View content, double radius = 18, Thickness? padding = null)
     {
         var border = new Border { Content = content, StrokeShape = new RoundRectangle { CornerRadius = radius }, Padding = padding ?? new Thickness(0), StrokeThickness = 1 };
-        border.SetAppTheme<Brush>(Border.StrokeProperty, new SolidColorBrush(Colors.White.WithAlpha(.72f)), new SolidColorBrush(Colors.White.WithAlpha(.14f)));
-        border.SetAppThemeColor(VisualElement.BackgroundColorProperty, Colors.White.WithAlpha(.36f), Colors.White.WithAlpha(.065f));
+        SurfaceStroke(border);
+        border.SetAppThemeColor(VisualElement.BackgroundColorProperty, Colors.White.WithAlpha(.65f), Colors.White.WithAlpha(.065f));
         return border;
     }
+    public static void SurfaceStroke(Border border) => border.SetAppTheme<Brush>(Border.StrokeProperty,
+        new SolidColorBrush(Color.FromArgb("#D2D7E1")), new SolidColorBrush(Colors.White.WithAlpha(.18f)));
     public static LinearGradientBrush Swatch(Color color) => new(new GradientStopCollection
     {
         new(new Color(Math.Min(1, color.Red + .18f), Math.Min(1, color.Green + .18f), Math.Min(1, color.Blue + .18f)), 0), new(color, .65f),
@@ -61,7 +63,7 @@ internal sealed class ThemeChoice : ContentView
         }
         else
         {
-            border.SetAppTheme<Brush>(Border.StrokeProperty, new SolidColorBrush(Colors.White.WithAlpha(.75f)), new SolidColorBrush(Colors.White.WithAlpha(.15f)));
+            SettingsControls.SurfaceStroke(border);
             border.ClearValue(VisualElement.BackgroundProperty);
             border.SetAppThemeColor(BackgroundColorProperty, Colors.White.WithAlpha(.3f), Colors.White.WithAlpha(.065f));
             border.ClearValue(VisualElement.ShadowProperty);

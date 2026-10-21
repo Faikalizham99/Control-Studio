@@ -13,7 +13,9 @@ public sealed class AppearancePreferences : BindableObject
 
     public void Attach(Application app)
     {
+        if (application is not null) application.RequestedThemeChanged -= ThemeChanged;
         application = app;
+        application.RequestedThemeChanged += ThemeChanged;
         Apply();
     }
 
@@ -58,10 +60,20 @@ public sealed class AppearancePreferences : BindableObject
     {
         if (application is null) return;
         application.UserAppTheme = ThemeIndex switch { 1 => AppTheme.Light, 2 => AppTheme.Dark, _ => AppTheme.Unspecified };
+        ApplyAccentResources();
+    }
+
+    private void ThemeChanged(object? sender, AppThemeChangedEventArgs args) => ApplyAccentResources();
+
+    private void ApplyAccentResources()
+    {
+        if (application is null) return;
         var accent = Color.FromArgb(AccentHex);
-        var button = AppearanceColors.ButtonBackground(accent);
         application.Resources["Accent"] = accent;
-        application.Resources["AccentButton"] = button;
+        application.Resources["AccentButton"] = accent;
+        application.Resources["AccentButtonText"] = AppearanceColors.ButtonForeground(accent);
+        application.Resources["AccentOnLight"] = AppearanceColors.TextAccent(accent, false);
+        application.Resources["AccentText"] = AppearanceColors.TextAccent(accent, application.RequestedTheme == AppTheme.Dark);
         application.Resources["AccentGlow"] = new SolidColorBrush(accent.WithAlpha(.38f));
     }
 

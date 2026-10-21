@@ -25,8 +25,10 @@ public sealed class AppearanceColorsTests
         var accent = Color.FromArgb(hex);
         Assert.Equal(hex, AppearanceColors.ToRgbHex(accent));
         Assert.Equal(AppearanceValues.Luminance(hex), AppearanceColors.Luminance(accent));
-        var button = AppearanceColors.ButtonBackground(accent);
-        Assert.True(1.05 / (AppearanceColors.Luminance(button) + .05) >= 4.5);
+        var foreground = AppearanceColors.ButtonForeground(accent);
+        Assert.True(Contrast(accent, foreground) >= 4.5);
+        foreach (var dark in new[] { false, true })
+            Assert.True(Contrast(AppearanceColors.TextAccent(accent, dark), Color.FromArgb(dark ? "#1C1E27" : "#F2F2F7")) >= 4.5);
     }
 
     [Theory]
@@ -47,5 +49,11 @@ public sealed class AppearanceColorsTests
             var color = Color.FromHsv((float)((300 - value + 360) % 360) / 360, 1, 1);
             Assert.True(AppearanceValues.TryNormalizeHex(AppearanceColors.ToRgbHex(color), out _));
         }
+    }
+
+    private static double Contrast(Color a, Color b)
+    {
+        var first = AppearanceColors.Luminance(a); var second = AppearanceColors.Luminance(b);
+        return (Math.Max(first, second) + .05) / (Math.Min(first, second) + .05);
     }
 }
