@@ -6,12 +6,12 @@ public sealed class App : Application
 {
     private readonly HomePage home;
     private readonly SettingsPage settings;
-    private readonly ShortcutsPage shortcuts;
+    private readonly StudioPage studio;
 
-    public App(HomePage home, ShortcutsPage shortcuts, SettingsPage settings, AppearancePreferences preferences)
+    public App(HomePage home, StudioPage studio, SettingsPage settings, AppearancePreferences preferences)
     {
         this.home = home;
-        this.shortcuts = shortcuts;
+        this.studio = studio;
         this.settings = settings;
         preferences.Attach(this);
     }
@@ -21,7 +21,7 @@ public sealed class App : Application
         var tabs = new TabbedPage();
         tabs.SetDynamicResource(TabbedPage.SelectedTabColorProperty, "AccentText");
         tabs.Children.Add(new NavigationPage(home) { Title = "Home", IconImageSource = "tab_home.png" });
-        tabs.Children.Add(new NavigationPage(shortcuts) { Title = "Shortcuts", IconImageSource = "tab_shortcuts.png" });
+        tabs.Children.Add(new NavigationPage(studio) { Title = "Studio", IconImageSource = "tab_studio.png" });
         tabs.Children.Add(new NavigationPage(settings) { Title = "Settings", IconImageSource = "tab_settings.png", AutomationId = "SettingsTab" });
         var window = new Window(tabs);
         window.Resumed += async (_, _) => await home.RefreshAsync();

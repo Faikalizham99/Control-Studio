@@ -15,7 +15,7 @@ public sealed class AboutPage : ContentPage
             SettingsControls.Text("The app and both extensions must be signed to allow this exact group. A provider group can be shared with other apps signed using the same profile.", 16),
             SettingsControls.Text("Open the app once, then add Control Studio from the Home Screen widget picker. In Apple's Shortcuts app, search for Increment Control Studio Counter. Both extensions must be preserved and signed with matching App Group permissions.", 16),
             SettingsControls.Text("If shared storage is unavailable, the app uses a separate local counter. Local values are not automatically merged into the shared counter when signing changes. iOS decides when widgets refresh.", 16),
-            SettingsControls.Text("Dashboard actions are saved in a separate private SQLite database. Web links open through iOS; copy actions write to the system clipboard only when run. Avoid storing passwords in action tiles.", 16),
+            SettingsControls.Text("Studio brings together Widgets and Clipboard. Preview the Small and Medium counter widgets, or create saved text to copy when needed. Clipboard items stay in private storage and write to the system clipboard only when you tap Copy. Avoid storing passwords here.", 16),
             SettingsControls.Text($"Control Studio · {AppInfo.Current.VersionString} ({AppInfo.Current.BuildString})", 13, true)
         } } };
     }

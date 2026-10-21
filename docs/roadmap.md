@@ -1,5 +1,7 @@
 # Milestones
 
+On 21 October 2026 the owner requested a focused **Studio** hub for Widgets and Clipboard. This UI refinement previews the existing counter widget sizes and retains saved-text operations; it does not start the general widget layout editor below. See [Studio scope and checks](studio.md).
+
 **Milestone 0 accepted and Milestone 1 approved by the owner on 19 October 2026**, after confirming widget sharing and Shortcuts increment execution. Milestone 1 implements the initial dashboard flow described in [its acceptance record](milestone-1.md). Stop after Milestone 1 until further approval.
 
 Milestone 1 adds the first Shortcut Control Center actions: validated HTTP(S), clipboard text and internal counter increments. It implements stable IDs, typed parameters and `IActionDefinition`, `IActionExecutor`, `IActionRepository`, `IActionValidator`, with cancellation, validation and user-visible failures. Dashboard records use private SQLite; categories, favorites, persisted ordering, names/icons/colors, accessible tile rendering and a complete create/edit/run/delete flow are included. Additional explicitly allowed deep links, drag-and-drop, image selection and advanced utilities remain deferred.

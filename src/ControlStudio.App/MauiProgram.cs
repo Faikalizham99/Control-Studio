@@ -31,7 +31,7 @@ public static class MauiProgram
             services.GetRequiredService<IActionValidator>()));
         builder.Services.AddSingleton<IActionPlatform, AppleActionPlatform>();
         builder.Services.AddSingleton<IActionExecutor, ActionExecutor>();
-        builder.Services.AddSingleton<ShortcutsPage>();
+        builder.Services.AddSingleton<StudioPage>();
         builder.Services.AddSingleton<HomePage>();
         builder.Services.AddSingleton<SettingsPage>();
         return builder.Build();

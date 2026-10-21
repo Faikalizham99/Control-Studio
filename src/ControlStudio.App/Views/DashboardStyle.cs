@@ -1,4 +1,3 @@
-using ControlStudio.Core.Actions;
 using Microsoft.Maui.Controls.Shapes;
 
 namespace ControlStudio.App.Views;
@@ -24,12 +23,4 @@ internal static class DashboardStyle
         button.SetDynamicResource(Microsoft.Maui.Controls.Button.TextColorProperty, "AccentButtonText");
         return button;
     }
-    public static string Icon(ActionIcon icon) => icon switch {
-        ActionIcon.Link => "↗", ActionIcon.Copy => "▣", ActionIcon.Counter => "+1",
-        ActionIcon.Star => "★", ActionIcon.Book => "▤", _ => "ϟ" };
-    public static Color TileColor(ActionColor color) => Microsoft.Maui.Graphics.Color.FromArgb(color switch {
-        ActionColor.Purple => "#7241BB", ActionColor.Green => "#147047", ActionColor.Orange => "#9A4A0B",
-        ActionColor.Pink => "#B52F6A", ActionColor.Slate => "#475569", _ => "#2458E6" });
-    public static string Kind(ActionParameters parameters) => parameters switch {
-        OpenUrlParameters => "Open web link", CopyTextParameters => "Copy text", _ => "Increment counter" };
 }
