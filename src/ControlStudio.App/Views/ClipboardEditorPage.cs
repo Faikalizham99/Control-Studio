@@ -12,7 +12,6 @@ public sealed class ClipboardEditorPage : ContentPage
     private readonly ProfileNameEntry name = new() { Placeholder = "Give this item a name", MaxLength = 60, BackgroundColor = Colors.Transparent, AutomationId = "ClipboardName" };
     private readonly Editor text = new() { MaxLength = 10_000, MinimumHeightRequest = 240, AutoSize = EditorAutoSizeOption.Disabled, BackgroundColor = Colors.Transparent, AutomationId = "ClipboardText" };
     private readonly Entry url = new() { Placeholder = "https://example.com", MaxLength = 2048, Keyboard = Keyboard.Url, IsTextPredictionEnabled = false, IsSpellCheckEnabled = false, AutomationId = "ClipboardLink" };
-    private readonly Picker language = new() { Title = "Code language", AutomationId = "SnippetLanguage" };
     private readonly Image photo = new() { Aspect = Aspect.AspectFit, HeightRequest = 220 };
     private readonly Label count = SettingsControls.Text("", 12, secondary: true);
     private readonly Label status = SettingsControls.Text("", 13, secondary: true);
@@ -33,7 +32,6 @@ public sealed class ClipboardEditorPage : ContentPage
         name.SetAppThemeColor(Entry.TextColorProperty, Colors.Black, Colors.White);
         text.SetAppThemeColor(Editor.TextColorProperty, Colors.Black, Colors.White);
         url.SetAppThemeColor(Entry.TextColorProperty, Colors.Black, Colors.White);
-        language.SetAppThemeColor(Picker.TextColorProperty, Colors.Black, Colors.White);
         name.Text = original?.Name;
         if (kind == ClipboardKind.Photo)
         {
@@ -60,25 +58,9 @@ public sealed class ClipboardEditorPage : ContentPage
         }
         else
         {
-            text.Text = original?.Parameters switch { CopyTextParameters copy => copy.Text, SnippetParameters snippet => snippet.Code, _ => "" };
-            text.Placeholder = kind == ClipboardKind.Snippet ? "Paste or write your code" : "Text to copy";
-            if (kind == ClipboardKind.Snippet)
-            {
-                text.MaxLength = 50_000; text.FontFamily = "Menlo"; text.FontSize = 14;
-                text.IsTextPredictionEnabled = false; text.IsSpellCheckEnabled = false;
-                language.ItemsSource = Enum.GetValues<SnippetLanguage>().Select(StudioContent.LanguageName).ToArray();
-                language.SelectedIndex = (int)((original?.Parameters as SnippetParameters)?.Language ?? SnippetLanguage.JavaScript);
-                body.Children.Add(language);
-                var preview = DashboardStyle.Button("Preview / Beautify");
-                preview.Clicked += async (_, _) => await RunAsync(async () =>
-                {
-                    var snippet = new SnippetParameters(text.Text ?? "", SelectedLanguage);
-                    validator.Validate(StudioContent.Draft(original, kind, name.Text ?? "Code preview", snippet.Code, snippet.Language) with { Name = "Code preview" });
-                    await Navigation.PushAsync(new SnippetPage("Code preview", snippet, formatted => { if (!departed) text.Text = formatted; return Task.CompletedTask; }, editing: true));
-                });
-                body.Children.Add(preview);
-            }
-            else { text.IsTextPredictionEnabled = true; text.IsSpellCheckEnabled = true; }
+            text.Text = (original?.Parameters as CopyTextParameters)?.Text;
+            text.Placeholder = "Text to copy";
+            text.IsTextPredictionEnabled = true; text.IsSpellCheckEnabled = true;
             text.TextChanged += (_, _) => UpdateCount(); UpdateCount();
             body.Children.Add(SettingsControls.Rounded(text, 12, 8)); body.Children.Add(count);
         }
@@ -93,10 +75,9 @@ public sealed class ClipboardEditorPage : ContentPage
             new GlassCard(body), SettingsControls.Text("Saved on this iPhone. Content is copied or shared only when you choose an action.", 13, secondary: true), status, save
         } } };
         SemanticProperties.SetDescription(name, "Clipboard item name");
-        SemanticProperties.SetDescription(text, kind == ClipboardKind.Snippet ? "Code snippet" : "Text to save and copy");
+        SemanticProperties.SetDescription(text, "Text to save and copy");
     }
 
-    private SnippetLanguage SelectedLanguage => language.SelectedIndex < 0 ? SnippetLanguage.PlainText : (SnippetLanguage)language.SelectedIndex;
     private void UpdateCount() => count.Text = $"{text.Text?.Length ?? 0:N0} / {text.MaxLength:N0}";
     private void RefreshPhoto() { photo.Source = ClipboardPhotoStore.GetPath(photoKey); photo.IsVisible = photo.Source is not null; }
     private void DiscardDraftPhoto()
@@ -106,7 +87,7 @@ public sealed class ClipboardEditorPage : ContentPage
     private async Task SaveAsync() => await RunAsync(async () =>
     {
         var content = kind switch { ClipboardKind.Photo => photoKey, ClipboardKind.Link => url.Text, _ => text.Text };
-        var item = StudioContent.Draft(original, kind, name.Text, content, SelectedLanguage);
+        var item = StudioContent.Draft(original, kind, name.Text, content);
         validator.Validate(item);
         if (item.Parameters is PhotoParameters p) ClipboardPhotoStore.RequirePath(p.AssetKey);
         // Do not cancel a potentially committed save and then delete its asset.

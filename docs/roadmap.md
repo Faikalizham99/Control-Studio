@@ -1,6 +1,6 @@
 # Milestones
 
-On 21 October 2026 the owner additionally authorized functional Clipboard Text / Photo / Link / Snippet sections, including local image import/copy/preview/sharing and offline code beautification. This supersedes the older deferral of these specific clipboard capabilities; it does not authorize a general widget builder. See [Clipboard scope and checks](clipboard.md).
+Clipboard is limited to Text / Photo / Link at the owner's request on 22 October 2026, including local image import/copy/preview/sharing. This supersedes the older deferral of these specific clipboard capabilities; it does not authorize a general widget builder. See [Clipboard scope and checks](clipboard.md).
 
 On 21 October 2026 the owner requested a focused **Studio** hub for Widgets and Clipboard. This UI refinement previews the existing counter widget sizes and retains saved-text operations; it does not start the general widget layout editor below. See [Studio scope and checks](studio.md).
 

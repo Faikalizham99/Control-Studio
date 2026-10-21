@@ -9,6 +9,5 @@
     <Compile Include="../../src/ControlStudio.App/AppearanceColors.cs" Link="AppearanceColors.cs" />
     <Compile Include="../../src/ControlStudio.App/PhotoCropGeometry.cs" Link="PhotoCropGeometry.cs" />
     <Compile Include="../../src/ControlStudio.App/StudioContent.cs" Link="StudioContent.cs" />
-    <Compile Include="../../src/ControlStudio.App/SnippetDocument.cs" Link="SnippetDocument.cs" />
   </ItemGroup>
 </Project>

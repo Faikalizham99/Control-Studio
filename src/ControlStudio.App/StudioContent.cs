@@ -3,7 +3,7 @@ using ControlStudio.Core.Actions;
 
 namespace ControlStudio.App;
 
-internal enum ClipboardKind { Text, Photo, Link, Snippet }
+internal enum ClipboardKind { Text, Photo, Link }
 
 internal static class StudioContent
 {
@@ -13,18 +13,10 @@ internal static class StudioContent
     public static ClipboardKind? Kind(ActionParameters parameters) => parameters switch
     {
         CopyTextParameters => ClipboardKind.Text, PhotoParameters => ClipboardKind.Photo,
-        OpenUrlParameters => ClipboardKind.Link, SnippetParameters => ClipboardKind.Snippet, _ => null
+        OpenUrlParameters => ClipboardKind.Link, _ => null
     };
 
-    public static string LanguageName(SnippetLanguage language) => language switch
-    {
-        SnippetLanguage.PlainText => "Plain text", SnippetLanguage.JavaScript => "JavaScript", SnippetLanguage.TypeScript => "TypeScript",
-        SnippetLanguage.Json => "JSON", SnippetLanguage.Html => "HTML", SnippetLanguage.Css => "CSS", SnippetLanguage.CSharp => "C#",
-        SnippetLanguage.Sql => "SQL", SnippetLanguage.Xml => "XML", SnippetLanguage.Cpp => "C++", _ => language.ToString()
-    };
-
-    public static ActionDefinition Draft(ActionDefinition? original, ClipboardKind kind, string? name, string? content,
-        SnippetLanguage language = SnippetLanguage.PlainText)
+    public static ActionDefinition Draft(ActionDefinition? original, ClipboardKind kind, string? name, string? content)
     {
         if (original is not null && Kind(original.Parameters) != kind)
             throw new ArgumentException("An item's type cannot change while editing.", nameof(original));
@@ -33,7 +25,6 @@ internal static class StudioContent
             ClipboardKind.Text => new CopyTextParameters(content ?? ""),
             ClipboardKind.Link => new OpenUrlParameters((content ?? "").Trim()),
             ClipboardKind.Photo => new PhotoParameters(content ?? ""),
-            ClipboardKind.Snippet => new SnippetParameters(content ?? "", language),
             _ => throw new ArgumentOutOfRangeException(nameof(kind))
         };
         return original is null

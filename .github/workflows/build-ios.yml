@@ -55,8 +55,6 @@ jobs:
           dotnet test tests/ControlStudio.App.Tests -c Release -p:RestoreLockedMode=true
       - name: Run native SQLite persistence and concurrency tests
         run: swift test --package-path native
-      - name: Test offline snippet formatting and rendering
-        run: node --test tests/snippets/viewer.test.cjs
       - name: Compile Swift bridge, WidgetKit and App Intents extensions
         run: bash scripts/build-native.sh
       - name: Restore and compile MAUI host with native extensions

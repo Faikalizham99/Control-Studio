@@ -28,8 +28,8 @@ public sealed class StudioPage : ContentPage
                 Header(),
                 Entry("Widgets", "Small, Medium, Large\nand Extra Large widgets", StudioSymbol.Widgets, "OpenWidgets", () => new WidgetsPage(this.counter),
                     [("Counters", StudioSymbol.Bars), ("Dates", StudioSymbol.Calendar), ("Photos", StudioSymbol.Photo)]),
-                Entry("Clipboard", "Text, photos, links and code.\nKeep it ready to use.", StudioSymbol.Clipboard, "OpenClipboard", () => new ClipboardPage(this.actions, this.validator, this.executor, this.logs.CreateLogger<ClipboardPage>()),
-                    [("Text", StudioSymbol.Text), ("Links", StudioSymbol.Link), ("Images", StudioSymbol.Photo), ("Snippets", StudioSymbol.Snippets)])
+                Entry("Clipboard", "Text, photos and links.\nKeep it ready to use.", StudioSymbol.Clipboard, "OpenClipboard", () => new ClipboardPage(this.actions, this.validator, this.executor, this.logs.CreateLogger<ClipboardPage>()),
+                    [("Text", StudioSymbol.Text), ("Links", StudioSymbol.Link), ("Images", StudioSymbol.Photo)])
             }
         } };
     }

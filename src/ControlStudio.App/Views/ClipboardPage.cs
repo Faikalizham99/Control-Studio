@@ -63,7 +63,7 @@ public sealed class ClipboardPage : ContentPage
             ClipboardKind.Text => "Save text. Copy it in a tap.",
             ClipboardKind.Photo => "Keep photos ready to copy, preview or share.",
             ClipboardKind.Link => "Your links, ready to copy or open.",
-            _ => "Keep code readable. Preview, beautify and copy."
+            _ => ""
         };
         items.EmptyView = new VerticalStackLayout { Padding = new Thickness(16, 36), Spacing = 10, Children =
         {
@@ -93,7 +93,6 @@ public sealed class ClipboardPage : ContentPage
             case PhotoParameters photo: await ClipboardPhotoStore.CopyAsync(photo.AssetKey); break;
             case CopyTextParameters text: await Clipboard.Default.SetTextAsync(text.Text); break;
             case OpenUrlParameters link: await Clipboard.Default.SetTextAsync(link.Url); break;
-            case SnippetParameters snippet: await Clipboard.Default.SetTextAsync(snippet.Code); break;
             default: return;
         }
         var message = item.Parameters is PhotoParameters ? "Photo copied. Paste it into an app that accepts images." : "Copied to the clipboard.";
@@ -103,11 +102,6 @@ public sealed class ClipboardPage : ContentPage
     {
         validator.Validate(item);
         if (item.Parameters is PhotoParameters photo) await Navigation.PushAsync(new ClipboardPhotoPage(item.Name, photo.AssetKey));
-        else if (item.Parameters is SnippetParameters snippet)
-            await Navigation.PushAsync(new SnippetPage(item.Name, snippet, async code =>
-            {
-                var updated = item with { Parameters = snippet with { Code = code } }; validator.Validate(updated); await repository.SaveAsync(updated);
-            }));
     });
     private Task EditAsync(ActionDefinition item) => GuardAsync(async token =>
     {
@@ -145,7 +139,7 @@ public sealed class ClipboardPage : ContentPage
         }
     }
     private void ShowStatus(string message) { status.Text = message; status.IsVisible = !string.IsNullOrEmpty(message); }
-    private static StudioSymbol Symbol(ClipboardKind kind) => kind switch { ClipboardKind.Photo => StudioSymbol.Photo, ClipboardKind.Link => StudioSymbol.Link, ClipboardKind.Snippet => StudioSymbol.Snippets, _ => StudioSymbol.Text };
+    private static StudioSymbol Symbol(ClipboardKind kind) => kind switch { ClipboardKind.Photo => StudioSymbol.Photo, ClipboardKind.Link => StudioSymbol.Link, _ => StudioSymbol.Text };
 
     private sealed class Segment : ContentView
     {
@@ -194,42 +188,38 @@ public sealed class ClipboardPage : ContentPage
         private readonly ClipboardIconButton copy = new(StudioSymbol.Clipboard, "Copy", primary: true);
         private readonly ClipboardIconButton open = new(StudioSymbol.Open, "Open link");
         private readonly ClipboardIconButton preview = new(StudioSymbol.Preview, "Preview photo");
-        private readonly ClipboardIconButton code = new(StudioSymbol.Snippets, "View code");
         private readonly ClipboardIconButton edit = new(StudioSymbol.Edit, "Edit");
         private readonly ClipboardIconButton delete = new(StudioSymbol.Delete, "Delete", destructive: true);
         public ClipboardTile(Func<ActionDefinition, Task> copyAction, Func<ActionDefinition, Task> secondaryAction,
             Func<ActionDefinition, Task> editAction, Func<ActionDefinition, Task> deleteAction)
         {
             title.MaxLines = 2; text.MaxLines = 3; text.LineBreakMode = LineBreakMode.TailTruncation;
-            var actions = new HorizontalStackLayout { Spacing = 8, HorizontalOptions = LayoutOptions.End, Children = { edit, delete, open, preview, code, copy } };
+            var actions = new HorizontalStackLayout { Spacing = 8, HorizontalOptions = LayoutOptions.End, Children = { edit, delete, open, preview, copy } };
             Content = new GlassCard(new VerticalStackLayout { Spacing = 12, Children = { title, text, photo, actions } });
             copy.Clicked += async (_, _) => { if (BindingContext is ActionDefinition action) await copyAction(action); };
             edit.Clicked += async (_, _) => { if (BindingContext is ActionDefinition action) await editAction(action); };
             delete.Clicked += async (_, _) => { if (BindingContext is ActionDefinition action) await deleteAction(action); };
-            foreach (var button in new[] { open, preview, code })
+            foreach (var button in new[] { open, preview })
                 button.Clicked += async (_, _) => { if (BindingContext is ActionDefinition action) await secondaryAction(action); };
         }
         protected override void OnBindingContextChanged()
         {
             base.OnBindingContextChanged();
             photo.Source = null; photo.IsVisible = false;
-            open.IsVisible = preview.IsVisible = code.IsVisible = false;
+            open.IsVisible = preview.IsVisible = false;
             if (BindingContext is not ActionDefinition action) { title.Text = text.Text = ""; return; }
             title.Text = action.Name;
             open.IsVisible = action.Parameters is OpenUrlParameters;
             preview.IsVisible = action.Parameters is PhotoParameters;
-            code.IsVisible = action.Parameters is SnippetParameters;
-            text.FontFamily = action.Parameters is SnippetParameters ? "Menlo" : null;
             text.Text = action.Parameters switch
             {
                 CopyTextParameters value => value.Text, OpenUrlParameters value => value.Url,
-                SnippetParameters value => StudioContent.LanguageName(value.Language) + "\n" + value.Code,
                 PhotoParameters value => ClipboardPhotoStore.GetPath(value.AssetKey) is null ? "Photo missing. Choose it again in Edit." : "Photo · saved on this iPhone", _ => ""
             };
             if (action.Parameters is PhotoParameters p && ClipboardPhotoStore.GetThumbnailPath(p.AssetKey) is { } path)
             { photo.Source = path; photo.IsVisible = true; SemanticProperties.SetDescription(photo, action.Name); }
             copy.Describe("Copy", action.Name); edit.Describe("Edit", action.Name); delete.Describe("Delete", action.Name);
-            open.Describe("Open link", action.Name); preview.Describe("Preview photo", action.Name); code.Describe("View code", action.Name);
+            open.Describe("Open link", action.Name); preview.Describe("Preview photo", action.Name);
         }
     }
 }

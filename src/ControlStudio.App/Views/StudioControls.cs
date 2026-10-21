@@ -2,7 +2,7 @@ using Microsoft.Maui.Graphics;
 
 namespace ControlStudio.App.Views;
 
-internal enum StudioSymbol { Widgets, Clipboard, Counter, Bars, Calendar, Photo, Text, Link, Snippets, Chevron, Edit, Delete, Open, Preview }
+internal enum StudioSymbol { Widgets, Clipboard, Counter, Bars, Calendar, Photo, Text, Link, Chevron, Edit, Delete, Open, Preview }
 
 internal sealed class StudioGlyph : GraphicsView, IDrawable
 {
@@ -64,11 +64,6 @@ internal sealed class StudioGlyph : GraphicsView, IDrawable
             var top = new PathF(); top.MoveTo(11, 8); top.LineTo(14, 5); top.CurveTo(19, 0, 25, 6, 20, 11); top.LineTo(17, 14); canvas.DrawPath(top);
             var bottom = new PathF(); bottom.MoveTo(13, 16); bottom.LineTo(10, 19); bottom.CurveTo(5, 24, -1, 18, 4, 13); bottom.LineTo(7, 10); canvas.DrawPath(bottom);
             canvas.DrawLine(8, 16, 16, 8);
-        }
-        else if (symbol == StudioSymbol.Snippets)
-        {
-            Lines(canvas, 7, 6, 2, 12, 7, 18); Lines(canvas, 17, 6, 22, 12, 17, 18);
-            canvas.DrawLine(14, 3, 10, 21);
         }
         else if (symbol == StudioSymbol.Edit)
         {

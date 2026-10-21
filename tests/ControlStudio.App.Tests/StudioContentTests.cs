@@ -73,22 +73,22 @@ public sealed class StudioContentTests
     public void ClipboardSwitcherKeepsKindsSeparateAndHidesCounterActions()
     {
         var values = new ActionParameters[] { new CopyTextParameters("text"), new PhotoParameters(Guid.NewGuid().ToString("N")),
-            new OpenUrlParameters("https://example.com"), new SnippetParameters("const x = 1;", SnippetLanguage.JavaScript), new IncrementCounterParameters() };
+            new OpenUrlParameters("https://example.com"), new IncrementCounterParameters() };
         var actions = values.Select((p, i) => new ActionDefinition(Guid.NewGuid(), "Name", p, SortOrder: i)).ToArray();
         foreach (var kind in Enum.GetValues<ClipboardKind>()) Assert.Equal(actions[(int)kind], Assert.Single(StudioContent.ClipboardItems(actions.Reverse(), kind)));
     }
 
     [Fact]
-    public void AllClipboardEditsPreserveMetadataAndExactCodeWhileLinksTrimOuterSpaces()
+    public void AllClipboardEditsPreserveMetadataAndExactTextWhileLinksTrimOuterSpaces()
     {
         foreach (var kind in Enum.GetValues<ClipboardKind>())
         {
             var value = kind == ClipboardKind.Photo ? Guid.NewGuid().ToString("N") : "  payload\n🐱  ";
-            var first = StudioContent.Draft(null, kind, "Name", value, SnippetLanguage.Swift) with { IsFavorite = true, SortOrder = 7, Category = ActionCategory.Learning };
-            var edited = StudioContent.Draft(first, kind, "  New name ", value, SnippetLanguage.Swift);
+            var first = StudioContent.Draft(null, kind, "Name", value) with { IsFavorite = true, SortOrder = 7, Category = ActionCategory.Learning };
+            var edited = StudioContent.Draft(first, kind, "  New name ", value);
             Assert.Equal(first with { Name = "New name" }, edited);
-            Assert.Throws<ArgumentException>(() => StudioContent.Draft(first, (ClipboardKind)(((int)kind + 1) % 4), "Changed", value));
-            if (kind == ClipboardKind.Snippet) Assert.Equal(value, ((SnippetParameters)edited.Parameters).Code);
+            Assert.Throws<ArgumentException>(() => StudioContent.Draft(first, (ClipboardKind)(((int)kind + 1) % 3), "Changed", value));
+            if (kind == ClipboardKind.Text) Assert.Equal(value, ((CopyTextParameters)edited.Parameters).Text);
             if (kind == ClipboardKind.Link) Assert.Equal(value.Trim(), ((OpenUrlParameters)edited.Parameters).Url);
         }
     }

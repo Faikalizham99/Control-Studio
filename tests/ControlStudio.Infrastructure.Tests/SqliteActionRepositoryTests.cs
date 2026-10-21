@@ -1,5 +1,7 @@
 using ControlStudio.Core.Actions;
 using System.Text;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using Xunit;
 
 namespace ControlStudio.Infrastructure.Tests;
@@ -62,7 +64,7 @@ public sealed class SqliteActionRepositoryTests : IDisposable
     {
         await Repository().SaveAsync(NewAction());
         var bytes = File.ReadAllBytes(FilePath);
-        var marker = Encoding.UTF8.GetBytes("\"schemaVersion\":2");
+        var marker = Encoding.UTF8.GetBytes("\"schemaVersion\":3");
         var index = bytes.AsSpan().IndexOf(marker);
         Assert.True(index >= 0);
         bytes[index + marker.Length - 1] = (byte)'9';
@@ -93,31 +95,91 @@ public sealed class SqliteActionRepositoryTests : IDisposable
         var text = NewAction("Existing text"); await Repository().SaveAsync(text);
         // Construct the schema-1 bytes produced by the previous release.
         var legacy = File.ReadAllBytes(FilePath); legacy[63] = 1;
-        var marker = Encoding.UTF8.GetBytes("\"schemaVersion\":2");
+        var marker = Encoding.UTF8.GetBytes("\"schemaVersion\":3");
         var index = legacy.AsSpan().IndexOf(marker); Assert.True(index >= 0);
         legacy[index + marker.Length - 1] = (byte)'1'; File.WriteAllBytes(FilePath, legacy);
         Assert.Equal(text, Assert.Single(await Repository().ReadAsync()));
         Assert.Equal(legacy, File.ReadAllBytes(FilePath)); // A read never rewrites old data.
 
         var photo = NewAction("Photo") with { Parameters = new PhotoParameters(Guid.NewGuid().ToString("N")) };
-        var code = NewAction("Code") with { Parameters = new SnippetParameters("const cat = '🐱';\n", SnippetLanguage.JavaScript) };
         var link = NewAction("Link") with { Parameters = new OpenUrlParameters("https://example.com/?q=hello%20world") };
-        await Repository().SaveAsync(photo); await Repository().SaveAsync(code); await Repository().SaveAsync(link);
+        await Repository().SaveAsync(photo); await Repository().SaveAsync(link);
         var reopened = await Repository().ReadAsync();
-        Assert.Equal(new[] { text, photo with { SortOrder = 1 }, code with { SortOrder = 2 }, link with { SortOrder = 3 } }, reopened);
-        Assert.Equal(2, File.ReadAllBytes(FilePath)[63]);
+        Assert.Equal(new[] { text, photo with { SortOrder = 1 }, link with { SortOrder = 2 } }, reopened);
+        Assert.Equal(3, File.ReadAllBytes(FilePath)[63]);
     }
 
     [Fact]
-    public async Task CFamilySnippetLanguagesAndExactCodeSurviveReopening()
+    public async Task UpgradeDeletesOnlyRetiredItemsAndPreservesRemainingData()
     {
-        const string code = "// 🐱\n  keep exact whitespace\t\n";
-        foreach (var language in new[] { SnippetLanguage.CSharp, SnippetLanguage.C, SnippetLanguage.Cpp })
-            await Repository().SaveAsync(NewAction(language.ToString()) with { Parameters = new SnippetParameters(code, language) });
-        var saved = await Repository().ReadAsync();
-        Assert.Equal(new[] { SnippetLanguage.CSharp, SnippetLanguage.C, SnippetLanguage.Cpp },
-            saved.Select(item => Assert.IsType<SnippetParameters>(item.Parameters).Language));
-        Assert.All(saved, item => Assert.Equal(code, ((SnippetParameters)item.Parameters).Code));
+        await WriteLegacyDocumentAsync();
+        var kept = await Repository().ReadAsync();
+        Assert.Equal(new[] { "Text", "Link", "Photo", "Counter" }, kept.Select(x => x.Name));
+        Assert.Equal(new[] { 0, 1, 2, 3 }, kept.Select(x => x.SortOrder));
+        Assert.Equal("exact\n🐱  ", Assert.IsType<CopyTextParameters>(kept[0].Parameters).Text);
+        Assert.True(kept[0].IsFavorite); Assert.Equal(ActionCategory.Learning, kept[0].Category);
+        Assert.Equal("https://example.com/?a=1", Assert.IsType<OpenUrlParameters>(kept[1].Parameters).Url);
+        Assert.IsType<PhotoParameters>(kept[2].Parameters); Assert.IsType<IncrementCounterParameters>(kept[3].Parameters);
+        Assert.Equal(3, File.ReadAllBytes(FilePath)[63]);
+        Assert.Equal(kept, await Repository().ReadAsync());
+        Assert.DoesNotContain("retired payload", Encoding.UTF8.GetString(File.ReadAllBytes(FilePath)));
+        await Repository().SaveAsync(NewAction("New text")); Assert.Equal(5, (await Repository().ReadAsync()).Count);
+    }
+
+    [Fact]
+    public async Task CancelledUpgradePreservesAllSavedBytes()
+    {
+        await WriteLegacyDocumentAsync(); var before = File.ReadAllBytes(FilePath);
+        using var cancellation = new CancellationTokenSource();
+        var repository = new SqliteActionRepository(FilePath, new CancelOnValidate(cancellation));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => repository.ReadAsync(cancellation.Token));
+        Assert.Equal(before, File.ReadAllBytes(FilePath));
+        Assert.Equal(4, (await Repository().ReadAsync()).Count);
+    }
+
+    private sealed class CancelOnValidate(CancellationTokenSource cancellation) : IActionValidator
+    {
+        public void Validate(ActionDefinition action) { new ActionValidator().Validate(action); cancellation.Cancel(); }
+    }
+
+    [Fact]
+    public async Task UnknownTypesAndFutureSchemasNeverTriggerPartialCleanup()
+    {
+        foreach (var future in new[] { false, true })
+        {
+            await WriteLegacyDocumentAsync(unknownType: !future, schema: future ? 9 : 2);
+            var before = File.ReadAllBytes(FilePath);
+            await Assert.ThrowsAsync<InvalidDataException>(() => Repository().ReadAsync());
+            await Assert.ThrowsAsync<InvalidDataException>(() => Repository().SaveAsync(NewAction()));
+            Assert.Equal(before, File.ReadAllBytes(FilePath));
+            File.Delete(FilePath);
+        }
+    }
+
+    private async Task WriteLegacyDocumentAsync(bool unknownType = false, int schema = 2)
+    {
+        var values = new[]
+        {
+            NewAction("Text") with { Parameters = new CopyTextParameters("exact\n🐱  "), IsFavorite = true, Category = ActionCategory.Learning },
+            NewAction("Retired A") with { Parameters = new CopyTextParameters(new string('x', 400)) },
+            NewAction("Link") with { Parameters = new OpenUrlParameters("https://example.com/?a=1") },
+            NewAction("Retired B") with { Parameters = new CopyTextParameters(new string('x', 400)) },
+            NewAction("Photo") with { Parameters = new PhotoParameters(Guid.NewGuid().ToString("N")) },
+            NewAction("Counter") with { Parameters = new IncrementCounterParameters() }
+        };
+        foreach (var value in values) await Repository().SaveAsync(value);
+        var original = JsonSerializer.Serialize(new DashboardDocument(3, (await Repository().ReadAsync()).ToList()), ActionJsonContext.Default.DashboardDocument);
+        var legacy = JsonNode.Parse(original)!.AsObject(); legacy["schemaVersion"] = schema;
+        foreach (var index in new[] { 1, 3 })
+            legacy["actions"]![index]!["parameters"] = new JsonObject { ["type"] = "snippet", ["code"] = "retired payload 🐱", ["language"] = index == 1 ? 7 : 13 };
+        if (unknownType) legacy["actions"]![2]!["parameters"]!["type"] = "runShell";
+        // Replace the SQLite TEXT field with shorter valid JSON padded to the same UTF-8 length.
+        // This creates a real older-format database without keeping the retired production model.
+        var originalBytes = Encoding.UTF8.GetBytes(original); var legacyBytes = Encoding.UTF8.GetBytes(legacy.ToJsonString());
+        Assert.True(legacyBytes.Length < originalBytes.Length);
+        var bytes = File.ReadAllBytes(FilePath); var offset = bytes.AsSpan().IndexOf(originalBytes); Assert.True(offset >= 0);
+        bytes.AsSpan(offset, originalBytes.Length).Fill((byte)' '); legacyBytes.CopyTo(bytes, offset); bytes[63] = 2;
+        File.WriteAllBytes(FilePath, bytes);
     }
 
     [Fact]

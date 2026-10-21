@@ -60,23 +60,25 @@ public sealed class SqliteActionRepository(string path, IActionValidator validat
                 try
                 {
                     var version = db.Read("PRAGMA user_version");
-                    if (version != "0" && version != "1" && version != "2")
+                    if (version != "0" && version != "1" && version != "2" && version != "3")
                         throw new InvalidDataException("This dashboard was created by a newer version. Update Control Studio to open it.");
                     if (version == "0")
                     {
                         if (db.Read("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'dashboard'") is not null)
                             throw InvalidDocument();
                         db.Execute("CREATE TABLE dashboard (id INTEGER PRIMARY KEY CHECK(id = 1), payload TEXT NOT NULL)");
-                        db.Write(JsonSerializer.Serialize(new DashboardDocument(1, []), ActionJsonContext.Default.DashboardDocument));
-                        db.Execute("PRAGMA user_version = 1");
+                        db.Write(JsonSerializer.Serialize(new DashboardDocument(3, []), ActionJsonContext.Default.DashboardDocument));
+                        db.Execute("PRAGMA user_version = 3");
                     }
                     var json = db.Read("SELECT payload FROM dashboard WHERE id = 1") ?? throw InvalidDocument();
+                    var retiredItemsRemoved = false;
                     List<ActionDefinition> actions = [];
                     if (json is not null)
                     {
                         if (json.Length > 16_000_000) throw InvalidDocument();
+                        if (version is "1" or "2") (json, retiredItemsRemoved) = RemoveRetiredItems(json);
                         var document = JsonSerializer.Deserialize(json, ActionJsonContext.Default.DashboardDocument);
-                        if (document is null || document.SchemaVersion is not (1 or 2) || document.Actions is null || document.Actions.Count > MaximumActions)
+                        if (document is null || document.SchemaVersion is not (1 or 2 or 3) || document.Actions is null || document.Actions.Count > MaximumActions)
                             throw InvalidDocument();
                         actions = document.Actions;
                         foreach (var action in actions) validator.Validate(action);
@@ -86,15 +88,16 @@ public sealed class SqliteActionRepository(string path, IActionValidator validat
                         actions = actions.OrderBy(x => x.SortOrder).ToList();
                     }
                     token.ThrowIfCancellationRequested();
-                    if (change is not null)
+                    if (change is not null || retiredItemsRemoved)
                     {
-                        change(actions);
+                        change?.Invoke(actions);
                         for (var i = 0; i < actions.Count; i++) actions[i] = actions[i] with { SortOrder = i };
-                        var payload = JsonSerializer.Serialize(new DashboardDocument(2, actions), ActionJsonContext.Default.DashboardDocument);
+                        var payload = JsonSerializer.Serialize(new DashboardDocument(3, actions), ActionJsonContext.Default.DashboardDocument);
                         if (payload.Length > 16_000_000)
-                            throw new ActionValidationException("Saved content is full. Shorten a snippet or remove an item before saving.");
+                            throw new ActionValidationException("Saved content is full. Shorten text or remove an item before saving.");
+                        if (retiredItemsRemoved) db.Read("PRAGMA secure_delete = ON");
                         db.Write(payload);
-                        db.Execute("PRAGMA user_version = 2");
+                        db.Execute("PRAGMA user_version = 3");
                     }
                     token.ThrowIfCancellationRequested();
                     db.Execute("COMMIT");
@@ -110,6 +113,37 @@ public sealed class SqliteActionRepository(string path, IActionValidator validat
     }
 
     private static InvalidDataException InvalidDocument() => new("The saved dashboard is invalid. Your data was preserved; restore a backup or use a compatible app version.");
+
+    private static (string Json, bool Changed) RemoveRetiredItems(string json)
+    {
+        // Compatibility cleanup only: the owner explicitly requested deletion of this retired type.
+        // Do not deserialize it, reinterpret other unknown types, or modify future documents.
+        using var document = JsonDocument.Parse(json);
+        var root = document.RootElement;
+        if (root.ValueKind != JsonValueKind.Object || !root.TryGetProperty("schemaVersion", out var schema) ||
+            schema.ValueKind != JsonValueKind.Number || !schema.TryGetInt32(out var schemaVersion) || schemaVersion is not (1 or 2)) return (json, false);
+        if (!root.TryGetProperty("actions", out var saved) || saved.ValueKind != JsonValueKind.Array || saved.GetArrayLength() > MaximumActions)
+            throw InvalidDocument();
+        var kept = saved.EnumerateArray().Where(item =>
+            !(item.ValueKind == JsonValueKind.Object && item.TryGetProperty("parameters", out var parameters) &&
+              parameters.ValueKind == JsonValueKind.Object && parameters.TryGetProperty("type", out var type) &&
+              type.ValueKind == JsonValueKind.String && type.GetString() == "snippet")).ToArray();
+        if (kept.Length == saved.GetArrayLength()) return (json, false);
+        using var bytes = new MemoryStream();
+        using (var writer = new Utf8JsonWriter(bytes))
+        {
+            writer.WriteStartObject();
+            foreach (var property in root.EnumerateObject())
+            {
+                if (property.Name != "actions") { property.WriteTo(writer); continue; }
+                writer.WriteStartArray("actions");
+                foreach (var item in kept) item.WriteTo(writer);
+                writer.WriteEndArray();
+            }
+            writer.WriteEndObject();
+        }
+        return (Encoding.UTF8.GetString(bytes.ToArray()), true);
+    }
 
     private sealed class Database : IDisposable
     {

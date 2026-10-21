@@ -4,5 +4,3 @@
 *.yml text eol=lf
 *.py text eol=lf
 *.pbxproj text eol=lf
-# Preserve original vendor bytes and whitespace for integrity checks on all platforms.
-src/ControlStudio.App/Resources/Raw/Snippets/vendor/** -text -whitespace
