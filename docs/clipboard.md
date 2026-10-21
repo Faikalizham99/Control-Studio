@@ -1,6 +1,14 @@
 # Clipboard
 
-The owner authorized functional Text / Photo / Link / Snippet sections on 21 October 2026. This extends the Studio prototype. The top switcher uses local vector icons, accent-aware selection and native buttons; Add creates the currently selected type. Each section retains saved order, Edit and confirmed Delete. There is no automatic clipboard reading or background history.
+The owner authorized functional Text / Photo / Link / Snippet sections on 21 October 2026. This extends the Studio prototype. The top switcher uses local vector icons, accent-aware selection and native buttons; Add creates the currently selected type. Each section retains saved order, direct Edit and confirmed Delete controls. There is no automatic clipboard reading or background history.
+
+## Selected sections and item icons
+
+After reviewing a phone screenshot, the owner requested a visible accent highlight on the selected Text / Photo / Link / Snippet section and direct icon buttons instead of the ellipsis menu. The selected segment now binds its actual background brush to the exact selected accent (`AccentButtonBrush`), with contrasting icon/label colours. Unselected segments explicitly use a transparent brush. The native blank hit target sits beneath the independently drawn visuals so its states cannot obscure the fill. Accent changes update the brush resource immediately; phone confirmation remains pending.
+
+Each item has an icon row: pencil for Edit, red trash for Delete, and a filled-accent clipboard for Copy. Links add an external-open arrow; photos add an eye for Preview; snippets add a code icon for View code. Only the appropriate extra action appears, keeping the row to three or four buttons. The ellipsis/action sheet and text Copy/Open/View buttons on library cards are removed. Buttons have 48-point native hit targets and item-specific accessibility descriptions; Delete still asks for confirmation. Saved records, action validation, busy guards, photo cleanup, link opening and snippet viewing are unchanged. Switching sections clears feedback from the previous section.
+
+Local checks for this UI refinement: **47 app tests passed**, managed iOS C# compilation, source/configuration and whitespace checks passed. No new UI-only tests or packages were added. Exact selected fill, icon rendering/spacing, touch routing through the layered controls, live accent/theme changes, VoiceOver and Delete confirmation still need a phone check. The owner authorized committing and pushing this UI refinement on 22 October 2026. No new release tag was requested.
 
 | Section | Actions and storage |
 |---|---|

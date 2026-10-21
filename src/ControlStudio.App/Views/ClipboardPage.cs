@@ -1,6 +1,7 @@
 using ControlStudio.App.Platforms.iOS;
 using ControlStudio.Core.Actions;
 using Microsoft.Extensions.Logging;
+using Microsoft.Maui.Controls.Shapes;
 
 namespace ControlStudio.App.Views;
 
@@ -28,14 +29,14 @@ public sealed class ClipboardPage : ContentPage
         add.Clicked += async (_, _) => await GuardAsync(_ => Navigation.PushAsync(new ClipboardEditorPage(repository, validator, selected)));
         ToolbarItems.Add(add);
         items.ItemsLayout = new LinearItemsLayout(ItemsLayoutOrientation.Vertical) { ItemSpacing = 12 };
-        items.ItemTemplate = new DataTemplate(() => new ClipboardTile(PrimaryAsync, SecondaryAsync, ManageAsync));
+        items.ItemTemplate = new DataTemplate(() => new ClipboardTile(CopyAsync, SecondaryAsync, EditAsync, DeleteAsync));
         refresh.Content = items; refresh.SetDynamicResource(RefreshView.RefreshColorProperty, "AccentText");
         refresh.Refreshing += async (_, _) => await ReloadAsync();
         var switcher = new Grid { ColumnSpacing = 4, Padding = 4 };
         foreach (var kind in Enum.GetValues<ClipboardKind>())
         {
             switcher.ColumnDefinitions.Add(new(GridLength.Star));
-            var segment = new Segment(kind, () => { if (!busy) { selected = kind; Filter(); } });
+            var segment = new Segment(kind, () => { if (!busy && selected != kind) { selected = kind; ShowStatus(""); Filter(); } });
             segments.Add(kind, segment); switcher.Add(segment, (int)kind);
         }
         var heading = new VerticalStackLayout { Padding = new Thickness(16, 12, 16, 16), Spacing = 12, Children =
@@ -79,11 +80,10 @@ public sealed class ClipboardPage : ContentPage
             reloadPending = false; saved = await repository.ReadAsync(token); token.ThrowIfCancellationRequested(); Filter();
         });
     }
-    private Task PrimaryAsync(ActionDefinition item) => item.Parameters is SnippetParameters ? ViewAsync(item) : CopyAsync(item);
     private Task SecondaryAsync(ActionDefinition item) => item.Parameters switch
     {
         OpenUrlParameters => GuardAsync(async token => { var result = await executor.ExecuteAsync(item, token); ShowStatus(result.Message); }),
-        SnippetParameters => CopyAsync(item), _ => ViewAsync(item)
+        _ => ViewAsync(item)
     };
     private Task CopyAsync(ActionDefinition item) => GuardAsync(async token =>
     {
@@ -109,12 +109,16 @@ public sealed class ClipboardPage : ContentPage
                 var updated = item with { Parameters = snippet with { Code = code } }; validator.Validate(updated); await repository.SaveAsync(updated);
             }));
     });
-    private Task ManageAsync(ActionDefinition item) => GuardAsync(async token =>
+    private Task EditAsync(ActionDefinition item) => GuardAsync(async token =>
     {
-        var choice = await DisplayActionSheetAsync(item.Name, "Cancel", "Delete", "Edit");
+        validator.Validate(item);
+        if (StudioContent.Kind(item.Parameters) is not { } kind) return;
         token.ThrowIfCancellationRequested();
-        if (choice == "Edit") { await Navigation.PushAsync(new ClipboardEditorPage(repository, validator, StudioContent.Kind(item.Parameters)!.Value, item)); return; }
-        if (choice != "Delete" || !await DisplayAlertAsync("Delete clipboard item?", $"Remove “{item.Name}” from your saved clipboard?", "Delete", "Cancel")) return;
+        await Navigation.PushAsync(new ClipboardEditorPage(repository, validator, kind, item));
+    });
+    private Task DeleteAsync(ActionDefinition item) => GuardAsync(async token =>
+    {
+        if (!await DisplayAlertAsync("Delete clipboard item?", $"Remove “{item.Name}” from your saved clipboard?", "Delete", "Cancel")) return;
         token.ThrowIfCancellationRequested();
         // Finish the delete before removing its file; cancellation cannot orphan a committed item.
         await repository.DeleteAsync(item.Id);
@@ -155,21 +159,27 @@ public sealed class ClipboardPage : ContentPage
             this.kind = kind;
             icon = new StudioGlyph(Symbol(kind), useAccent: false) { WidthRequest = 21, HeightRequest = 21, HorizontalOptions = LayoutOptions.Center };
             label = SettingsControls.Text(kind.ToString(), 11, bold: true); label.HorizontalTextAlignment = TextAlignment.Center;
-            surface = SettingsControls.Rounded(new VerticalStackLayout { Padding = new Thickness(2, 8), Spacing = 4, Children = { icon, label } }, 19);
+            label.InputTransparent = true;
+            surface = new Border
+            {
+                Content = new VerticalStackLayout { Padding = new Thickness(2, 8), Spacing = 4, Children = { icon, label }, InputTransparent = true },
+                StrokeShape = new RoundRectangle { CornerRadius = 19 }, StrokeThickness = 0, InputTransparent = true,
+                Background = Brush.Transparent
+            };
             tap = SettingsControls.TapTarget(kind.ToString(), "ClipboardTab" + kind); tap.Clicked += (_, _) => select();
-            Content = new Grid { Children = { surface, tap } };
+            Content = new Grid { Children = { tap, surface } };
             AutomationProperties.SetIsInAccessibleTree(label, false);
         }
         public void Update(bool selected)
         {
             if (selected)
             {
-                surface.SetDynamicResource(BackgroundColorProperty, "AccentButton"); surface.Stroke = Colors.Transparent;
+                surface.SetDynamicResource(BackgroundProperty, "AccentButtonBrush");
                 label.SetDynamicResource(Label.TextColorProperty, "AccentButtonText"); icon.SetDynamicResource(StudioGlyph.TintProperty, "AccentButtonText");
             }
             else
             {
-                surface.BackgroundColor = Colors.Transparent; surface.Stroke = Colors.Transparent;
+                surface.Background = Brush.Transparent;
                 label.SetAppThemeColor(Label.TextColorProperty, Color.FromArgb("#626570"), Color.FromArgb("#AFB3BD"));
                 icon.SetAppThemeColor(StudioGlyph.TintProperty, Color.FromArgb("#626570"), Color.FromArgb("#AFB3BD"));
             }
@@ -181,31 +191,34 @@ public sealed class ClipboardPage : ContentPage
         private readonly Label title = SettingsControls.Text("", 19, bold: true);
         private readonly Label text = SettingsControls.Text("", 14, secondary: true);
         private readonly Image photo = new() { Aspect = Aspect.AspectFit, HeightRequest = 130, HorizontalOptions = LayoutOptions.Start, WidthRequest = 160 };
-        private readonly Button primary = DashboardStyle.Button("Copy");
-        private readonly Button secondary = DashboardStyle.Button("Open");
-        private readonly Button more = new() { Text = "•••", FontSize = 20, BackgroundColor = Colors.Transparent, Padding = 0, WidthRequest = 44, HeightRequest = 44 };
-        public ClipboardTile(Func<ActionDefinition, Task> primaryAction, Func<ActionDefinition, Task> secondaryAction, Func<ActionDefinition, Task> manage)
+        private readonly ClipboardIconButton copy = new(StudioSymbol.Clipboard, "Copy", primary: true);
+        private readonly ClipboardIconButton open = new(StudioSymbol.Open, "Open link");
+        private readonly ClipboardIconButton preview = new(StudioSymbol.Preview, "Preview photo");
+        private readonly ClipboardIconButton code = new(StudioSymbol.Snippets, "View code");
+        private readonly ClipboardIconButton edit = new(StudioSymbol.Edit, "Edit");
+        private readonly ClipboardIconButton delete = new(StudioSymbol.Delete, "Delete", destructive: true);
+        public ClipboardTile(Func<ActionDefinition, Task> copyAction, Func<ActionDefinition, Task> secondaryAction,
+            Func<ActionDefinition, Task> editAction, Func<ActionDefinition, Task> deleteAction)
         {
             title.MaxLines = 2; text.MaxLines = 3; text.LineBreakMode = LineBreakMode.TailTruncation;
-            more.SetDynamicResource(Button.TextColorProperty, "AccentText");
-            var heading = new Grid { ColumnDefinitions = { new(GridLength.Star), new(GridLength.Auto) }, ColumnSpacing = 8 };
-            heading.Add(title); heading.Add(more, 1);
-            var actions = new HorizontalStackLayout { Spacing = 10, HorizontalOptions = LayoutOptions.End, Children = { secondary, primary } };
-            primary.MinimumWidthRequest = secondary.MinimumWidthRequest = 88;
-            primary.MinimumHeightRequest = secondary.MinimumHeightRequest = 44;
-            Content = new GlassCard(new VerticalStackLayout { Spacing = 10, Children = { heading, text, photo, actions } });
-            primary.Clicked += async (_, _) => { if (BindingContext is ActionDefinition action) await primaryAction(action); };
-            secondary.Clicked += async (_, _) => { if (BindingContext is ActionDefinition action) await secondaryAction(action); };
-            more.Clicked += async (_, _) => { if (BindingContext is ActionDefinition action) await manage(action); };
+            var actions = new HorizontalStackLayout { Spacing = 8, HorizontalOptions = LayoutOptions.End, Children = { edit, delete, open, preview, code, copy } };
+            Content = new GlassCard(new VerticalStackLayout { Spacing = 12, Children = { title, text, photo, actions } });
+            copy.Clicked += async (_, _) => { if (BindingContext is ActionDefinition action) await copyAction(action); };
+            edit.Clicked += async (_, _) => { if (BindingContext is ActionDefinition action) await editAction(action); };
+            delete.Clicked += async (_, _) => { if (BindingContext is ActionDefinition action) await deleteAction(action); };
+            foreach (var button in new[] { open, preview, code })
+                button.Clicked += async (_, _) => { if (BindingContext is ActionDefinition action) await secondaryAction(action); };
         }
         protected override void OnBindingContextChanged()
         {
             base.OnBindingContextChanged();
             photo.Source = null; photo.IsVisible = false;
-            if (BindingContext is not ActionDefinition action) return;
-            title.Text = action.Name; primary.Text = action.Parameters is SnippetParameters ? "View code" : "Copy";
-            secondary.IsVisible = action.Parameters is not CopyTextParameters;
-            secondary.Text = action.Parameters switch { OpenUrlParameters => "Open", SnippetParameters => "Copy", _ => "Preview" };
+            open.IsVisible = preview.IsVisible = code.IsVisible = false;
+            if (BindingContext is not ActionDefinition action) { title.Text = text.Text = ""; return; }
+            title.Text = action.Name;
+            open.IsVisible = action.Parameters is OpenUrlParameters;
+            preview.IsVisible = action.Parameters is PhotoParameters;
+            code.IsVisible = action.Parameters is SnippetParameters;
             text.FontFamily = action.Parameters is SnippetParameters ? "Menlo" : null;
             text.Text = action.Parameters switch
             {
@@ -215,9 +228,8 @@ public sealed class ClipboardPage : ContentPage
             };
             if (action.Parameters is PhotoParameters p && ClipboardPhotoStore.GetThumbnailPath(p.AssetKey) is { } path)
             { photo.Source = path; photo.IsVisible = true; SemanticProperties.SetDescription(photo, action.Name); }
-            SemanticProperties.SetDescription(primary, $"{primary.Text} {action.Name}");
-            SemanticProperties.SetDescription(secondary, $"{secondary.Text} {action.Name}");
-            SemanticProperties.SetDescription(more, $"Edit or delete {action.Name}");
+            copy.Describe("Copy", action.Name); edit.Describe("Edit", action.Name); delete.Describe("Delete", action.Name);
+            open.Describe("Open link", action.Name); preview.Describe("Preview photo", action.Name); code.Describe("View code", action.Name);
         }
     }
 }

@@ -71,6 +71,7 @@ public sealed class AppearancePreferences : BindableObject
         var accent = Color.FromArgb(AccentHex);
         application.Resources["Accent"] = accent;
         application.Resources["AccentButton"] = accent;
+        application.Resources["AccentButtonBrush"] = new SolidColorBrush(accent);
         application.Resources["AccentButtonText"] = AppearanceColors.ButtonForeground(accent);
         application.Resources["AccentActionText"] = AppearanceColors.ButtonForeground(accent, 19, bold: true);
         application.Resources["AccentOnLight"] = AppearanceColors.TextAccent(accent, false);
