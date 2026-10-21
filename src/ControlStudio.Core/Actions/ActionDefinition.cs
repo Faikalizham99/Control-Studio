@@ -29,7 +29,8 @@ public sealed record ActionDefinition(
     ActionCategory Category = ActionCategory.Personal,
     ActionIcon Icon = ActionIcon.Bolt,
     ActionColor Color = ActionColor.Blue,
-    bool IsFavorite = false, int SortOrder = 0) : IActionDefinition;
+    bool IsFavorite = false, int SortOrder = 0,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? HeaderColorHex = null) : IActionDefinition;
 
 public sealed record DashboardDocument(int SchemaVersion, List<ActionDefinition> Actions);
 

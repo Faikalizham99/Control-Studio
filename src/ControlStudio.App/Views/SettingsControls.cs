@@ -72,13 +72,13 @@ internal sealed class ThemeChoice : ContentView
     }
 }
 
-internal sealed class AccentChoice : ContentView
+internal sealed class ColourChoice : ContentView
 {
     private readonly Border outline;
     private readonly Label check;
     private readonly Button tap;
     private readonly string title;
-    public AccentChoice(string title, Brush fill, string automationId, Action selected, bool custom = false)
+    public ColourChoice(string title, Brush fill, string automationId, Action selected, bool custom = false)
     {
         this.title = title;
         check = new Label { Text = "✓", FontSize = 18, FontAttributes = FontAttributes.Bold, TextColor = Colors.White,
@@ -86,7 +86,7 @@ internal sealed class AccentChoice : ContentView
         var circle = new Border { Content = check, Background = fill, Stroke = Colors.White.WithAlpha(.5f), StrokeThickness = 1,
             StrokeShape = new Ellipse(), HeightRequest = 36, WidthRequest = 36, HorizontalOptions = LayoutOptions.Center, VerticalOptions = LayoutOptions.Center };
         outline = new Border { Content = circle, StrokeThickness = 1.5, StrokeShape = new Ellipse(), Padding = 2, WidthRequest = 44, HeightRequest = 44, Stroke = Colors.Transparent };
-        tap = SettingsControls.TapTarget(title + " accent", automationId); tap.Clicked += (_, _) => selected();
+        tap = SettingsControls.TapTarget(title + " colour", automationId); tap.Clicked += (_, _) => selected();
         var target = new Grid { WidthRequest = 44, HeightRequest = 44, HorizontalOptions = LayoutOptions.Center, Children = { outline, tap } };
         var column = new VerticalStackLayout { Spacing = 1, Children = { target } };
         if (custom) { var label = SettingsControls.Text("Custom Colour", 9, true); label.HorizontalTextAlignment = TextAlignment.Center; column.Children.Add(label); }
@@ -97,6 +97,6 @@ internal sealed class AccentChoice : ContentView
         outline.Stroke = selected ? accent : Colors.Transparent;
         check.IsVisible = selected;
         check.TextColor = AppearanceColors.Luminance(accent) > .18 ? Colors.Black : Colors.White;
-        SemanticProperties.SetDescription(tap, $"{title} accent{(selected ? ", selected" : "")}");
+        SemanticProperties.SetDescription(tap, $"{title} colour{(selected ? ", selected" : "")}");
     }
 }

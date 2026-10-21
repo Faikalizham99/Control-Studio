@@ -92,4 +92,18 @@ public sealed class StudioContentTests
             if (kind == ClipboardKind.Link) Assert.Equal(value.Trim(), ((OpenUrlParameters)edited.Parameters).Url);
         }
     }
+
+    [Fact]
+    public void OrdinaryEditsKeepEachHeaderOverrideAndNullStillMeansAppAccent()
+    {
+        foreach (var kind in Enum.GetValues<ClipboardKind>())
+        foreach (var header in new string?[] { null, "#00FFD2" })
+        {
+            var value = kind == ClipboardKind.Photo ? Guid.NewGuid().ToString("N") : kind == ClipboardKind.Link ? "https://example.com" : "exact\ntext  ";
+            var original = StudioContent.Draft(null, kind, "Name", value) with { HeaderColorHex = header, IsFavorite = true, SortOrder = 5 };
+            var edited = StudioContent.Draft(original, kind, "Renamed", value);
+            Assert.Equal(original with { Name = "Renamed" }, edited);
+            Assert.Equal(header, edited.HeaderColorHex);
+        }
+    }
 }

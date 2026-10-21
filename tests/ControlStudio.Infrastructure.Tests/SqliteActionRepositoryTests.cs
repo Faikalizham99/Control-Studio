@@ -64,7 +64,7 @@ public sealed class SqliteActionRepositoryTests : IDisposable
     {
         await Repository().SaveAsync(NewAction());
         var bytes = File.ReadAllBytes(FilePath);
-        var marker = Encoding.UTF8.GetBytes("\"schemaVersion\":3");
+        var marker = Encoding.UTF8.GetBytes("\"schemaVersion\":4");
         var index = bytes.AsSpan().IndexOf(marker);
         Assert.True(index >= 0);
         bytes[index + marker.Length - 1] = (byte)'9';
@@ -95,7 +95,7 @@ public sealed class SqliteActionRepositoryTests : IDisposable
         var text = NewAction("Existing text"); await Repository().SaveAsync(text);
         // Construct the schema-1 bytes produced by the previous release.
         var legacy = File.ReadAllBytes(FilePath); legacy[63] = 1;
-        var marker = Encoding.UTF8.GetBytes("\"schemaVersion\":3");
+        var marker = Encoding.UTF8.GetBytes("\"schemaVersion\":4");
         var index = legacy.AsSpan().IndexOf(marker); Assert.True(index >= 0);
         legacy[index + marker.Length - 1] = (byte)'1'; File.WriteAllBytes(FilePath, legacy);
         Assert.Equal(text, Assert.Single(await Repository().ReadAsync()));
@@ -106,7 +106,7 @@ public sealed class SqliteActionRepositoryTests : IDisposable
         await Repository().SaveAsync(photo); await Repository().SaveAsync(link);
         var reopened = await Repository().ReadAsync();
         Assert.Equal(new[] { text, photo with { SortOrder = 1 }, link with { SortOrder = 2 } }, reopened);
-        Assert.Equal(3, File.ReadAllBytes(FilePath)[63]);
+        Assert.Equal(4, File.ReadAllBytes(FilePath)[63]);
     }
 
     [Fact]
@@ -120,10 +120,56 @@ public sealed class SqliteActionRepositoryTests : IDisposable
         Assert.True(kept[0].IsFavorite); Assert.Equal(ActionCategory.Learning, kept[0].Category);
         Assert.Equal("https://example.com/?a=1", Assert.IsType<OpenUrlParameters>(kept[1].Parameters).Url);
         Assert.IsType<PhotoParameters>(kept[2].Parameters); Assert.IsType<IncrementCounterParameters>(kept[3].Parameters);
-        Assert.Equal(3, File.ReadAllBytes(FilePath)[63]);
+        Assert.Equal(4, File.ReadAllBytes(FilePath)[63]);
         Assert.Equal(kept, await Repository().ReadAsync());
         Assert.DoesNotContain("retired payload", Encoding.UTF8.GetString(File.ReadAllBytes(FilePath)));
         await Repository().SaveAsync(NewAction("New text")); Assert.Equal(5, (await Repository().ReadAsync()).Count);
+    }
+
+    [Fact]
+    public async Task HeaderColoursSurviveRelaunchReorderEditsAndResetIndependently()
+    {
+        var text = NewAction("Text") with { HeaderColorHex = "#00FFD2", IsFavorite = true };
+        var photo = NewAction("Photo") with { Parameters = new PhotoParameters(Guid.NewGuid().ToString("N")), HeaderColorHex = "#FFFFFF" };
+        var link = NewAction("Link") with { Parameters = new OpenUrlParameters("https://example.com"), HeaderColorHex = "#000000" };
+        foreach (var item in new[] { text, photo, link }) await Repository().SaveAsync(item);
+        await Repository().MoveAsync(link.Id, -1);
+        await Repository().SaveAsync(text with { Name = "Renamed" });
+        var reopened = await Repository().ReadAsync();
+        Assert.Equal(new[] { text with { Name = "Renamed" }, link with { SortOrder = 1 }, photo with { SortOrder = 2 } }, reopened);
+        await Repository().SaveAsync(reopened[0] with { HeaderColorHex = null });
+        var reset = await Repository().ReadAsync();
+        Assert.Null(reset[0].HeaderColorHex); Assert.Equal(text.Parameters, reset[0].Parameters); Assert.True(reset[0].IsFavorite);
+        Assert.Equal("#000000", reset[1].HeaderColorHex); Assert.Equal("#FFFFFF", reset[2].HeaderColorHex);
+    }
+
+    [Fact]
+    public async Task SchemaThreeDefaultsFollowAccentAndUpgradePreservesExistingItems()
+    {
+        var original = NewAction("Existing"); await Repository().SaveAsync(original);
+        var bytes = File.ReadAllBytes(FilePath);
+        var marker = Encoding.UTF8.GetBytes("\"schemaVersion\":4");
+        var index = bytes.AsSpan().IndexOf(marker); Assert.True(index >= 0);
+        bytes[index + marker.Length - 1] = (byte)'3'; bytes[63] = 3; File.WriteAllBytes(FilePath, bytes);
+        Assert.Equal(original, Assert.Single(await Repository().ReadAsync()));
+        Assert.Equal(bytes, File.ReadAllBytes(FilePath));
+        var custom = NewAction("New custom") with { HeaderColorHex = "#007AFF" }; await Repository().SaveAsync(custom);
+        var reopened = await Repository().ReadAsync();
+        Assert.Equal(original, reopened[0]); Assert.Null(reopened[0].HeaderColorHex);
+        Assert.Equal(custom with { SortOrder = 1 }, reopened[1]); Assert.Equal(4, File.ReadAllBytes(FilePath)[63]);
+    }
+
+    [Fact]
+    public async Task MalformedSavedHeaderColourDoesNotResetOrOverwriteData()
+    {
+        await Repository().SaveAsync(NewAction() with { HeaderColorHex = "#007AFF" });
+        var bytes = File.ReadAllBytes(FilePath);
+        var marker = Encoding.UTF8.GetBytes("\"headerColorHex\":\"#007AFF\"");
+        var index = bytes.AsSpan().IndexOf(marker); Assert.True(index >= 0);
+        Encoding.UTF8.GetBytes("\"headerColorHex\":\"#GGGGGG\"").CopyTo(bytes, index); File.WriteAllBytes(FilePath, bytes);
+        await Assert.ThrowsAsync<InvalidDataException>(() => Repository().ReadAsync());
+        await Assert.ThrowsAsync<ActionValidationException>(() => Repository().SaveAsync(NewAction("Another")));
+        Assert.Equal(bytes, File.ReadAllBytes(FilePath));
     }
 
     [Fact]
@@ -168,7 +214,7 @@ public sealed class SqliteActionRepositoryTests : IDisposable
             NewAction("Counter") with { Parameters = new IncrementCounterParameters() }
         };
         foreach (var value in values) await Repository().SaveAsync(value);
-        var original = JsonSerializer.Serialize(new DashboardDocument(3, (await Repository().ReadAsync()).ToList()), ActionJsonContext.Default.DashboardDocument);
+        var original = JsonSerializer.Serialize(new DashboardDocument(4, (await Repository().ReadAsync()).ToList()), ActionJsonContext.Default.DashboardDocument);
         var legacy = JsonNode.Parse(original)!.AsObject(); legacy["schemaVersion"] = schema;
         foreach (var index in new[] { 1, 3 })
             legacy["actions"]![index]!["parameters"] = new JsonObject { ["type"] = "snippet", ["code"] = "retired payload 🐱", ["language"] = index == 1 ? 7 : 13 };

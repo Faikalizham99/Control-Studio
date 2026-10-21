@@ -1,4 +1,5 @@
 using ControlStudio.Core;
+using ControlStudio.App.Platforms.iOS;
 using ControlStudio.Core.Actions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Maui.Controls.Shapes;
@@ -15,7 +16,7 @@ public sealed class StudioPage : ContentPage
     private readonly ILoggerFactory logs;
     private bool opening;
 
-    public StudioPage(ICounterRepository counter, IActionRepository actions, IActionValidator validator, IActionExecutor executor, ILoggerFactory logs)
+    public StudioPage(ICounterRepository counter, IActionRepository actions, IActionValidator validator, IActionExecutor executor, ILoggerFactory logs, AppearancePreferences preferences, AppleColorPicker colourPicker)
     {
         this.counter = counter; this.actions = actions; this.validator = validator; this.executor = executor; this.logs = logs;
         Title = "Studio"; AutomationId = "StudioPage"; SafeAreaEdges = SafeAreaEdges.All;
@@ -28,7 +29,7 @@ public sealed class StudioPage : ContentPage
                 Header(),
                 Entry("Widgets", "Small, Medium, Large\nand Extra Large widgets", StudioSymbol.Widgets, "OpenWidgets", () => new WidgetsPage(this.counter),
                     [("Counters", StudioSymbol.Bars), ("Dates", StudioSymbol.Calendar), ("Photos", StudioSymbol.Photo)]),
-                Entry("Clipboard", "Text, photos and links.\nKeep it ready to use.", StudioSymbol.Clipboard, "OpenClipboard", () => new ClipboardPage(this.actions, this.validator, this.executor, this.logs.CreateLogger<ClipboardPage>()),
+                Entry("Clipboard", "Text, photos and links.\nKeep it ready to use.", StudioSymbol.Clipboard, "OpenClipboard", () => new ClipboardPage(this.actions, this.validator, this.executor, this.logs.CreateLogger<ClipboardPage>(), preferences, colourPicker),
                     [("Text", StudioSymbol.Text), ("Links", StudioSymbol.Link), ("Images", StudioSymbol.Photo)])
             }
         } };

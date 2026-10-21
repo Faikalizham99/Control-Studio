@@ -51,6 +51,34 @@ public sealed class ActionTests
             Assert.Throws<ActionValidationException>(() => validator.Validate(invalid));
     }
 
+    [Theory]
+    [InlineData("")]
+    [InlineData("#123")]
+    [InlineData("#12345678")]
+    [InlineData("007AFF")]
+    [InlineData("#GGGGGG")]
+    [InlineData("#ffffff")]
+    [InlineData(" #007AFF")]
+    public void InvalidStoredHeaderColoursAreRejected(string hex) =>
+        Assert.Throws<ActionValidationException>(() => new ActionValidator().Validate(Action(new CopyTextParameters("body")) with { HeaderColorHex = hex }));
+
+    [Fact]
+    public void OptionalHeaderColoursRoundTripWithoutChangingTypedContent()
+    {
+        var items = new List<ActionDefinition>
+        {
+            Action(new CopyTextParameters("exact\nbody  ")),
+            Action(new CopyTextParameters("custom text")) with { HeaderColorHex = "#00FFD2" },
+            Action(new PhotoParameters(Guid.NewGuid().ToString("N"))) with { HeaderColorHex = "#000000" },
+            Action(new OpenUrlParameters("https://example.com/?q=1")) with { HeaderColorHex = "#FFFFFF" }
+        };
+        foreach (var item in items) new ActionValidator().Validate(item);
+        var json = JsonSerializer.Serialize(new DashboardDocument(4, items), ActionJsonContext.Default.DashboardDocument);
+        Assert.Equal(items, JsonSerializer.Deserialize(json, ActionJsonContext.Default.DashboardDocument)!.Actions);
+        var defaults = JsonSerializer.Serialize(new DashboardDocument(4, [items[0]]), ActionJsonContext.Default.DashboardDocument);
+        Assert.DoesNotContain("headerColorHex", defaults);
+    }
+
     [Fact]
     public async Task InvalidOrCancelledActionsHaveNoSideEffects()
     {

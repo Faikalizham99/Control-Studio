@@ -11,7 +11,9 @@ public sealed class ClipboardPage : ContentPage
     private readonly IActionValidator validator;
     private readonly IActionExecutor executor;
     private readonly ILogger<ClipboardPage> logger;
-    private readonly CollectionView items = new() { SelectionMode = SelectionMode.None, AutomationId = "ClipboardItems", Margin = new Thickness(16, 0, 16, 16) };
+    private readonly AppearancePreferences preferences;
+    private readonly AppleColorPicker colourPicker;
+    private readonly CollectionView items = new() { SelectionMode = SelectionMode.None, ItemSizingStrategy = ItemSizingStrategy.MeasureAllItems, AutomationId = "ClipboardItems", Margin = new Thickness(16, 0, 16, 16) };
     private readonly Label status = SettingsControls.Text("", 13, secondary: true);
     private readonly Label description = SettingsControls.Text("", 15, secondary: true);
     private readonly RefreshView refresh = new();
@@ -21,12 +23,13 @@ public sealed class ClipboardPage : ContentPage
     private CancellationTokenSource lifetime = new();
     private bool busy, active, reloadPending;
 
-    public ClipboardPage(IActionRepository repository, IActionValidator validator, IActionExecutor executor, ILogger<ClipboardPage> logger)
+    public ClipboardPage(IActionRepository repository, IActionValidator validator, IActionExecutor executor, ILogger<ClipboardPage> logger, AppearancePreferences preferences, AppleColorPicker colourPicker)
     {
         this.repository = repository; this.validator = validator; this.executor = executor; this.logger = logger;
+        this.preferences = preferences; this.colourPicker = colourPicker;
         Title = "Clipboard"; AutomationId = "ClipboardPage"; SafeAreaEdges = SafeAreaEdges.All; DashboardStyle.Page(this);
         var add = new ToolbarItem { Text = "Add", AutomationId = "AddClipboardItem" };
-        add.Clicked += async (_, _) => await GuardAsync(_ => Navigation.PushAsync(new ClipboardEditorPage(repository, validator, selected)));
+        add.Clicked += async (_, _) => await GuardAsync(_ => Navigation.PushAsync(new ClipboardEditorPage(repository, validator, preferences, colourPicker, selected)));
         ToolbarItems.Add(add);
         items.ItemsLayout = new LinearItemsLayout(ItemsLayoutOrientation.Vertical) { ItemSpacing = 12 };
         items.ItemTemplate = new DataTemplate(() => new ClipboardTile(CopyAsync, SecondaryAsync, EditAsync, DeleteAsync));
@@ -108,7 +111,7 @@ public sealed class ClipboardPage : ContentPage
         validator.Validate(item);
         if (StudioContent.Kind(item.Parameters) is not { } kind) return;
         token.ThrowIfCancellationRequested();
-        await Navigation.PushAsync(new ClipboardEditorPage(repository, validator, kind, item));
+        await Navigation.PushAsync(new ClipboardEditorPage(repository, validator, preferences, colourPicker, kind, item));
     });
     private Task DeleteAsync(ActionDefinition item) => GuardAsync(async token =>
     {
@@ -189,8 +192,16 @@ public sealed class ClipboardPage : ContentPage
     }
     private sealed class ClipboardTile : ContentView
     {
-        private readonly Label title = SettingsControls.Text("", 19, bold: true);
+        private const int PreviewLines = 3;
+        private readonly ClipboardHeaderView header = new();
         private readonly Label text = SettingsControls.Text("", 14, secondary: true);
+        private readonly Button expand = new()
+        {
+            Text = "\u2026 Show more", FontSize = 13, FontAttributes = FontAttributes.Bold, BackgroundColor = Colors.Transparent,
+            Padding = new Thickness(0, 0, 12, 0), MinimumHeightRequest = 44, MinimumWidthRequest = 44,
+            HorizontalOptions = LayoutOptions.Start, IsVisible = false, AutomationId = "ToggleClipboardPreview"
+        };
+        private bool expanded, overflowCheckQueued;
         private readonly Image photo = new() { Aspect = Aspect.AspectFit, HeightRequest = 130, HorizontalOptions = LayoutOptions.Start, WidthRequest = 160 };
         private readonly ClipboardIconButton copy = new(StudioSymbol.Clipboard, "Copy", primary: true);
         private readonly ClipboardIconButton open = new(StudioSymbol.Open, "Open link");
@@ -200,9 +211,31 @@ public sealed class ClipboardPage : ContentPage
         public ClipboardTile(Func<ActionDefinition, Task> copyAction, Func<ActionDefinition, Task> secondaryAction,
             Func<ActionDefinition, Task> editAction, Func<ActionDefinition, Task> deleteAction)
         {
-            title.MaxLines = 2; text.MaxLines = 3; text.LineBreakMode = LineBreakMode.TailTruncation;
+            text.MaxLines = PreviewLines; text.LineBreakMode = LineBreakMode.TailTruncation;
+            expand.SetDynamicResource(Button.TextColorProperty, "AccentText");
+            expand.Clicked += (_, _) =>
+            {
+                expanded = !expanded;
+                text.MaxLines = expanded ? -1 : PreviewLines;
+                text.LineBreakMode = expanded ? LineBreakMode.WordWrap : LineBreakMode.TailTruncation;
+                UpdateExpandCaption();
+                InvalidateMeasure();
+            };
+            text.SizeChanged += (_, _) => QueueOverflowCheck();
+            text.HandlerChanged += (_, _) => QueueOverflowCheck();
+            text.Loaded += (_, _) => QueueOverflowCheck();
+            text.PropertyChanged += (_, args) =>
+            {
+                if (args.PropertyName is nameof(Label.FontSize) or nameof(Label.FontFamily) or nameof(Label.FontAttributes) or nameof(Label.FontAutoScalingEnabled))
+                    QueueOverflowCheck();
+            };
             var actions = new HorizontalStackLayout { Spacing = 8, HorizontalOptions = LayoutOptions.End, Children = { edit, delete, open, preview, copy } };
-            Content = new GlassCard(new VerticalStackLayout { Spacing = 12, Children = { title, text, photo, actions } });
+            var content = new VerticalStackLayout { Spacing = 0, Children = { text, expand } };
+            var divider = new BoxView { HeightRequest = 1, HorizontalOptions = LayoutOptions.Fill, InputTransparent = true };
+            divider.SetAppThemeColor(BoxView.ColorProperty, Color.FromArgb("#D2D7E1"), Colors.White.WithAlpha(.18f));
+            AutomationProperties.SetIsInAccessibleTree(divider, false);
+            var body = new VerticalStackLayout { Padding = 12, Spacing = 12, Children = { content, photo, actions } };
+            Content = new GlassCard(new VerticalStackLayout { Spacing = 0, Children = { header, divider, body } }, 0);
             copy.Clicked += async (_, _) => { if (BindingContext is ActionDefinition action) await copyAction(action); };
             edit.Clicked += async (_, _) => { if (BindingContext is ActionDefinition action) await editAction(action); };
             delete.Clicked += async (_, _) => { if (BindingContext is ActionDefinition action) await deleteAction(action); };
@@ -212,10 +245,13 @@ public sealed class ClipboardPage : ContentPage
         protected override void OnBindingContextChanged()
         {
             base.OnBindingContextChanged();
+            // CollectionView reuses tiles; a different item always starts with its own collapsed preview.
+            expanded = false; expand.IsVisible = false;
+            text.MaxLines = PreviewLines; text.LineBreakMode = LineBreakMode.TailTruncation;
             photo.Source = null; photo.IsVisible = false;
             open.IsVisible = preview.IsVisible = false;
-            if (BindingContext is not ActionDefinition action) { title.Text = text.Text = ""; return; }
-            title.Text = action.Name;
+            if (BindingContext is not ActionDefinition action) { header.SetItem("", null); text.Text = ""; return; }
+            header.SetItem(action.Name, action.HeaderColorHex);
             open.IsVisible = action.Parameters is OpenUrlParameters;
             preview.IsVisible = action.Parameters is PhotoParameters;
             text.Text = action.Parameters switch
@@ -227,6 +263,35 @@ public sealed class ClipboardPage : ContentPage
             { photo.Source = path; photo.IsVisible = true; SemanticProperties.SetDescription(photo, action.Name); }
             copy.Describe("Copy", action.Name); edit.Describe("Edit", action.Name); delete.Describe("Delete", action.Name);
             open.Describe("Open link", action.Name); preview.Describe("Preview photo", action.Name);
+            UpdateExpandCaption(); QueueOverflowCheck();
+        }
+
+        private void UpdateExpandCaption()
+        {
+            expand.Text = expanded ? "Show less" : "\u2026 Show more";
+            var name = (BindingContext as ActionDefinition)?.Name ?? "item";
+            SemanticProperties.SetDescription(expand, $"{(expanded ? "Collapse" : "Expand")} content for {name}");
+            SemanticProperties.SetHint(expand, expanded ? "Shows a three-line preview." : "Shows the full saved content.");
+        }
+
+        private void QueueOverflowCheck()
+        {
+            if (overflowCheckQueued) return;
+            overflowCheckQueued = true;
+            // Wait for the native label's text, scaled font and actual card width to be applied.
+            Dispatcher.Dispatch(() =>
+            {
+                overflowCheckQueued = false;
+                if (BindingContext is not ActionDefinition action || action.Parameters is not (CopyTextParameters or OpenUrlParameters))
+                { expand.IsVisible = false; return; }
+                if (ClipboardTextMeasurement.ExceedsLines(text, PreviewLines) is not { } overflows) return;
+                expand.IsVisible = overflows;
+                if (!overflows && expanded)
+                {
+                    expanded = false; text.MaxLines = PreviewLines; text.LineBreakMode = LineBreakMode.TailTruncation;
+                    UpdateExpandCaption();
+                }
+            });
         }
     }
 }

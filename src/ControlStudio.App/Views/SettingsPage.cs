@@ -1,6 +1,5 @@
 using System.ComponentModel;
 using ControlStudio.App.Platforms.iOS;
-using ControlStudio.Core;
 using Microsoft.Maui.Controls.Shapes;
 
 namespace ControlStudio.App.Views;
@@ -8,49 +7,32 @@ namespace ControlStudio.App.Views;
 public sealed class SettingsPage : ContentPage
 {
     private readonly AppearancePreferences preferences;
-    private readonly AppleColorPicker picker;
     private readonly ProfilePhotoStore photos;
     private readonly List<ThemeChoice> themes = [];
-    private readonly List<AccentChoice> accents = [];
+    private readonly ColourPickerView colours;
     private readonly Label displayName = SettingsControls.Text("", 19, bold: true);
     private readonly Label initial = new() { FontSize = 27, FontAttributes = FontAttributes.Bold, TextColor = Colors.White, HorizontalTextAlignment = TextAlignment.Center, VerticalTextAlignment = TextAlignment.Center };
     private readonly Image portrait = new() { Aspect = Aspect.AspectFill, HeightRequest = 60, WidthRequest = 60 };
-    private readonly Switch custom = new() { HorizontalOptions = LayoutOptions.End };
-    private readonly Slider hue = new() { Minimum = 0, Maximum = 360, MinimumTrackColor = Colors.Transparent, MaximumTrackColor = Colors.Transparent, ThumbColor = Colors.White, HeightRequest = 30 };
-    private readonly HexColorEntry hex = new()
-    {
-        FontSize = 16, FontFamily = "Menlo", MaxLength = 7, HorizontalTextAlignment = TextAlignment.Start,
-        VerticalTextAlignment = TextAlignment.Center, ReturnType = ReturnType.Done, TextTransform = TextTransform.Uppercase,
-        IsTextPredictionEnabled = false, IsSpellCheckEnabled = false, BackgroundColor = Colors.Transparent, HeightRequest = 36,
-        MinimumWidthRequest = 0, ClearButtonVisibility = ClearButtonVisibility.WhileEditing, AutomationId = "CustomAccentHex"
-    };
-    private readonly Border colourWell;
-    private readonly Border colourEditor;
-    private readonly VerticalStackLayout customEditor = new() { Spacing = 8 };
-    private readonly Label error = SettingsControls.Text("", 12, secondary: true);
     private readonly Label previewDetail = SettingsControls.Text("Accent colour in action", 10, secondary: true);
-    private bool updating;
-    private bool draggingHue;
     private bool picking;
     private bool subscribed;
-    private bool invalidHex;
     private string? displayedPhotoPath;
 
     public SettingsPage(AppearancePreferences preferences, AppleColorPicker picker, ProfilePhotoStore photos)
     {
-        this.preferences = preferences; this.picker = picker; this.photos = photos;
+        this.preferences = preferences; this.photos = photos;
+        colours = new ColourPickerView(picker);
+        colours.ColourChanged += (_, args) => preferences.SetAccent(args.Hex, args.Persist);
+        colours.CustomEditingChanged += (_, args) => preferences.SetCustomColourEnabled(args.Value);
         Title = "Settings"; AutomationId = "SettingsPage"; SafeAreaEdges = SafeAreaEdges.All;
         NavigationPage.SetHasNavigationBar(this, false);
         DashboardStyle.NavigationAccent(this);
         initial.SetDynamicResource(Label.TextColorProperty, "AccentButtonText");
         this.SetAppThemeColor(BackgroundColorProperty, Color.FromArgb("#F2F2F7"), Colors.Black);
-        colourWell = SettingsControls.Rounded(new Grid(), 10);
-        colourWell.WidthRequest = 40; colourWell.HeightRequest = 40; colourWell.VerticalOptions = LayoutOptions.Center;
-        colourEditor = SettingsControls.Rounded(new Grid(), 16, new Thickness(12, 8));
         var body = new VerticalStackLayout { Padding = new Thickness(16, 8, 16, 24), Spacing = 12 };
         body.Children.Add(SettingsControls.Text("Settings", 34, bold: true));
         body.Children.Add(BuildProfile()); body.Children.Add(BuildThemes());
-        body.Children.Add(BuildAccents()); body.Children.Add(BuildPreview());
+        body.Children.Add(Section("Accent", colours)); body.Children.Add(BuildPreview());
         var about = new Button { Text = "Widget & Shortcuts setup  ›", BackgroundColor = Colors.Transparent, FontSize = 14, MinimumHeightRequest = 44 };
         about.SetDynamicResource(Button.TextColorProperty, "AccentText");
         about.Clicked += async (_, _) => await Navigation.PushAsync(new AboutPage());
@@ -87,58 +69,6 @@ public sealed class SettingsPage : ContentPage
         return Section("Theme", row);
     }
 
-    private GlassCard BuildAccents()
-    {
-        var palette = new Grid { ColumnSpacing = 2, ColumnDefinitions = { new(GridLength.Star), new(GridLength.Star), new(GridLength.Star), new(GridLength.Star), new(GridLength.Star), new(GridLength.Star) } };
-        var names = new[] { "Blue", "Purple", "Pink", "Green", "Orange" };
-        for (var i = 0; i < AppearanceValues.Presets.Count; i++)
-        {
-            var value = AppearanceValues.Presets[i];
-            var choice = new AccentChoice(names[i], SettingsControls.Swatch(Color.FromArgb(value)), "Accent" + names[i], () => preferences.SetAccent(value));
-            accents.Add(choice); palette.Add(choice, i);
-        }
-        var spectrum = new LinearGradientBrush(new GradientStopCollection { new(Colors.Magenta, 0), new(Colors.Cyan, .33f), new(Colors.Lime, .5f), new(Colors.Yellow, .67f), new(Colors.Orange, .83f), new(Colors.Magenta, 1) }, new Point(0, 0), new Point(1, 1));
-        var customChoice = new AccentChoice("Custom colour", spectrum, "AccentCustom", async () => await PickColourAsync(), true);
-        accents.Add(customChoice); palette.Add(customChoice, 5);
-        custom.SetDynamicResource(Switch.OnColorProperty, "Accent");
-        SemanticProperties.SetDescription(custom, "Enable custom colour editing"); custom.AutomationId = "CustomColourEnabled";
-        custom.Toggled += (_, args) => { if (!updating) preferences.SetCustomColourEnabled(args.Value); };
-        var heading = new Grid { ColumnDefinitions = { new(GridLength.Star), new(GridLength.Auto) } };
-        var title = SettingsControls.Text("Custom Colour", 13, bold: true); title.VerticalOptions = LayoutOptions.Center;
-        heading.Add(title); heading.Add(custom, 1);
-        var hueBrush = new LinearGradientBrush(new GradientStopCollection {
-            new(Colors.Magenta, 0), new(Colors.Blue, 1f/6), new(Colors.Cyan, 2f/6), new(Colors.Lime, 3f/6), new(Colors.Yellow, 4f/6), new(Colors.Red, 5f/6), new(Colors.Magenta, 1)
-        }, new Point(0, 0), new Point(1, 0));
-        var bar = new Border { Background = hueBrush, StrokeThickness = 0, StrokeShape = new RoundRectangle { CornerRadius = 8 }, HeightRequest = 15, VerticalOptions = LayoutOptions.Center, Margin = new Thickness(5, 0) };
-        hue.AutomationId = "AccentHue"; SemanticProperties.SetDescription(hue, "Accent hue");
-        hue.DragStarted += (_, _) => draggingHue = true;
-        hue.DragCompleted += (_, _) => { draggingHue = false; preferences.SaveAccent(); Refresh(); };
-        // The spectrum runs backward from magenta (300°) through blue/cyan to red.
-        hue.ValueChanged += (_, args) => { if (!updating) preferences.SetAccent(AppearanceColors.ToRgbHex(Color.FromHsv((float)((300 - args.NewValue + 360) % 360) / 360, 1, 1)), persist: !draggingHue); };
-        customEditor.Children.Add(new Grid { Children = { bar, hue } });
-        hex.Completed += (_, _) => ApplyHex(); hex.Unfocused += (_, _) => ApplyHex();
-        hex.Focused += (_, _) => UpdateHexBorder();
-        hex.TextChanged += (_, _) =>
-        {
-            if (!updating && invalidHex) { invalidHex = false; error.Text = ""; error.IsVisible = false; UpdateHexBorder(); }
-        };
-        SemanticProperties.SetDescription(hex, "Accent colour in six-digit hexadecimal");
-        hex.SetAppThemeColor(Entry.TextColorProperty, Colors.Black, Colors.White);
-        var hexLabel = SettingsControls.Text("HEX", 10, secondary: true, bold: true); hexLabel.CharacterSpacing = 1.2;
-        var hexField = new VerticalStackLayout { Spacing = 0, VerticalOptions = LayoutOptions.Center, Children = { hexLabel, hex } };
-        var eyedropper = new ImageButton { Source = "color_picker.png", WidthRequest = 44, HeightRequest = 44, Padding = 11, CornerRadius = 10, BackgroundColor = Colors.Transparent, VerticalOptions = LayoutOptions.Center, AutomationId = "OpenColourPicker" };
-        eyedropper.SetAppTheme(ImageButton.SourceProperty, ImageSource.FromFile("color_picker.png"), ImageSource.FromFile("color_picker_dark.png"));
-        SemanticProperties.SetDescription(eyedropper, "Open system colour picker"); eyedropper.Clicked += async (_, _) => await PickColourAsync();
-        var colourTap = new TapGestureRecognizer(); colourTap.Tapped += async (_, _) => await PickColourAsync(); colourWell.GestureRecognizers.Add(colourTap);
-        var controls = new Grid { ColumnSpacing = 10, ColumnDefinitions = { new(GridLength.Auto), new(GridLength.Star), new(GridLength.Auto) } };
-        controls.Add(colourWell); controls.Add(hexField, 1); controls.Add(eyedropper, 2);
-        colourEditor.Content = controls;
-        customEditor.Children.Add(colourEditor); customEditor.Children.Add(error);
-        var divider = new BoxView { HeightRequest = 1, Margin = new Thickness(0, 3) };
-        divider.SetAppThemeColor(BoxView.ColorProperty, Color.FromArgb("#D9DDE6"), Colors.White.WithAlpha(.14f));
-        return Section("Accent", new VerticalStackLayout { Spacing = 6, Children = { palette, divider, heading, customEditor } });
-    }
-
     private GlassCard BuildPreview()
     {
         var primary = DashboardStyle.Button("Primary Button"); primary.FontSize = 12; primary.MinimumHeightRequest = 44; primary.Padding = new Thickness(10, 3);
@@ -161,74 +91,18 @@ public sealed class SettingsPage : ContentPage
     }
 
     private static GlassCard Section(string title, View content) => new(new VerticalStackLayout { Spacing = 8, Children = { SettingsControls.Text(title, 13, true, true), content } });
-    private async Task OpenProfileAsync() { if (picking) return; picking = true; try { await Navigation.PushAsync(new ProfileEditorPage(preferences, photos)); } finally { picking = false; } }
-    private async Task PickColourAsync()
-    {
-        if (picking) return;
-        picking = true;
-        try
-        {
-            hex.Unfocus(); invalidHex = false; error.Text = ""; error.IsVisible = false; UpdateHexBorder();
-            preferences.SetCustomColourEnabled(true);
-            var value = await picker.PickAsync(preferences.AccentHex, hexValue => preferences.SetAccent(hexValue, false));
-            preferences.SetAccent(value);
-        }
-        catch { error.Text = "The colour picker is unavailable. Enter a hex colour instead."; error.IsVisible = true; }
-        finally { preferences.SaveAccent(); picking = false; }
-    }
-    private void ApplyHex()
-    {
-        if (updating) return;
-        if (!preferences.SetAccent(hex.Text)) { invalidHex = true; error.Text = "Use a six-digit colour, for example #007AFF."; error.IsVisible = true; }
-        else { invalidHex = false; error.Text = ""; error.IsVisible = false; hex.Text = preferences.AccentHex; }
-        UpdateHexBorder();
-    }
-    private void UpdateHexBorder()
-    {
-        colourEditor.StrokeThickness = hex.IsFocused || invalidHex ? 1.5 : 1;
-        if (invalidHex)
-            colourEditor.SetAppTheme<Brush>(Border.StrokeProperty, new SolidColorBrush(Color.FromArgb("#B42336")), new SolidColorBrush(Color.FromArgb("#FF8798")));
-        else if (hex.IsFocused)
-        {
-            var accent = Color.FromArgb(preferences.AccentHex);
-            colourEditor.SetAppTheme<Brush>(Border.StrokeProperty,
-                new SolidColorBrush(AppearanceColors.TextAccent(accent, false)), new SolidColorBrush(AppearanceColors.TextAccent(accent, true)));
-        }
-        else SettingsControls.SurfaceStroke(colourEditor);
-    }
-    private void Changed(object? sender, PropertyChangedEventArgs args)
-    {
-        if (args.PropertyName == nameof(AppearancePreferences.AccentHex)) { invalidHex = false; error.Text = ""; error.IsVisible = false; }
-        Refresh();
-    }
+    private async Task OpenProfileAsync() { if (picking || colours.IsBusy) return; picking = true; try { await Navigation.PushAsync(new ProfileEditorPage(preferences, photos)); } finally { picking = false; } }
+    private void Changed(object? sender, PropertyChangedEventArgs args) => Refresh();
     private void Refresh()
     {
-        updating = true;
-        try
-        {
-            var accent = Color.FromArgb(preferences.AccentHex);
-            for (var i = 0; i < themes.Count; i++) themes[i].Update(i == preferences.ThemeIndex, accent);
-            for (var i = 0; i < accents.Count; i++) accents[i].Update(i < AppearanceValues.Presets.Count ? AppearanceValues.Presets[i] == preferences.AccentHex : !AppearanceValues.Presets.Contains(preferences.AccentHex), accent);
-            custom.IsToggled = preferences.CustomColourEnabled; customEditor.IsEnabled = preferences.CustomColourEnabled; customEditor.Opacity = preferences.CustomColourEnabled ? 1 : .4;
-            if (!hex.IsFocused && !invalidHex) hex.Text = preferences.AccentHex;
-            if (!draggingHue) hue.Value = (300 - Hue(accent) + 360) % 360;
-            colourWell.Background = new SolidColorBrush(accent);
-            UpdateHexBorder();
-            displayName.Text = preferences.DisplayName;
-            initial.Text = System.Globalization.StringInfo.GetNextTextElement(preferences.DisplayName);
-            var path = photos.GetPath(preferences.PhotoKey);
-            if (path != displayedPhotoPath) { portrait.Source = path; displayedPhotoPath = path; }
-            portrait.IsVisible = path is not null;
-            if (string.IsNullOrEmpty(error.Text)) error.IsVisible = false;
-        }
-        finally { updating = false; }
-    }
-    private static double Hue(Color color)
-    {
-        var max = Math.Max(color.Red, Math.Max(color.Green, color.Blue)); var min = Math.Min(color.Red, Math.Min(color.Green, color.Blue)); var delta = max - min;
-        if (delta < .00001) return 0;
-        var hueValue = max == color.Red ? (color.Green - color.Blue) / delta : max == color.Green ? 2 + (color.Blue - color.Red) / delta : 4 + (color.Red - color.Green) / delta;
-        return (hueValue * 60 + 360) % 360;
+        var accent = Color.FromArgb(preferences.AccentHex);
+        for (var i = 0; i < themes.Count; i++) themes[i].Update(i == preferences.ThemeIndex, accent);
+        colours.SetSelection(preferences.AccentHex, preferences.CustomColourEnabled);
+        displayName.Text = preferences.DisplayName;
+        initial.Text = System.Globalization.StringInfo.GetNextTextElement(preferences.DisplayName);
+        var path = photos.GetPath(preferences.PhotoKey);
+        if (path != displayedPhotoPath) { portrait.Source = path; displayedPhotoPath = path; }
+        portrait.IsVisible = path is not null;
     }
     protected override void OnAppearing()
     {
@@ -239,6 +113,6 @@ public sealed class SettingsPage : ContentPage
     protected override void OnDisappearing()
     {
         if (subscribed) { preferences.PropertyChanged -= Changed; subscribed = false; }
-        preferences.SaveAccent(); base.OnDisappearing();
+        colours.CommitPendingHex(); preferences.SaveAccent(); base.OnDisappearing();
     }
 }

@@ -60,15 +60,15 @@ public sealed class SqliteActionRepository(string path, IActionValidator validat
                 try
                 {
                     var version = db.Read("PRAGMA user_version");
-                    if (version != "0" && version != "1" && version != "2" && version != "3")
+                    if (version != "0" && version != "1" && version != "2" && version != "3" && version != "4")
                         throw new InvalidDataException("This dashboard was created by a newer version. Update Control Studio to open it.");
                     if (version == "0")
                     {
                         if (db.Read("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'dashboard'") is not null)
                             throw InvalidDocument();
                         db.Execute("CREATE TABLE dashboard (id INTEGER PRIMARY KEY CHECK(id = 1), payload TEXT NOT NULL)");
-                        db.Write(JsonSerializer.Serialize(new DashboardDocument(3, []), ActionJsonContext.Default.DashboardDocument));
-                        db.Execute("PRAGMA user_version = 3");
+                        db.Write(JsonSerializer.Serialize(new DashboardDocument(4, []), ActionJsonContext.Default.DashboardDocument));
+                        db.Execute("PRAGMA user_version = 4");
                     }
                     var json = db.Read("SELECT payload FROM dashboard WHERE id = 1") ?? throw InvalidDocument();
                     var retiredItemsRemoved = false;
@@ -78,7 +78,7 @@ public sealed class SqliteActionRepository(string path, IActionValidator validat
                         if (json.Length > 16_000_000) throw InvalidDocument();
                         if (version is "1" or "2") (json, retiredItemsRemoved) = RemoveRetiredItems(json);
                         var document = JsonSerializer.Deserialize(json, ActionJsonContext.Default.DashboardDocument);
-                        if (document is null || document.SchemaVersion is not (1 or 2 or 3) || document.Actions is null || document.Actions.Count > MaximumActions)
+                        if (document is null || document.SchemaVersion is not (1 or 2 or 3 or 4) || document.Actions is null || document.Actions.Count > MaximumActions)
                             throw InvalidDocument();
                         actions = document.Actions;
                         foreach (var action in actions) validator.Validate(action);
@@ -92,12 +92,12 @@ public sealed class SqliteActionRepository(string path, IActionValidator validat
                     {
                         change?.Invoke(actions);
                         for (var i = 0; i < actions.Count; i++) actions[i] = actions[i] with { SortOrder = i };
-                        var payload = JsonSerializer.Serialize(new DashboardDocument(3, actions), ActionJsonContext.Default.DashboardDocument);
+                        var payload = JsonSerializer.Serialize(new DashboardDocument(4, actions), ActionJsonContext.Default.DashboardDocument);
                         if (payload.Length > 16_000_000)
                             throw new ActionValidationException("Saved content is full. Shorten text or remove an item before saving.");
                         if (retiredItemsRemoved) db.Read("PRAGMA secure_delete = ON");
                         db.Write(payload);
-                        db.Execute("PRAGMA user_version = 3");
+                        db.Execute("PRAGMA user_version = 4");
                     }
                     token.ThrowIfCancellationRequested();
                     db.Execute("COMMIT");

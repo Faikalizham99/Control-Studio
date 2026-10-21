@@ -10,6 +10,8 @@ public sealed class ActionValidator : IActionValidator
             throw new ActionValidationException("Enter a name of 1–60 characters without control characters.");
         if (!Enum.IsDefined(action.Category) || !Enum.IsDefined(action.Icon) || !Enum.IsDefined(action.Color) || action.SortOrder < 0)
             throw new ActionValidationException("Choose a supported category, icon and color.");
+        if (action.HeaderColorHex is { } header && (!AppearanceValues.TryNormalizeHex(header, out var normalized) || header != normalized))
+            throw new ActionValidationException("Choose a six-digit RGB header colour, for example #007AFF.");
         switch (action.Parameters)
         {
             case OpenUrlParameters url:

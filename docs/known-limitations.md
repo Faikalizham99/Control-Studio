@@ -1,6 +1,6 @@
 # Known limitations
 
-- Clipboard contains Text, Photo and Link only; it supersedes the older image deferral below. Photo import/copy/share and direct icon controls still require phone checks. Photos are private normalized copies, not original library assets; the share sheet can save a separate copy to Photos. Private clipboard mutations upgrade to schema 3; the known retired record type is deleted on upgrade at the owner's request. Previous releases cannot open schema 3. See [Clipboard](clipboard.md).
+- Clipboard contains Text, Photo and Link only; it supersedes the older image deferral below. Photo import/copy/share, direct icon controls, expandable previews and coloured headers/shared picker still require phone checks. Photos are private normalized copies, not original library assets; the share sheet can save a separate copy to Photos. Private clipboard mutations upgrade to schema 4 for optional header colours; the known retired record type is deleted when upgrading versions 1/2 at the owner's request. Previous releases cannot open schema 4. See [Clipboard](clipboard.md).
 
 - iOS compilation requires macOS, Xcode and the pinned .NET workload. This Windows session cannot execute WidgetKit, App Intents, `codesign`, device registration or an iOS simulator. Source/configuration checks do not replace compilation.
 - No CI run or IPA is represented as successful until there is an actual workflow log/report. All device tests remain **NOT VERIFIED** until the owner confirms them.

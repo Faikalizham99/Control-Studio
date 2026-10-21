@@ -9,6 +9,13 @@ public sealed class ClipboardEditorPage : ContentPage
     private readonly IActionValidator validator;
     private readonly ActionDefinition? original;
     private readonly ClipboardKind kind;
+    private readonly AppearancePreferences preferences;
+    private readonly ColourPickerView headerColours;
+    private readonly Switch useAppAccent = new() { HorizontalOptions = LayoutOptions.End, AutomationId = "ClipboardHeaderUseAccent" };
+    private readonly ClipboardHeaderView headerPreview = new();
+    private readonly View headerColourCard;
+    private string? headerColourHex;
+    private bool subscribed;
     private readonly ProfileNameEntry name = new() { Placeholder = "E.g. Quick Note, Reminder, Quote", MaxLength = 60, FontSize = 14, HeightRequest = 44, BackgroundColor = Colors.Transparent, ReturnType = ReturnType.Done, AutomationId = "ClipboardName" };
     private readonly Editor text = CreateTextEditor("ClipboardText");
     private readonly ProfileNameEntry url = new() { Placeholder = "https://example.com", MaxLength = 2048, FontSize = 14, HeightRequest = 44, BackgroundColor = Colors.Transparent, Keyboard = Keyboard.Url, ReturnType = ReturnType.Done, IsTextPredictionEnabled = false, IsSpellCheckEnabled = false, AutomationId = "ClipboardLink" };
@@ -23,19 +30,23 @@ public sealed class ClipboardEditorPage : ContentPage
     private string? photoKey;
     private bool busy, departed, saved;
 
-    public ClipboardEditorPage(IActionRepository repository, IActionValidator validator, ActionDefinition? original = null)
-        : this(repository, validator, ClipboardKind.Text, original) { }
+    public ClipboardEditorPage(IActionRepository repository, IActionValidator validator, AppearancePreferences preferences, AppleColorPicker colourPicker, ActionDefinition? original = null)
+        : this(repository, validator, preferences, colourPicker, ClipboardKind.Text, original) { }
 
-    internal ClipboardEditorPage(IActionRepository repository, IActionValidator validator, ClipboardKind kind, ActionDefinition? original = null)
+    internal ClipboardEditorPage(IActionRepository repository, IActionValidator validator, AppearancePreferences preferences, AppleColorPicker colourPicker, ClipboardKind kind, ActionDefinition? original = null)
     {
         if (original is not null && StudioContent.Kind(original.Parameters) != kind) throw new ArgumentException("Choose a matching clipboard item.", nameof(original));
         this.repository = repository; this.validator = validator; this.original = original; this.kind = kind;
+        this.preferences = preferences; headerColourHex = original?.HeaderColorHex;
+        headerColours = new ColourPickerView(colourPicker, "ClipboardHeader", "Header");
+        headerColourCard = BuildHeaderColourCard();
         Title = $"{(original is null ? "New" : "Edit")} {kind.ToString().ToLowerInvariant()}";
         AutomationId = "ClipboardEditorPage"; SafeAreaEdges = SafeAreaEdges.All;
         NavigationPage.SetHasNavigationBar(this, false); DashboardStyle.NavigationAccent(this);
         this.SetAppThemeColor(BackgroundColorProperty, Color.FromArgb("#F2F2F7"), Colors.Black);
         StyleEntry(name); StyleEntry(url);
         name.Text = original?.Name;
+        name.TextChanged += (_, _) => RefreshHeaderPreview(); RefreshHeaderPreview();
         name.Completed += (_, _) => name.Unfocus(); url.Completed += (_, _) => url.Unfocus();
         photoPlaceholder = new VerticalStackLayout { Spacing = 10, HorizontalOptions = LayoutOptions.Center, VerticalOptions = LayoutOptions.Center, Children =
         {
@@ -59,7 +70,7 @@ public sealed class ClipboardEditorPage : ContentPage
         } });
         var form = new VerticalStackLayout { Padding = new Thickness(16, 10, 16, 24), Spacing = 16, Children =
         {
-            nameCard, ClipboardEditorControls.Card(body), PrivacyNote(), status, save
+            nameCard, ClipboardEditorControls.Card(body), headerColourCard, PrivacyNote(), status, save
         } };
         var layout = new Grid { RowDefinitions = { new(GridLength.Auto), new(GridLength.Star) } };
         layout.Add(ClipboardEditorControls.Header(Title, back, cancel));
@@ -68,6 +79,43 @@ public sealed class ClipboardEditorPage : ContentPage
         SemanticProperties.SetDescription(text, "Text to save and copy");
         SemanticProperties.SetDescription(url, "Link to save and open");
         SemanticProperties.SetDescription(photo, "Chosen photo preview");
+    }
+
+    private View BuildHeaderColourCard()
+    {
+        useAppAccent.IsToggled = headerColourHex is null;
+        useAppAccent.SetDynamicResource(Switch.OnColorProperty, "Accent");
+        SemanticProperties.SetDescription(useAppAccent, "Use app accent for this item's header");
+        headerColours.SetSelection(headerColourHex ?? preferences.AccentHex);
+        headerColours.IsVisible = !useAppAccent.IsToggled;
+        useAppAccent.Toggled += (_, args) =>
+        {
+            headerColourHex = args.Value ? null : headerColours.SelectedHex;
+            headerColours.IsVisible = !args.Value; RefreshHeaderPreview();
+        };
+        headerColours.ColourChanged += (_, args) =>
+        {
+            if (!useAppAccent.IsToggled && !departed) { headerColourHex = args.Hex; RefreshHeaderPreview(); }
+        };
+        headerColours.BusyChanged += (_, _) => RefreshActions();
+        var follow = new Grid { ColumnSpacing = 12, ColumnDefinitions = { new(GridLength.Star), new(GridLength.Auto) } };
+        var label = SettingsControls.Text("Use app accent", 14); label.VerticalOptions = LayoutOptions.Center;
+        follow.Add(label); follow.Add(useAppAccent, 1);
+        var preview = ClipboardEditorControls.Field(headerPreview, 0);
+        preview.StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 16 };
+        return ClipboardEditorControls.Card(new VerticalStackLayout { Spacing = 12, Children =
+        {
+            ClipboardEditorControls.Heading("Header colour", "Personalise this item's title area", ClipboardEditorControls.Icon(StudioSymbol.Tag)),
+            follow, preview, headerColours
+        } });
+    }
+
+    private void RefreshHeaderPreview() => headerPreview.SetItem(string.IsNullOrWhiteSpace(name.Text) ? "Item title" : name.Text.Trim(), headerColourHex);
+
+    private void AppearanceChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs args)
+    {
+        if (args.PropertyName == nameof(AppearancePreferences.AccentHex) && useAppAccent.IsToggled)
+            headerColours.SetSelection(preferences.AccentHex);
     }
 
     private void BuildTextCard()
@@ -223,23 +271,24 @@ public sealed class ClipboardEditorPage : ContentPage
         photoPlaceholder.IsVisible = !photo.IsVisible;
     }
     private void ShowStatus(string message) { status.Text = message; status.IsVisible = !string.IsNullOrEmpty(message); if (status.IsVisible) SemanticScreenReader.Default.Announce(message); }
-    private void RefreshActions() => save.IsEnabled = name.IsEnabled = body.IsEnabled = back.IsEnabled = cancel.IsEnabled = !busy && !saved && !departed;
+    private void RefreshActions() => save.IsEnabled = name.IsEnabled = body.IsEnabled = headerColourCard.IsEnabled = back.IsEnabled = cancel.IsEnabled = !busy && !headerColours.IsBusy && !saved && !departed;
     private void DiscardDraftPhoto()
     {
         if (photoKey != (original?.Parameters as PhotoParameters)?.AssetKey && !saved) ClipboardPhotoStore.Remove(photoKey);
     }
     private async Task CancelAsync()
     {
-        if (busy || departed || saved) return;
+        if (busy || headerColours.IsBusy || departed || saved) return;
         busy = true; RefreshActions(); name.Unfocus(); text.Unfocus(); url.Unfocus();
         try { await Navigation.PopAsync(); }
         finally { busy = false; RefreshActions(); if (departed) DiscardDraftPhoto(); }
     }
     private async Task SaveAsync() => await RunAsync(async () =>
     {
+        if (!useAppAccent.IsToggled && !headerColours.CommitPendingHex()) { ShowStatus("Enter a valid header colour before saving."); return; }
         name.Unfocus(); text.Unfocus(); url.Unfocus();
         var content = kind switch { ClipboardKind.Photo => photoKey, ClipboardKind.Link => url.Text, _ => text.Text };
-        var item = StudioContent.Draft(original, kind, name.Text, content);
+        var item = StudioContent.Draft(original, kind, name.Text, content) with { HeaderColorHex = headerColourHex };
         validator.Validate(item);
         if (item.Parameters is PhotoParameters p) ClipboardPhotoStore.RequirePath(p.AssetKey);
         // Finish the database save before deleting a replaced photo or leaving this editor.
@@ -250,11 +299,22 @@ public sealed class ClipboardEditorPage : ContentPage
 
     private async Task RunAsync(Func<Task> operation)
     {
-        if (busy || departed || saved) return;
+        if (busy || headerColours.IsBusy || departed || saved) return;
         busy = true; RefreshActions();
         try { await operation(); }
         catch (Exception ex) { ShowStatus(ex is ActionValidationException or IOException ? ex.Message : "This action could not finish. Try again."); }
         finally { busy = false; RefreshActions(); if (departed && !saved) DiscardDraftPhoto(); }
+    }
+    protected override void OnAppearing()
+    {
+        base.OnAppearing();
+        if (!subscribed) { preferences.PropertyChanged += AppearanceChanged; subscribed = true; }
+        AppearanceChanged(preferences, new System.ComponentModel.PropertyChangedEventArgs(nameof(AppearancePreferences.AccentHex)));
+    }
+    protected override void OnDisappearing()
+    {
+        if (subscribed) { preferences.PropertyChanged -= AppearanceChanged; subscribed = false; }
+        base.OnDisappearing();
     }
     protected override void OnNavigatedFrom(NavigatedFromEventArgs args)
     {
