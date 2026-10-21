@@ -2,7 +2,7 @@ using Microsoft.Maui.Graphics;
 
 namespace ControlStudio.App.Views;
 
-internal enum StudioSymbol { Widgets, Clipboard, Counter, Bars, Calendar, Photo, Text, Link, Chevron, Edit, Delete, Open, Preview }
+internal enum StudioSymbol { Widgets, Clipboard, Counter, Bars, Calendar, Photo, Text, Link, Chevron, Edit, Delete, Open, Preview, Tag, Expand, Clear }
 
 internal sealed class StudioGlyph : GraphicsView, IDrawable
 {
@@ -85,6 +85,21 @@ internal sealed class StudioGlyph : GraphicsView, IDrawable
         {
             var eye = new PathF(); eye.MoveTo(2, 12); eye.CurveTo(7, 3, 17, 3, 22, 12);
             eye.CurveTo(17, 21, 7, 21, 2, 12); eye.Close(); canvas.DrawPath(eye); canvas.DrawCircle(12, 12, 3);
+        }
+        else if (symbol == StudioSymbol.Tag)
+        {
+            Lines(canvas, 3, 3, 12, 3, 22, 13, 13, 22, 3, 12, 3, 3); canvas.DrawCircle(8, 8, 1.5f);
+        }
+        else if (symbol == StudioSymbol.Expand)
+        {
+            Lines(canvas, 9, 3, 3, 3, 3, 9); canvas.DrawLine(3, 3, 9, 9);
+            Lines(canvas, 15, 3, 21, 3, 21, 9); canvas.DrawLine(21, 3, 15, 9);
+            Lines(canvas, 3, 15, 3, 21, 9, 21); canvas.DrawLine(3, 21, 9, 15);
+            Lines(canvas, 15, 21, 21, 21, 21, 15); canvas.DrawLine(21, 21, 15, 15);
+        }
+        else if (symbol == StudioSymbol.Clear)
+        {
+            canvas.DrawCircle(12, 12, 9); canvas.DrawLine(8.5f, 8.5f, 15.5f, 15.5f); canvas.DrawLine(15.5f, 8.5f, 8.5f, 15.5f);
         }
         else if (symbol == StudioSymbol.Chevron) Lines(canvas, 9, 5, 16, 12, 9, 19);
         canvas.RestoreState();

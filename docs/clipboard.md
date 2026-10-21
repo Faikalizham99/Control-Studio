@@ -16,6 +16,16 @@ The selected segment uses the same readable accent colour as navigation (`Accent
 
 Items have pencil/Edit, red trash/Delete and filled-accent clipboard/Copy icons. Links add an external-open arrow; photos add an eye/Preview icon. Buttons have 48-point native hit targets and item-specific accessibility descriptions. Delete asks for confirmation. Selected accent rendering in both themes, touch routing, live accent/theme changes and VoiceOver still require phone checks.
 
+## Add and edit design
+
+Text, Photo and Link editors share the owner's 22 October 2026 reference layout: a custom Back/title/Cancel header, icon-led Name and content cards, inset fields, a privacy note and a rounded accent Save item action. The background is plain black or light grey; card gradients and borders adapt to the appearance. The save fill follows the selected accent, with the existing large-label contrast rule and an accent glow. Save and Cancel retain their original persistence and draft-photo cleanup behaviour.
+
+Text has a 10,000-character editor and count, Paste, Clear, Example and an expanded editor. The expanded editor updates the same draft and does not save it; Done returns to the form. Link has a 2,048-character URL field/count and matching Paste/Clear/Example actions. Paste reads the clipboard only after a tap, rejects oversized content without truncating it, and reports unavailable text. Example confirms before replacing nonempty draft content. Normal save validation still requires a name and valid text, HTTP(S) URL or imported image.
+
+Photo has a contained preview (no cropping of the original), an empty state and explicit Photos, Files and Remove actions. Removing/replacing an existing saved photo affects its file only after a successful save; new abandoned draft imports are cleaned up. An in-progress operation disables save, navigation and the form to prevent duplicate actions.
+
+Local validation: 42 app tests and managed iOS compilation pass. Native visual matching, keyboard behaviour, expanded editing, clipboard access, import/cancel/replace flows, live accent/theme updates and accessibility remain **NOT VERIFIED** on an iPhone.
+
 ## Photos
 
 Photo Library uses MAUI `PickPhotosAsync` / iOS PHPicker with one selection and no broad library access. Files remains available. Originals in Photos/Files are never edited or deleted. Cancelled/replaced drafts and successfully replaced/deleted saved images are cleaned up. A database mutation finishes before its referenced file is removed. Process termination can leave an unreferenced private draft file; there is no automatic storage sweep yet.
