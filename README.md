@@ -1,5 +1,7 @@
 # Control Studio
 
+Release **0.2.3 (6)** includes Photo Library/Files selection with crop preview, consistent app accents, clearer Light-mode borders, a compact hex editor and the reference-inspired Edit profile layout on plain Light/Dark backgrounds. The owner authorized the release tag and will monitor its build; final native CI and phone verification remain pending. See the [Settings and profile validation record](docs/settings-appearance.md).
+
 An offline-first .NET MAUI iPhone app with a private shortcut dashboard, native SwiftUI counter widget and native Apple Shortcuts action. **Milestone 1 is approved and implemented:** create, edit, run, favorite, categorize, search, reorder and delete web-link, copy-text and counter actions. The widget editor remains future work.
 
 Version **0.2.0 (3)** adds a Shortcuts tab with private SQLite persistence, typed action parameters, bounded validation and source-generated JSON. Web links support HTTP(S); additional URL schemes and dynamic Apple Shortcuts actions are deferred. See the [Milestone 1 build record and phone checklist](docs/milestone-1.md). The existing App Group and counter schema are retained.

@@ -4,12 +4,12 @@ namespace ControlStudio.App.Views;
 
 public sealed class GlassCard : ContentView
 {
-    public GlassCard(View content)
+    public GlassCard(View content, Thickness? padding = null)
     {
         var border = new Border
         {
             StrokeShape = new RoundRectangle { CornerRadius = 24 }, StrokeThickness = 1,
-            Padding = 12, Content = content
+            Padding = padding ?? new Thickness(12), Content = content
         };
         border.SetAppTheme<Brush>(Border.StrokeProperty,
             new SolidColorBrush(Color.FromArgb("#C8CEDA")), new SolidColorBrush(Colors.White.WithAlpha(.22f)));

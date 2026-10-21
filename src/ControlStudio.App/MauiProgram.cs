@@ -17,6 +17,7 @@ public static class MauiProgram
             handlers.AddHandler<TabbedPage, SpinningGearTabbedRenderer>();
             handlers.AddHandler<GlassCard, GlassCardHandler>();
             handlers.AddHandler<HexColorEntry, HexColorEntryHandler>();
+            handlers.AddHandler<ProfileNameEntry, ProfileNameEntryHandler>();
         });
         builder.Logging.AddProvider(new DeviceLoggerProvider());
         builder.Services.AddSingleton<AppearancePreferences>();

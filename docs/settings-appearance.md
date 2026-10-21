@@ -23,6 +23,14 @@ The owner's Light-mode screenshot also showed nearly invisible white card border
 
 ## Validation
 
+### Reference profile layout refinement, 21 October 2026
+
+The owner requested the supplied Edit profile layout with the established plain Light/black background. The local implementation adds a frosted header with circular Back and capsule Cancel controls; a photo card with a large circular avatar/halo, picture-icon Choose photo and trash-icon Remove photo buttons; an inset display-name field with a clear control and information row; and a separate rounded Save profile button with a check icon. The existing native tab bar remains in place. Action surfaces follow the selected accent, with black/white foreground chosen for readability. Icons are local vector drawing code; no wallpaper, portrait asset, icon font or package is added.
+
+Photo Library, Files and crop preview remain available. Tap the avatar to reframe, or use Choose photo > Adjust current photo when a photo exists. The avatar initial previews display-name edits. Custom Back and Cancel retain draft-discard behavior; Save validates the name and keeps the selected crop/source. A scoped name-entry handler removes its duplicate native border without changing other fields. A busy indicator and disabled controls prevent overlapping operations.
+
+Local checks: managed iOS compilation completed without reported warnings/errors; 23 existing app appearance/crop tests, source/configuration checks and whitespace checks passed. Actual layout fidelity, touch/keyboard behavior, custom navigation, draft Save/Cancel and VoiceOver on a phone remain **NOT VERIFIED**. The owner authorized committing/pushing the profile layout and a new version tag on 21 October 2026. Release **0.2.3 (6)** includes the photo/crop, accent, Settings border/hex and profile layout refinements. The owner will monitor the tag build; no successful native CI or phone result is claimed here.
+
 Release **0.2.1 (4)** introduced the original Settings layout; the later refinements above require a subsequent tagged release. Core validation tests cover RGB normalization, malformed input, luminance calculations and bounded Unicode profile names. Full native linking is checked by the approved version-tag build; material rendering and device interactions still require phone validation.
 
 Local validation on 20 October 2026: managed MAUI iOS code compiled with no reported compiler warnings/errors; MAUI Resizetizer generated the assets; **78 Windows tests passed** (40 Core, 17 Infrastructure, 21 Python); source/configuration checks and whitespace checks passed. The owner authorized committing, pushing and creating the new release tag on 20 October 2026. Phone checks remain pending below.
