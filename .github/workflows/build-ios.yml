@@ -52,6 +52,7 @@ jobs:
         run: |
           dotnet test tests/ControlStudio.Core.Tests -c Release -p:RestoreLockedMode=true
           dotnet test tests/ControlStudio.Infrastructure.Tests -c Release -p:RestoreLockedMode=true
+          dotnet test tests/ControlStudio.App.Tests -c Release -p:RestoreLockedMode=true
       - name: Run native SQLite persistence and concurrency tests
         run: swift test --package-path native
       - name: Compile Swift bridge, WidgetKit and App Intents extensions

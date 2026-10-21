@@ -103,7 +103,7 @@ public sealed class SettingsPage : ContentPage
         hue.DragStarted += (_, _) => draggingHue = true;
         hue.DragCompleted += (_, _) => { draggingHue = false; preferences.SaveAccent(); Refresh(); };
         // The spectrum runs backward from magenta (300°) through blue/cyan to red.
-        hue.ValueChanged += (_, args) => { if (!updating) preferences.SetAccent(Color.FromHsv((float)((300 - args.NewValue + 360) % 360) / 360, 1, 1).ToArgbHex()[3..], persist: !draggingHue); };
+        hue.ValueChanged += (_, args) => { if (!updating) preferences.SetAccent(AppearanceColors.ToRgbHex(Color.FromHsv((float)((300 - args.NewValue + 360) % 360) / 360, 1, 1)), persist: !draggingHue); };
         customEditor.Children.Add(new Grid { Children = { bar, hue } });
         hex.Completed += (_, _) => ApplyHex(); hex.Unfocused += (_, _) => ApplyHex();
         SemanticProperties.SetDescription(hex, "Accent colour in six-digit hexadecimal");

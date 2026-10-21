@@ -43,7 +43,7 @@ public sealed class AppleColorPicker
         public override void DidSelectColor(UIColorPickerViewController viewController, UIColor color, bool continuously)
         {
             if (color.ToColor() is not { } selected) return;
-            lastHex = "#" + selected.ToArgbHex()[3..];
+            lastHex = AppearanceColors.ToRgbHex(selected);
             preview(lastHex);
         }
         public override void DidFinish(UIColorPickerViewController viewController) => viewController.DismissViewController(true, Complete);
@@ -51,7 +51,7 @@ public sealed class AppleColorPicker
         {
             if (completed) return;
             completed = true;
-            var hex = picker.SelectedColor.ToColor() is { } selected ? "#" + selected.ToArgbHex()[3..] : lastHex;
+            var hex = picker.SelectedColor.ToColor() is { } selected ? AppearanceColors.ToRgbHex(selected) : lastHex;
             Completion.TrySetResult(hex);
             Release();
         }

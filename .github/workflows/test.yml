@@ -15,6 +15,7 @@ jobs:
           global-json-file: global.json
       - run: dotnet test tests/ControlStudio.Core.Tests -c Release -p:RestoreLockedMode=true
       - run: dotnet test tests/ControlStudio.Infrastructure.Tests -c Release -p:RestoreLockedMode=true
+      - run: dotnet test tests/ControlStudio.App.Tests -c Release -p:RestoreLockedMode=true
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: '3.13.7'

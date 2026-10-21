@@ -53,7 +53,7 @@ internal sealed class ThemeChoice : ContentView
     public void Update(bool selected, Color accent)
     {
         badge.IsVisible = selected;
-        check.TextColor = ControlStudio.Core.AppearanceValues.Luminance(accent.ToArgbHex()[3..]) > .18 ? Colors.Black : Colors.White;
+        check.TextColor = AppearanceColors.Luminance(accent) > .18 ? Colors.Black : Colors.White;
         if (selected)
         {
             border.Stroke = accent; border.Background = new SolidColorBrush(accent.WithAlpha(.13f));
@@ -94,7 +94,7 @@ internal sealed class AccentChoice : ContentView
     {
         outline.Stroke = selected ? accent : Colors.Transparent;
         check.IsVisible = selected;
-        check.TextColor = ControlStudio.Core.AppearanceValues.Luminance(accent.ToArgbHex()[3..]) > .18 ? Colors.Black : Colors.White;
+        check.TextColor = AppearanceColors.Luminance(accent) > .18 ? Colors.Black : Colors.White;
         SemanticProperties.SetDescription(tap, $"{title} accent{(selected ? ", selected" : "")}");
     }
 }

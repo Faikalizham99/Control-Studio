@@ -34,4 +34,14 @@ Local validation on 20 October 2026: managed MAUI iOS code compiled with no repo
 | Large text, VoiceOver, keyboard safe areas and Reduce Transparency remain usable | NOT VERIFIED |
 | Existing counter, widget refresh, Shortcuts action and spinning gear continue working | NOT VERIFIED |
 
+## Launch crash correction, 21 October 2026
+
+The owner reported that **0.2.1 (4) closes immediately on launch**. The release passed compilation and package validation, but those checks did not exercise appearance initialization. With the pinned Microsoft.Maui.Graphics 10.0.110, `Color.ToArgbHex()` returns `#007AFF` for the opaque default blue. The new UI incorrectly removed the first three characters as if the value were always `#AARRGGBB`; it passed `7AFF` to the six-digit luminance validator, which throws `ArgumentException`. This runs while constructing the Settings page (injected before the App constructor), and again when applying the startup button accent.
+
+The fix for **0.2.2 (5)** centralizes RGB conversion in `AppearanceColors`, explicitly requests alpha before removing it, and uses the helper for startup contrast, Settings selection marks, hue-slider values and native picker results. It preserves RGB and discards only alpha. No broad catch hides the exception, and no counter, signing or App Group settings change.
+
+A new app appearance test project runs the actual pinned MAUI Graphics implementation and the production helper on Windows/macOS. Tests reproduce the released exception and check default/preset/custom accents, white-button contrast, alpha handling and every integer hue position. Both CI workflows include these tests; IPA generation remains restricted to a newly pushed version tag. Full native compilation and phone launch of the fix remain **NOT VERIFIED**. The owner authorized committing/pushing the fix and tag `v0.2.2` on 21 October 2026 and explicitly chose to monitor the build personally.
+
+Local validation on 21 October 2026: **92 tests passed** (14 app appearance, 40 Core, 17 Infrastructure, 21 Python); the locked app-test dependency restore, managed MAUI iOS compilation, source/configuration checks, workflow lint and whitespace checks passed.
+
 The reference's device frame, status icons and portrait are not reproduced as app artwork. Exact material rendering varies by OS, accessibility settings and screen size.

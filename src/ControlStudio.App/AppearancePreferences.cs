@@ -59,10 +59,7 @@ public sealed class AppearancePreferences : BindableObject
         if (application is null) return;
         application.UserAppTheme = ThemeIndex switch { 1 => AppTheme.Light, 2 => AppTheme.Dark, _ => AppTheme.Unspecified };
         var accent = Color.FromArgb(AccentHex);
-        var button = accent;
-        // Keep white button text readable even when the chosen swatch is yellow or pastel.
-        while ((1.05 / (AppearanceValues.Luminance(button.ToArgbHex()[3..]) + .05)) < 4.5)
-            button = new Color(button.Red * .94f, button.Green * .94f, button.Blue * .94f);
+        var button = AppearanceColors.ButtonBackground(accent);
         application.Resources["Accent"] = accent;
         application.Resources["AccentButton"] = button;
         application.Resources["AccentGlow"] = new SolidColorBrush(accent.WithAlpha(.38f));
