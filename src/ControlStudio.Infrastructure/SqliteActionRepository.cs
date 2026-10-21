@@ -60,7 +60,7 @@ public sealed class SqliteActionRepository(string path, IActionValidator validat
                 try
                 {
                     var version = db.Read("PRAGMA user_version");
-                    if (version != "0" && version != "1")
+                    if (version != "0" && version != "1" && version != "2")
                         throw new InvalidDataException("This dashboard was created by a newer version. Update Control Studio to open it.");
                     if (version == "0")
                     {
@@ -76,7 +76,7 @@ public sealed class SqliteActionRepository(string path, IActionValidator validat
                     {
                         if (json.Length > 16_000_000) throw InvalidDocument();
                         var document = JsonSerializer.Deserialize(json, ActionJsonContext.Default.DashboardDocument);
-                        if (document is null || document.SchemaVersion != 1 || document.Actions is null || document.Actions.Count > MaximumActions)
+                        if (document is null || document.SchemaVersion is not (1 or 2) || document.Actions is null || document.Actions.Count > MaximumActions)
                             throw InvalidDocument();
                         actions = document.Actions;
                         foreach (var action in actions) validator.Validate(action);
@@ -90,8 +90,11 @@ public sealed class SqliteActionRepository(string path, IActionValidator validat
                     {
                         change(actions);
                         for (var i = 0; i < actions.Count; i++) actions[i] = actions[i] with { SortOrder = i };
-                        var payload = JsonSerializer.Serialize(new DashboardDocument(1, actions), ActionJsonContext.Default.DashboardDocument);
+                        var payload = JsonSerializer.Serialize(new DashboardDocument(2, actions), ActionJsonContext.Default.DashboardDocument);
+                        if (payload.Length > 16_000_000)
+                            throw new ActionValidationException("Saved content is full. Shorten a snippet or remove an item before saving.");
                         db.Write(payload);
+                        db.Execute("PRAGMA user_version = 2");
                     }
                     token.ThrowIfCancellationRequested();
                     db.Execute("COMMIT");

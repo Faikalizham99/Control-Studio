@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'nonce-studio-local' 'wasm-unsafe-eval'; style-src 'unsafe-inline'; connect-src 'none'; img-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none'">
+<title>Code preview</title>
+<style id="light-style">{{LIGHT_STYLE}}</style><style id="dark-style">{{DARK_STYLE}}</style>
+<style>
+:root { color-scheme: light; background: #f7f8fc; color: #24292f; }
+:root[data-theme=dark] { color-scheme: dark; background: #14161b; color: #e6edf3; }
+body { margin: 0; padding: 16px 12px 32px; -webkit-text-size-adjust: 100%; }
+main { display: flex; min-width: max-content; }
+pre { margin: 0; font: 14px/1.65 ui-monospace, Menlo, monospace; tab-size: 2; }
+#lines { color: #747985; text-align: right; padding-right: 16px; user-select: none; -webkit-user-select: none; }
+#code { white-space: pre; background: transparent; padding: 0; font: inherit; -webkit-user-select: text; user-select: text; }
+</style><script type="application/octet-stream" id="clang-wasm">{{CLANG_WASM}}</script>{{SCRIPTS}}</head>
+<body><main aria-label="Code snippet"><pre id="lines" aria-hidden="true"></pre><pre><code id="code" class="hljs"></code></pre></main></body></html>

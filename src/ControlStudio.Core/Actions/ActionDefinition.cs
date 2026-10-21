@@ -10,10 +10,16 @@ public enum ActionColor { Blue, Purple, Green, Orange, Pink, Slate }
 [JsonDerivedType(typeof(OpenUrlParameters), "openUrl")]
 [JsonDerivedType(typeof(CopyTextParameters), "copyText")]
 [JsonDerivedType(typeof(IncrementCounterParameters), "incrementCounter")]
+[JsonDerivedType(typeof(PhotoParameters), "photo")]
+[JsonDerivedType(typeof(SnippetParameters), "snippet")]
 public abstract record ActionParameters;
 public sealed record OpenUrlParameters(string Url) : ActionParameters;
 public sealed record CopyTextParameters(string Text) : ActionParameters;
 public sealed record IncrementCounterParameters : ActionParameters;
+public sealed record PhotoParameters(string AssetKey) : ActionParameters;
+// Values are persisted. Append new languages; never reorder existing members.
+public enum SnippetLanguage { PlainText, JavaScript, TypeScript, Json, Html, Css, Markdown, CSharp, Swift, Python, Sql, Shell, Xml, C, Cpp }
+public sealed record SnippetParameters(string Code, SnippetLanguage Language) : ActionParameters;
 
 public interface IActionDefinition
 {

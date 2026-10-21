@@ -31,7 +31,8 @@ public sealed class ActionTests
     public void TypedParametersRoundTripWithoutReflection()
     {
         var actions = new List<ActionDefinition> { Action(new OpenUrlParameters("https://example.com")),
-            Action(new CopyTextParameters("Line 1\nUnicode 🐱")), Action(new IncrementCounterParameters()) };
+            Action(new CopyTextParameters("Line 1\nUnicode 🐱")), Action(new IncrementCounterParameters()),
+            Action(new PhotoParameters(Guid.NewGuid().ToString("N"))), Action(new SnippetParameters("<script>🐱</script>", SnippetLanguage.Html)) };
         var json = JsonSerializer.Serialize(new DashboardDocument(1, actions), ActionJsonContext.Default.DashboardDocument);
         var result = JsonSerializer.Deserialize(json, ActionJsonContext.Default.DashboardDocument)!;
         Assert.Equal(actions, result.Actions);
@@ -85,6 +86,27 @@ public sealed class ActionTests
     {
         var executor = new ActionExecutor(new ActionValidator(), new Platform { CanOpen = false }, new Counter());
         await Assert.ThrowsAsync<ActionExecutionException>(() => executor.ExecuteAsync(Action(new OpenUrlParameters("https://example.com"))));
+    }
+
+    [Fact]
+    public void PhotoReferencesAndCodeAreBounded()
+    {
+        var validator = new ActionValidator();
+        foreach (var key in new[] { "../photo", "/private/photo.png", "", "https://example.com/image.png", null })
+            Assert.Throws<ActionValidationException>(() => validator.Validate(Action(new PhotoParameters(key!))));
+        foreach (var snippet in new[] { new SnippetParameters("", SnippetLanguage.Json), new SnippetParameters("code\0", SnippetLanguage.CSharp),
+            new SnippetParameters(new string('x', 50_001), SnippetLanguage.JavaScript), new SnippetParameters("code", (SnippetLanguage)99) })
+            Assert.Throws<ActionValidationException>(() => validator.Validate(Action(snippet)));
+        foreach (var language in Enum.GetValues<SnippetLanguage>()) validator.Validate(Action(new SnippetParameters("code\n\t🐱", language)));
+    }
+
+    [Fact]
+    public async Task SavedCodeAndPhotosCannotExecuteAsActions()
+    {
+        var platform = new Platform(); var counter = new Counter(); var executor = new ActionExecutor(new ActionValidator(), platform, counter);
+        await Assert.ThrowsAsync<ActionExecutionException>(() => executor.ExecuteAsync(Action(new SnippetParameters("throw 'must never run'", SnippetLanguage.JavaScript))));
+        await Assert.ThrowsAsync<ActionExecutionException>(() => executor.ExecuteAsync(Action(new PhotoParameters(Guid.NewGuid().ToString("N")))));
+        Assert.Equal(0, platform.Calls); Assert.Equal(0, counter.Value);
     }
 
     private sealed class Platform : IActionPlatform

@@ -1,5 +1,7 @@
 # Studio
 
+**Current local work:** the owner subsequently authorized working Text / Photo / Link / Snippet sections inside Clipboard, including offline code previews and Beautify. See [Clipboard behavior, storage and checks](clipboard.md). The landing category pills remain decorative; the switcher is inside Clipboard. The records below describe the earlier prototype and released 0.2.4 baseline.
+
 The owner requested replacing the Shortcuts dashboard with **Studio** on 21 October 2026. The landing page has only two entry cards, **Widgets** and **Clipboard**, on the established plain Light/Dark background. A four-panel layout icon replaces the layered Shortcuts tab icon. Home, Settings, the spinning gear and Apple's native Shortcuts counter action remain separate.
 
 ## Reference landing-page styling

@@ -67,8 +67,8 @@ internal sealed class StudioGlyph : GraphicsView, IDrawable
         }
         else if (symbol == StudioSymbol.Snippets)
         {
-            canvas.DrawRoundedRectangle(3, 3, 7, 7, .5f); canvas.DrawRoundedRectangle(14, 3, 7, 7, .5f);
-            canvas.DrawRoundedRectangle(3, 14, 7, 7, .5f); canvas.DrawRoundedRectangle(14, 14, 7, 7, .5f);
+            Lines(canvas, 7, 6, 2, 12, 7, 18); Lines(canvas, 17, 6, 22, 12, 17, 18);
+            canvas.DrawLine(14, 3, 10, 21);
         }
         else if (symbol == StudioSymbol.Chevron) Lines(canvas, 9, 5, 16, 12, 9, 19);
         canvas.RestoreState();

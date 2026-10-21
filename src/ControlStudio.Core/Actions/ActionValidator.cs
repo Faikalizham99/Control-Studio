@@ -20,6 +20,14 @@ public sealed class ActionValidator : IActionValidator
                 break;
             case CopyTextParameters:
                 throw new ActionValidationException("Enter text to copy, up to 10,000 characters, without null characters.");
+            case PhotoParameters photo when Guid.TryParseExact(photo.AssetKey, "N", out _):
+                break;
+            case PhotoParameters:
+                throw new ActionValidationException("Choose a photo before saving.");
+            case SnippetParameters snippet when Enum.IsDefined(snippet.Language) && !string.IsNullOrWhiteSpace(snippet.Code) && snippet.Code.Length <= 50_000 && !snippet.Code.Contains('\0'):
+                break;
+            case SnippetParameters:
+                throw new ActionValidationException("Choose a language and enter code, up to 50,000 characters, without null characters.");
             default:
                 throw new ActionValidationException("Choose a supported action type.");
         }
