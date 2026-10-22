@@ -19,7 +19,7 @@ public sealed class ClipboardPage : ContentPage
     private readonly Label description = SettingsControls.Text("", 15, secondary: true);
     private readonly RefreshView refresh = new();
     private readonly Dictionary<ClipboardKind, ClipboardSegment> segments = [];
-    private readonly HashSet<Guid> concealedItems = [];
+    private readonly ClipboardVisibilityPreferences visibility = new(Preferences.Default);
     private readonly PageActionButton arrange = new("Arrange", "ArrangeClipboardItems");
     private readonly PageActionButton add = new("Add", "AddClipboardItem");
     private readonly PageActionButton back = new("", "BackFromClipboard", ProfileSymbol.Back);
@@ -47,7 +47,7 @@ public sealed class ClipboardPage : ContentPage
             return Navigation.PushModalAsync(navigation);
         });
         items.ItemsLayout = new LinearItemsLayout(ItemsLayoutOrientation.Vertical) { ItemSpacing = 12 };
-        items.ItemTemplate = new DataTemplate(() => new ClipboardTile(CopyAsync, SecondaryAsync, EditAsync, DeleteAsync, ShareLinkAsync, PinAsync, concealedItems));
+        items.ItemTemplate = new DataTemplate(() => new ClipboardTile(CopyAsync, SecondaryAsync, EditAsync, DeleteAsync, ShareLinkAsync, PinAsync, visibility, VisibilityFailed));
         refresh.Content = items; refresh.SetDynamicResource(RefreshView.RefreshColorProperty, "AccentText");
         refresh.Refreshing += async (_, _) => await ReloadAsync();
         var switcher = new Grid { ColumnSpacing = 4, Padding = 4 };
@@ -145,7 +145,8 @@ public sealed class ClipboardPage : ContentPage
         token.ThrowIfCancellationRequested();
         // Finish the delete before removing its file; cancellation cannot orphan a committed item.
         await repository.DeleteAsync(item.Id);
-        concealedItems.Remove(item.Id);
+        try { visibility.Remove(item.Id); }
+        catch (Exception ex) { logger.LogWarning("Deleted clipboard item's visibility cleanup failed. ErrorType={ErrorType}", ex.GetType().Name); }
         if (item.Parameters is PhotoParameters photo) ClipboardPhotoStore.Remove(photo.AssetKey);
         if (!active) return;
         saved = await repository.ReadAsync(); Filter(); ShowStatus("Clipboard item deleted.");
@@ -186,6 +187,12 @@ public sealed class ClipboardPage : ContentPage
         arrangeHint.Text = availability.Reason; arrangeHint.IsVisible = loaded && !availability.CanArrange;
     }
     private void ShowStatus(string message) { status.Text = message; status.IsVisible = !string.IsNullOrEmpty(message); }
+    private void VisibilityFailed(ClipboardVisibilityErrorEventArgs args)
+    {
+        logger.LogWarning("Clipboard visibility {Operation} failed. ErrorType={ErrorType}", args.Loading ? "load" : "save", args.Error.GetType().Name);
+        ShowStatus(args.Loading ? "Could not load visibility. Content is kept hidden. Try reopening Clipboard." : "Could not save visibility. Try again.");
+        if (active) SemanticScreenReader.Default.Announce(status.Text);
+    }
     private static StudioSymbol Symbol(ClipboardKind kind) => kind switch { ClipboardKind.Photo => StudioSymbol.Photo, ClipboardKind.Link => StudioSymbol.Link, _ => StudioSymbol.Text };
 
     private sealed class ClipboardTile : ContentView
@@ -213,7 +220,7 @@ public sealed class ClipboardPage : ContentPage
         private readonly ClipboardIconButton visibility = new(StudioSymbol.Preview, "Hide content");
         private readonly ClipboardConcealView conceal;
         public ClipboardTile(Func<ActionDefinition, Task> copyAction, Func<ActionDefinition, Task> secondaryAction,
-            Func<ActionDefinition, Task> editAction, Func<ActionDefinition, Task> deleteAction, Func<ActionDefinition, Task> shareAction, Func<ActionDefinition, Task> pinAction, ISet<Guid> concealedItems)
+            Func<ActionDefinition, Task> editAction, Func<ActionDefinition, Task> deleteAction, Func<ActionDefinition, Task> shareAction, Func<ActionDefinition, Task> pinAction, ClipboardVisibilityPreferences visibilityStore, Action<ClipboardVisibilityErrorEventArgs> visibilityFailed)
         {
             header = new ClipboardHeaderView(pin);
             link = new ClipboardLinkLabel(secondaryAction, copyAction, shareAction) { IsVisible = false };
@@ -242,7 +249,8 @@ public sealed class ClipboardPage : ContentPage
             var divider = new BoxView { HeightRequest = 1, HorizontalOptions = LayoutOptions.Fill, InputTransparent = true };
             divider.SetAppThemeColor(BoxView.ColorProperty, Color.FromArgb("#D2D7E1"), Colors.White.WithAlpha(.18f));
             AutomationProperties.SetIsInAccessibleTree(divider, false);
-            conceal = new ClipboardConcealView(new VerticalStackLayout { Spacing = 12, Children = { content, photo } }, concealedItems);
+            conceal = new ClipboardConcealView(new VerticalStackLayout { Spacing = 12, Children = { content, photo } }, visibilityStore);
+            conceal.VisibilityFailed += (_, args) => visibilityFailed(args);
             photo.PropertyChanged += (_, args) =>
             {
                 if (args.PropertyName == nameof(Image.IsLoading) && !photo.IsLoading) conceal.RefreshContent();

@@ -12,7 +12,7 @@ public sealed class ClipboardConcealViewTests : IDisposable
     [Fact]
     public void RecycledCardsAndTabReloadsKeepVisibilityWithTheItemRatherThanTheTile()
     {
-        var hidden = new HashSet<Guid>(); var first = Guid.NewGuid(); var second = Guid.NewGuid();
+        var backing = new TestPreferences(); var hidden = new ClipboardVisibilityPreferences(backing); var first = Guid.NewGuid(); var second = Guid.NewGuid();
         var card = new ClipboardConcealView(new Label { Text = "Private content" }, hidden);
         card.Bind(first); card.Toggle(); Assert.True(card.IsConcealed); Assert.True(card.AnimateTransition);
         card.Bind(second); Assert.False(card.IsConcealed); Assert.False(card.AnimateTransition);
@@ -20,9 +20,9 @@ public sealed class ClipboardConcealViewTests : IDisposable
         // CollectionView may create a different tile after switching sections or refreshing.
         var reloadedCard = new ClipboardConcealView(new Image(), hidden);
         reloadedCard.Bind(first); Assert.True(reloadedCard.IsConcealed);
-        reloadedCard.Toggle(); Assert.False(reloadedCard.IsConcealed); Assert.Empty(hidden);
+        reloadedCard.Toggle(); Assert.False(reloadedCard.IsConcealed); Assert.Empty(backing.Values);
         card.Bind(first); Assert.False(card.IsConcealed);
-        card.Bind(null); card.Toggle(); Assert.False(card.IsConcealed); Assert.Empty(hidden);
+        card.Bind(null); card.Toggle(); Assert.False(card.IsConcealed); Assert.Empty(backing.Values);
     }
 
     [Fact]
@@ -32,7 +32,7 @@ public sealed class ClipboardConcealViewTests : IDisposable
         var photo = new Image { Source = "private-photo.png", HeightRequest = 130, WidthRequest = 160, Aspect = Aspect.AspectFit };
         var photoSource = photo.Source;
         var payload = new VerticalStackLayout { Children = { text, photo } };
-        var card = new ClipboardConcealView(payload, new HashSet<Guid>()); host.Attach(card); card.Bind(Guid.NewGuid());
+        var card = new ClipboardConcealView(payload, new(new TestPreferences())); host.Attach(card); card.Bind(Guid.NewGuid());
         for (var i = 0; i < 3; i++)
         {
             card.Toggle(); Assert.True(card.IsConcealed); Assert.False(payload.IsEnabled); Assert.True(payload.InputTransparent);
@@ -53,7 +53,7 @@ public sealed class ClipboardConcealViewTests : IDisposable
         var item = new ActionDefinition(Guid.NewGuid(), "Private link", new OpenUrlParameters("https://example.com/a%2Fb?q=complete#value"));
         var link = new ClipboardLinkLabel(Capture, Capture, Capture) { Item = item };
         var payload = new VerticalStackLayout { Children = { link } };
-        var card = new ClipboardConcealView(payload, new HashSet<Guid>()); host.Attach(card); card.Bind(item.Id);
+        var card = new ClipboardConcealView(payload, new(new TestPreferences())); host.Attach(card); card.Bind(item.Id);
         var oldMenu = Assert.IsType<ClipboardLinkContext>(link.CaptureContext());
         card.Toggle(); Assert.False(link.IsEnabled); Assert.Null(link.CaptureContext()); Assert.False(oldMenu.IsCurrent);
         await oldMenu.OpenAsync(); await oldMenu.CopyAsync(); await oldMenu.ShareAsync(); Assert.Empty(calls);
@@ -82,13 +82,13 @@ public sealed class ClipboardConcealViewTests : IDisposable
     [Fact]
     public void RebindingAndLatePhotoLoadsInvalidateSnapshotsWithoutChangingVisibilityOrSavedContent()
     {
-        var id = Guid.NewGuid(); var hidden = new HashSet<Guid> { id };
+        var id = Guid.NewGuid(); var hidden = new ClipboardVisibilityPreferences(new TestPreferences()); hidden.SetConcealed(id, true);
         var photo = new Image { Source = "private-photo.png" }; var originalSource = photo.Source;
         var card = new ClipboardConcealView(photo, hidden); card.Bind(id); var firstVersion = card.RenderVersion;
         card.RefreshContent(); Assert.True(card.RenderVersion > firstVersion); Assert.True(card.IsConcealed); Assert.False(photo.IsEnabled);
         var refreshed = card.RenderVersion; card.Bind(id); Assert.True(card.RenderVersion > refreshed); Assert.False(card.AnimateTransition);
         var rebound = card.RenderVersion; card.Bind(Guid.NewGuid()); Assert.True(card.RenderVersion > rebound); Assert.False(card.IsConcealed); Assert.True(photo.IsEnabled);
-        Assert.Same(originalSource, photo.Source); Assert.True(photo.IsVisible); Assert.Contains(id, hidden);
+        Assert.Same(originalSource, photo.Source); Assert.True(photo.IsVisible); Assert.True(hidden.IsConcealed(id));
     }
 
     public void Dispose() => host.Dispose();

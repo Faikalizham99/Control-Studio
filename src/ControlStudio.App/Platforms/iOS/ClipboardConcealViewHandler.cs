@@ -53,6 +53,15 @@ public sealed class ClipboardConcealViewHandler : ContentViewHandler
         private int currentFrame;
         private UIView? Payload => (CrossPlatformLayout as IContentView)?.PresentedContent?.Handler?.PlatformView as UIView;
 
+        public override void SubviewAdded(UIView view)
+        {
+            base.SubviewAdded(view);
+            if (released || blur is null || ReferenceEquals(view, blur)) return;
+            // A restored hidden item can acquire its native content after mapper initialization.
+            // Suppress it immediately on insertion, before the first layout/draw opportunity.
+            ApplyPayloadState(view);
+        }
+
         public override void LayoutSubviews()
         {
             base.LayoutSubviews();
@@ -185,11 +194,14 @@ public sealed class ClipboardConcealViewHandler : ContentViewHandler
 
         private void ApplyPayloadState()
         {
-            if (Payload is not { } payload) return;
+            if (Payload is { } payload) ApplyPayloadState(payload);
+        }
+
+        private void ApplyPayloadState(UIView payload)
+        {
             // Native hiding retains MAUI measurement; the visible image contains only blurred pixels.
-            payload.Hidden = concealed || blur.Image is not null || displayLink is not null;
-            payload.AccessibilityElementsHidden = concealed || blur.Image is not null || displayLink is not null;
-            payload.UserInteractionEnabled = !concealed && blur.Image is null && displayLink is null;
+            var suppressed = concealed || (CrossPlatformLayout as ClipboardConcealView)?.IsConcealed == true || blur.Image is not null || displayLink is not null;
+            payload.Hidden = suppressed; payload.AccessibilityElementsHidden = suppressed; payload.UserInteractionEnabled = !suppressed;
         }
 
         private void CancelPending() { generation++; var previous = pending; pending = null; previous?.Cancel(); previous?.Dispose(); }
