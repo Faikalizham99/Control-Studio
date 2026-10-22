@@ -77,8 +77,8 @@ public sealed class SettingsPage : ContentPage
         var toggle = new Switch { IsToggled = true, HorizontalOptions = LayoutOptions.Center, VerticalOptions = LayoutOptions.Center };
         toggle.SetDynamicResource(Switch.OnColorProperty, "Accent"); SemanticProperties.SetDescription(toggle, "Live preview switch");
         var star = new Label { Text = "☆", FontSize = 23, TextColor = Colors.White, HorizontalTextAlignment = TextAlignment.Center, VerticalTextAlignment = TextAlignment.Center };
-        star.SetDynamicResource(Label.TextColorProperty, "AccentButtonText");
-        var starWell = SettingsControls.Rounded(star, 10); starWell.WidthRequest = 32; starWell.HeightRequest = 34; starWell.SetDynamicResource(BackgroundColorProperty, "AccentButton");
+        var starWell = new AccentSurface(star, 10, captionSize: 23, captionBold: false) { WidthRequest = 32, HeightRequest = 34 };
+        starWell.BindForeground(star, Label.TextColorProperty);
         var card = new Grid { ColumnSpacing = 8, ColumnDefinitions = { new(GridLength.Auto), new(GridLength.Star) } };
         card.Add(starWell); card.Add(new VerticalStackLayout { Spacing = 2, VerticalOptions = LayoutOptions.Center, Children = { SettingsControls.Text("Live Preview", 12), previewDetail } }, 1);
         var mini = SettingsControls.Rounded(card, 14, new Thickness(8));

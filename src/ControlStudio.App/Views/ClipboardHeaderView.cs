@@ -16,6 +16,7 @@ internal sealed class ClipboardHeaderView : ContentView
         RemoveDynamicResource(BackgroundColorProperty); title.RemoveDynamicResource(Label.TextColorProperty);
         if (colourOverride is null)
         {
+            ClearValue(BackgroundColorProperty); title.ClearValue(Label.TextColorProperty);
             SetDynamicResource(BackgroundColorProperty, "Accent");
             title.SetDynamicResource(Label.TextColorProperty, "AccentActionText");
         }

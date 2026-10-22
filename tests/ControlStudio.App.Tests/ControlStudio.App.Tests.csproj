@@ -3,11 +3,24 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
     <PackageReference Include="Microsoft.Maui.Graphics" Version="10.0.110" />
+    <PackageReference Include="Microsoft.Maui.Controls.Core" Version="10.0.110" />
     <PackageReference Include="xunit" Version="2.9.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5"><PrivateAssets>all</PrivateAssets></PackageReference>
     <ProjectReference Include="../../src/ControlStudio.Core/ControlStudio.Core.csproj" />
     <Compile Include="../../src/ControlStudio.App/AppearanceColors.cs" Link="AppearanceColors.cs" />
     <Compile Include="../../src/ControlStudio.App/PhotoCropGeometry.cs" Link="PhotoCropGeometry.cs" />
     <Compile Include="../../src/ControlStudio.App/StudioContent.cs" Link="StudioContent.cs" />
+    <Compile Include="../../src/ControlStudio.App/Views/AccentButton.cs" Link="Views/AccentButton.cs" />
+    <Compile Include="../../src/ControlStudio.App/Views/AccentSurface.cs" Link="Views/AccentSurface.cs" />
+    <Compile Include="../../src/ControlStudio.App/Views/ClipboardEditorControls.cs" Link="Views/ClipboardEditorControls.cs" />
+    <Compile Include="../../src/ControlStudio.App/Views/ClipboardIconButton.cs" Link="Views/ClipboardIconButton.cs" />
+    <Compile Include="../../src/ControlStudio.App/Views/ProfileControls.cs" Link="Views/ProfileControls.cs" />
+    <Compile Include="../../src/ControlStudio.App/Views/SettingsControls.cs" Link="Views/SettingsControls.cs" />
+    <Compile Include="../../src/ControlStudio.App/Views/StudioControls.cs" Link="Views/StudioControls.cs" />
+    <Compile Include="../../src/ControlStudio.App/Views/ClipboardHeaderView.cs" Link="Views/ClipboardHeaderView.cs" />
+    <Compile Include="../../src/ControlStudio.App/Views/ClipboardSegment.cs" Link="Views/ClipboardSegment.cs" />
+    <Using Include="Microsoft.Maui" />
+    <Using Include="Microsoft.Maui.Controls" />
+    <Using Include="Microsoft.Maui.Graphics" />
   </ItemGroup>
 </Project>

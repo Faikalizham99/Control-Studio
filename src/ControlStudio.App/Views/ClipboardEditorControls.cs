@@ -61,30 +61,38 @@ internal static class ClipboardEditorControls
 internal sealed class ClipboardEditorActionButton : ContentView
 {
     private readonly Button tap;
+    private readonly bool primary;
     public event EventHandler? Clicked;
 
     public ClipboardEditorActionButton(string text, View? icon, string automationId, bool primary = false, bool accentCaption = false)
     {
+        this.primary = primary;
         var height = primary ? 52 : 44;
         MinimumHeightRequest = height;
         var caption = new HorizontalStackLayout { Spacing = 8, HorizontalOptions = LayoutOptions.Center, VerticalOptions = LayoutOptions.Center, InputTransparent = true };
         if (icon is not null) { icon.InputTransparent = true; caption.Children.Add(icon); }
+        Label? label = null;
         if (text.Length > 0)
         {
-            var label = new Label { Text = text, FontSize = primary ? 19 : 12, FontAttributes = primary || accentCaption ? FontAttributes.Bold : FontAttributes.None };
-            if (primary || accentCaption) label.SetDynamicResource(Label.TextColorProperty, primary ? "AccentActionText" : "AccentText");
-            else label.SetAppThemeColor(Label.TextColorProperty, Color.FromArgb("#252A34"), Color.FromArgb("#F5F5F7"));
+            label = new Label { Text = text, FontSize = primary ? 19 : 12, FontAttributes = primary || accentCaption ? FontAttributes.Bold : FontAttributes.None };
+            if (accentCaption && !primary) label.SetDynamicResource(Label.TextColorProperty, "AccentText");
+            else if (!primary) label.SetAppThemeColor(Label.TextColorProperty, Color.FromArgb("#252A34"), Color.FromArgb("#F5F5F7"));
             AutomationProperties.SetIsInAccessibleTree(label, false); caption.Children.Add(label);
         }
-        var surface = ClipboardEditorControls.Surface(caption, primary ? 25 : 22, new Thickness(text.Length == 0 ? 10 : 12, 0));
+        Border surface;
+        var padding = new Thickness(text.Length == 0 ? 10 : 12, 0);
+        if (primary)
+        {
+            var accent = new AccentSurface(caption, 25, padding);
+            if (label is not null) accent.BindForeground(label, Label.TextColorProperty);
+            if (icon is ProfileGlyph profile) accent.BindForeground(profile, ProfileGlyph.TintProperty);
+            if (icon is StudioGlyph studio) accent.BindForeground(studio, StudioGlyph.TintProperty);
+            surface = accent;
+        }
+        else surface = ClipboardEditorControls.Surface(caption, 22, padding);
         surface.InputTransparent = true;
         if (primary)
         {
-            surface.RemoveBinding(Border.BackgroundProperty);
-            surface.ClearValue(Border.BackgroundProperty);
-            surface.SetDynamicResource(BackgroundColorProperty, "AccentButton");
-            surface.RemoveBinding(Border.StrokeProperty);
-            surface.SetAppTheme<Brush>(Border.StrokeProperty, new SolidColorBrush(Colors.White.WithAlpha(.8f)), new SolidColorBrush(Colors.White.WithAlpha(.55f)));
             surface.Shadow = new Shadow { Opacity = .45f, Radius = 14, Offset = new Point(0, 3) };
             surface.Shadow.SetDynamicResource(Shadow.BrushProperty, "AccentGlow");
         }
@@ -99,6 +107,6 @@ internal sealed class ClipboardEditorActionButton : ContentView
     protected override void OnPropertyChanged(string? propertyName = null)
     {
         base.OnPropertyChanged(propertyName);
-        if (propertyName == nameof(IsEnabled)) Opacity = IsEnabled ? 1 : .6;
+        if (propertyName == nameof(IsEnabled)) Opacity = primary || IsEnabled ? 1 : .6;
     }
 }

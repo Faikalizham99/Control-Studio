@@ -17,7 +17,7 @@ public sealed class ClipboardPage : ContentPage
     private readonly Label status = SettingsControls.Text("", 13, secondary: true);
     private readonly Label description = SettingsControls.Text("", 15, secondary: true);
     private readonly RefreshView refresh = new();
-    private readonly Dictionary<ClipboardKind, Segment> segments = [];
+    private readonly Dictionary<ClipboardKind, ClipboardSegment> segments = [];
     private IReadOnlyList<ActionDefinition> saved = [];
     private ClipboardKind selected;
     private CancellationTokenSource lifetime = new();
@@ -39,7 +39,7 @@ public sealed class ClipboardPage : ContentPage
         foreach (var kind in Enum.GetValues<ClipboardKind>())
         {
             switcher.ColumnDefinitions.Add(new(GridLength.Star));
-            var segment = new Segment(kind, () => { if (!busy && selected != kind) { selected = kind; ShowStatus(""); Filter(); } });
+            var segment = new ClipboardSegment(kind, Symbol(kind), () => { if (!busy && selected != kind) { selected = kind; ShowStatus(""); Filter(); } });
             segments.Add(kind, segment); switcher.Add(segment, (int)kind);
         }
         var heading = new VerticalStackLayout { Padding = new Thickness(16, 12, 16, 16), Spacing = 12, Children =
@@ -144,52 +144,6 @@ public sealed class ClipboardPage : ContentPage
     private void ShowStatus(string message) { status.Text = message; status.IsVisible = !string.IsNullOrEmpty(message); }
     private static StudioSymbol Symbol(ClipboardKind kind) => kind switch { ClipboardKind.Photo => StudioSymbol.Photo, ClipboardKind.Link => StudioSymbol.Link, _ => StudioSymbol.Text };
 
-    private sealed class Segment : ContentView
-    {
-        private readonly Border surface;
-        private readonly StudioGlyph icon;
-        private readonly Label label;
-        private readonly Button tap;
-        private readonly ClipboardKind kind;
-        public Segment(ClipboardKind kind, Action select)
-        {
-            this.kind = kind;
-            icon = new StudioGlyph(Symbol(kind), useAccent: false) { WidthRequest = 21, HeightRequest = 21, HorizontalOptions = LayoutOptions.Center };
-            label = new Label { Text = kind.ToString(), FontSize = 11, HorizontalTextAlignment = TextAlignment.Center };
-            label.InputTransparent = true;
-            surface = new Border
-            {
-                Content = new VerticalStackLayout { Padding = new Thickness(2, 8), Spacing = 4, Children = { icon, label }, InputTransparent = true },
-                StrokeShape = new RoundRectangle { CornerRadius = 19 }, StrokeThickness = 1, InputTransparent = true,
-                Background = Brush.Transparent, Stroke = Brush.Transparent
-            };
-            tap = SettingsControls.TapTarget(kind.ToString(), "ClipboardTab" + kind); tap.Clicked += (_, _) => select();
-            Content = new Grid { Children = { tap, surface } };
-            AutomationProperties.SetIsInAccessibleTree(label, false);
-        }
-        public void Update(bool selected)
-        {
-            // Theme bindings and dynamic resources must not compete when a tab changes state.
-            label.RemoveBinding(Label.TextColorProperty); icon.RemoveBinding(StudioGlyph.TintProperty);
-            label.RemoveDynamicResource(Label.TextColorProperty); icon.RemoveDynamicResource(StudioGlyph.TintProperty);
-            surface.RemoveDynamicResource(Border.BackgroundProperty); surface.RemoveDynamicResource(Border.StrokeProperty);
-            label.FontAttributes = selected ? FontAttributes.Bold : FontAttributes.None;
-            if (selected)
-            {
-                surface.SetDynamicResource(Border.BackgroundProperty, "AccentSelectionBrush");
-                surface.SetDynamicResource(Border.StrokeProperty, "AccentSelectionStroke");
-                label.SetDynamicResource(Label.TextColorProperty, "AccentText"); icon.SetDynamicResource(StudioGlyph.TintProperty, "AccentText");
-            }
-            else
-            {
-                surface.Background = Brush.Transparent;
-                surface.Stroke = Brush.Transparent;
-                label.SetAppThemeColor(Label.TextColorProperty, Color.FromArgb("#626570"), Color.FromArgb("#AFB3BD"));
-                icon.SetAppThemeColor(StudioGlyph.TintProperty, Color.FromArgb("#626570"), Color.FromArgb("#AFB3BD"));
-            }
-            SemanticProperties.SetDescription(tap, $"{kind}{(selected ? ", selected" : "")}");
-        }
-    }
     private sealed class ClipboardTile : ContentView
     {
         private const int PreviewLines = 3;

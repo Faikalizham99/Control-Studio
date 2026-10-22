@@ -55,38 +55,38 @@ internal sealed class ProfileGlyph : GraphicsView, IDrawable
 
 internal sealed class ProfileActionButton : ContentView
 {
+    private readonly bool primary;
     public event EventHandler? Clicked;
 
     public ProfileActionButton(string text, ProfileSymbol symbol, string automationId, bool primary = true, double radius = 18)
     {
+        this.primary = primary;
         MinimumHeightRequest = 48;
         var glyph = new ProfileGlyph(symbol, primary ? "AccentActionText" : "AccentText");
-        var label = SettingsControls.Text(text, primary ? 19 : 14, bold: primary);
-        label.SetDynamicResource(Label.TextColorProperty, primary ? "AccentActionText" : "AccentText");
+        var label = new Label { Text = text, FontSize = primary ? 19 : 14, FontAttributes = primary ? FontAttributes.Bold : FontAttributes.None };
         AutomationProperties.SetIsInAccessibleTree(label, false);
         var caption = new HorizontalStackLayout { Spacing = 10, HorizontalOptions = LayoutOptions.Center, VerticalOptions = LayoutOptions.Center, InputTransparent = true, Children = { glyph, label } };
-        var content = new Grid();
-        // The caption sits directly on the exact accent, without a contrasting gloss overlay.
-        content.Add(caption);
         var hit = new Button { Text = "", Padding = 0, CornerRadius = (int)radius, BackgroundColor = Colors.Transparent, BorderWidth = 0, MinimumHeightRequest = 48, AutomationId = automationId };
         SemanticProperties.SetDescription(hit, text);
         hit.Clicked += (_, args) => Clicked?.Invoke(this, args);
-        content.Add(hit);
-        var surface = SettingsControls.Rounded(content, radius);
+        Border surface;
         if (primary)
         {
-            surface.SetDynamicResource(BackgroundColorProperty, "AccentButton");
-            surface.SetAppTheme<Brush>(Border.StrokeProperty, new SolidColorBrush(Colors.White.WithAlpha(.8f)), new SolidColorBrush(Colors.White.WithAlpha(.35f)));
+            var accent = new AccentSurface(caption, radius);
+            accent.BindForeground(label, Label.TextColorProperty); accent.BindForeground(glyph, ProfileGlyph.TintProperty);
+            surface = accent;
         }
+        else { surface = SettingsControls.Rounded(caption, radius); label.SetDynamicResource(Label.TextColorProperty, "AccentText"); }
+        surface.InputTransparent = true;
         hit.Pressed += (_, _) => surface.Scale = .98;
         hit.Released += (_, _) => surface.Scale = 1;
-        Content = surface;
+        Content = new Grid { MinimumHeightRequest = 48, Children = { hit, surface } };
     }
 
     protected override void OnPropertyChanged(string? propertyName = null)
     {
         base.OnPropertyChanged(propertyName);
-        if (propertyName == nameof(IsEnabled)) Opacity = IsEnabled ? 1 : .7;
+        if (propertyName == nameof(IsEnabled)) Opacity = primary || IsEnabled ? 1 : .7;
     }
 }
 

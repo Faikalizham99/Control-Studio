@@ -15,20 +15,22 @@ internal sealed class ClipboardIconButton : ContentView
         {
             WidthRequest = HeightRequest = 23, HorizontalOptions = LayoutOptions.Center, VerticalOptions = LayoutOptions.Center
         };
-        var surface = new Border { Content = icon, StrokeShape = new RoundRectangle { CornerRadius = 15 }, StrokeThickness = 1, InputTransparent = true };
-        SettingsControls.SurfaceStroke(surface);
+        Border surface;
         if (primary)
         {
-            surface.SetDynamicResource(BackgroundProperty, "AccentButtonBrush");
-            surface.Stroke = Colors.Transparent;
-            icon.SetDynamicResource(StudioGlyph.TintProperty, "AccentButtonText");
+            var accent = new AccentSurface(icon, 15, captionSize: 14, captionBold: false);
+            accent.Stroke = Colors.Transparent;
+            accent.BindForeground(icon, StudioGlyph.TintProperty); surface = accent;
         }
         else
         {
+            surface = new Border { Content = icon, StrokeShape = new RoundRectangle { CornerRadius = 15 }, StrokeThickness = 1 };
+            SettingsControls.SurfaceStroke(surface);
             surface.SetAppTheme<Brush>(BackgroundProperty, new SolidColorBrush(Color.FromArgb("#F2F4F9")), new SolidColorBrush(Color.FromArgb("#33353C")));
             if (destructive) icon.SetAppThemeColor(StudioGlyph.TintProperty, Color.FromArgb("#B42336"), Color.FromArgb("#FF8798"));
             else icon.SetDynamicResource(StudioGlyph.TintProperty, "AccentText");
         }
+        surface.InputTransparent = true;
         tap = SettingsControls.TapTarget(action, "Clipboard" + action.Replace(" ", ""));
         tap.CornerRadius = 15;
         tap.Clicked += (_, e) => Clicked?.Invoke(this, e);
