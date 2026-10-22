@@ -243,6 +243,10 @@ public sealed class ClipboardPage : ContentPage
             divider.SetAppThemeColor(BoxView.ColorProperty, Color.FromArgb("#D2D7E1"), Colors.White.WithAlpha(.18f));
             AutomationProperties.SetIsInAccessibleTree(divider, false);
             conceal = new ClipboardConcealView(new VerticalStackLayout { Spacing = 12, Children = { content, photo } }, concealedItems);
+            photo.PropertyChanged += (_, args) =>
+            {
+                if (args.PropertyName == nameof(Image.IsLoading) && !photo.IsLoading) conceal.RefreshContent();
+            };
             var body = new VerticalStackLayout { Padding = 12, Spacing = 12, Children = { conceal, actions } };
             Content = new GlassCard(new VerticalStackLayout { Spacing = 0, Children = { header, divider, body } }, 0);
             visibility.Clicked += (_, _) => { conceal.Toggle(); UpdateVisibilityCaption(); };
@@ -282,7 +286,7 @@ public sealed class ClipboardPage : ContentPage
             { photo.Source = path; photo.IsVisible = true; SemanticProperties.SetDescription(photo, action.Name); }
             copy.Describe("Copy", action.Name); edit.Describe("Edit", action.Name); delete.Describe("Delete", action.Name);
             open.Describe("Open link", action.Name); preview.Describe("Preview photo", action.Name);
-            UpdateExpandCaption(); QueueOverflowCheck();
+            conceal.RefreshContent(); UpdateExpandCaption(); QueueOverflowCheck();
         }
 
         private void UpdateVisibilityCaption()

@@ -79,5 +79,17 @@ public sealed class ClipboardConcealViewTests : IDisposable
         Assert.Equal("Hide content for Private item", SemanticProperties.GetDescription(nativeTarget));
     }
 
+    [Fact]
+    public void RebindingAndLatePhotoLoadsInvalidateSnapshotsWithoutChangingVisibilityOrSavedContent()
+    {
+        var id = Guid.NewGuid(); var hidden = new HashSet<Guid> { id };
+        var photo = new Image { Source = "private-photo.png" }; var originalSource = photo.Source;
+        var card = new ClipboardConcealView(photo, hidden); card.Bind(id); var firstVersion = card.RenderVersion;
+        card.RefreshContent(); Assert.True(card.RenderVersion > firstVersion); Assert.True(card.IsConcealed); Assert.False(photo.IsEnabled);
+        var refreshed = card.RenderVersion; card.Bind(id); Assert.True(card.RenderVersion > refreshed); Assert.False(card.AnimateTransition);
+        var rebound = card.RenderVersion; card.Bind(Guid.NewGuid()); Assert.True(card.RenderVersion > rebound); Assert.False(card.IsConcealed); Assert.True(photo.IsEnabled);
+        Assert.Same(originalSource, photo.Source); Assert.True(photo.IsVisible); Assert.Contains(id, hidden);
+    }
+
     public void Dispose() => host.Dispose();
 }

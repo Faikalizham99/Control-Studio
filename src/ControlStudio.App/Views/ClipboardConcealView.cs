@@ -1,12 +1,13 @@
 namespace ControlStudio.App.Views;
 
-/// <summary>Keeps the content measured while the native handler draws an animated privacy cover.</summary>
+/// <summary>Keeps content measured while the native handler displays its transparent soft-focus blur.</summary>
 internal sealed class ClipboardConcealView : ContentView
 {
     private readonly ISet<Guid> concealedItems;
     private Guid? itemId;
     public bool IsConcealed { get; private set; }
     public bool AnimateTransition { get; private set; }
+    public long RenderVersion { get; private set; }
 
     public ClipboardConcealView(View content, ISet<Guid> concealedItems)
     {
@@ -17,7 +18,15 @@ internal sealed class ClipboardConcealView : ContentView
     public void Bind(Guid? id)
     {
         itemId = id;
+        RenderVersion++;
         Apply(id is { } value && concealedItems.Contains(value), animate: false);
+    }
+
+    public void RefreshContent()
+    {
+        if (Dispatcher.IsDispatchRequired) { Dispatcher.Dispatch(RefreshContent); return; }
+        RenderVersion++;
+        Handler?.UpdateValue(nameof(RenderVersion));
     }
 
     public void Toggle()
