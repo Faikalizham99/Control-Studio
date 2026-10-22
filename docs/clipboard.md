@@ -5,7 +5,7 @@ Clipboard has three sections: **Text / Photo / Link**. The owner requested this 
 | Section | Actions and storage |
 |---|---|
 | Text | Copy; exact whitespace and Unicode, up to 10,000 characters. |
-| Link | Copy or Open in the default browser; validated HTTP(S) only, up to 2,048 characters. |
+| Link | Blue underlined URL: tap to open, hold for a webpage preview and Copy link / Open in browser / Share menu. Existing Copy/Open icons remain. Validated HTTP(S) only, up to 2,048 characters. |
 | Photo | Paste a copied photo, import from Photo Library or Files; Copy image, Preview, Share / Save to Photos. Private orientation-correct PNG, longest side at most 4,096 pixels, with a 512-pixel thumbnail. Source at most 10 MB, saved PNG at most 20 MB. |
 
 Names are limited to 60 characters. Existing IDs, metadata and ordering survive edits. Text is never trimmed; only outer whitespace in names/URLs is removed. Generic counter records remain preserved and hidden. User content is not included in application logs.
@@ -23,6 +23,16 @@ Local validation for card expansion: 42 app tests, managed iOS compilation and w
 The selected segment uses the same readable accent colour as navigation (`AccentText`) for its icon and bold label, with a subtle 12% accent background and an accent outline. It no longer uses the black/white foreground intended for filled action buttons. Unselected segments use neutral icons and regular labels on a transparent surface. Theme bindings and dynamic resources are explicitly removed before changing a segment's palette so they cannot compete. The native blank hit target sits beneath the independently drawn visuals. Accent and theme changes update the selected palette through dynamic resources. Switching sections clears feedback from the previous section.
 
 Items have pencil/Edit, red trash/Delete and filled-accent clipboard/Copy icons. Links add an external-open arrow; photos add an eye/Preview icon. Buttons have 48-point native hit targets and item-specific accessibility descriptions. Delete asks for confirmation. Selected accent rendering in both themes, touch routing, live accent/theme changes and VoiceOver still require phone checks.
+
+## Link appearance and native preview
+
+Saved URLs are underlined and blue in both appearances, independently of the selected accent; the header still follows its configured colour. The URL has a minimum 44-point tap target. Long URLs retain the three-line expansion control, and Copy/Open/Share always receive the complete saved URL.
+
+The iOS label handler adds a native `UIContextMenuInteraction`. Its preview provider creates an `SFSafariViewController` only when the user holds the URL; displaying or scrolling the list does not request a webpage or fetch metadata. This follows Apple's [context-menu preview example](https://developer.apple.com/documentation/uikit/adding-context-menus-in-your-app?language=objc). Tapping the preview opens the default browser. The menu offers Copy link, Open in browser and the native Share sheet. If preview creation fails, the actions remain available; website loading and error presentation belong to the native Safari view, and not every website is guaranteed to preview successfully.
+
+Contexts capture the current item and reject actions after the card is rebound or disabled. Rebinding, disabling, unloading or disconnecting dismisses the menu and releases its preview; normal dismissal releases it after the animation. VoiceOver custom actions expose Open, Copy and Share without requiring the hold gesture. The same HTTP(S) validation applies to taps and menu actions. No dependency, entitlement, storage schema or version change is needed.
+
+Local validation on 22 October 2026: **71 app tests**, **22 packaging tests**, source configuration checks and managed iOS compilation pass. Link regressions cover Light/Dark contrast, underline and target size, unchanged full URLs, lazy context creation, validation, disabled controls and stale actions after recycling. Native hold/tap arbitration, preview loading/dismissal, scrolling/recycling, iPad Share presentation, live appearance, VoiceOver and real-device browser behaviour remain **NOT VERIFIED** on an iPhone/iPad.
 
 ## Add and edit design
 
@@ -65,5 +75,7 @@ For the selected-section accent correction on 22 October 2026, the 42 app tests,
 For coloured headers and the shared picker on 22 October 2026, **138 tests passed** (50 Core, 24 infrastructure, 43 app, 21 packaging), plus source/configuration checks and managed iOS compilation. New regressions cover canonical colour validation, optional-field JSON, per-item persistence/reordering/renaming/reset, schema-3 defaults and upgrade, corrupted-colour data preservation and ordinary edits retaining the override. Live default-accent updates, custom colours, picker interaction/focus/drag, pending invalid HEX, cancel without saving, card clipping, scrolling/recycling, native picker dismissal and accessibility still require iPhone verification.
 
 After the owner reported the v0.2.8 Save button showing a neutral gradient with black text, primary custom actions were moved to shared `AccentSurface`. Save now binds the solid accent brush directly and calculates its label/checkmark colour from that fill. Related profile/compact-preview styling and header/selector manual-to-resource transitions were corrected in the same audit. See [component rules and managed regression evidence](ui-components.md). Current local checks: 57 app and 22 packaging tests, locked test restore, managed iOS compilation and source/whitespace checks pass; iPhone rendering remains pending.
+
+The owner authorized committing/pushing these changes and the **v0.2.9** release tag on 22 October 2026. App and native extension versions are **0.2.9 (11)**. This release also includes the shared accent-surface correction and Paste photo changes committed after v0.2.8. The owner monitors build progress personally; native build and device verification remain pending.
 
 Commits, pushes and release tags require the owner's explicit permission. The owner monitors future build progress personally.

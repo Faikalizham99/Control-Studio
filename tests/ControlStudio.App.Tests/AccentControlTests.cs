@@ -1,7 +1,6 @@
 using ControlStudio.App.Views;
 using ControlStudio.Core;
 using Microsoft.Maui.ApplicationModel;
-using Microsoft.Maui.Dispatching;
 using Xunit;
 
 namespace ControlStudio.App.Tests;
@@ -12,16 +11,9 @@ public sealed class MauiControlsCollection;
 [Collection("MAUI controls")]
 public sealed class AccentControlTests : IDisposable
 {
-    private readonly Application? previousApp = Application.Current;
-    private readonly IDispatcherProvider previousDispatcher = DispatcherProvider.Current;
-    private readonly Application app;
+    private readonly MauiTestContext context = new();
+    private Application app => context.App;
     private static IEnumerable<string> Accents => AppearanceValues.Presets.Concat(["#00FFD2", "#000000", "#FFFFFF", "#FFFF00", "#AABBCC"]);
-
-    public AccentControlTests()
-    {
-        DispatcherProvider.SetCurrent(new InlineDispatcherProvider());
-        app = new Application { UserAppTheme = AppTheme.Light };
-    }
 
     [Fact]
     public void ReproducesReleasedGradientOverridingAccentBackgroundColor()
@@ -196,17 +188,5 @@ public sealed class AccentControlTests : IDisposable
         var fill = Fill(view); Assert.Equal(1f, fill.Alpha);
         Assert.True(AppearanceColors.Contrast(fill, foreground) >= minimum, $"Foreground must remain readable against {AppearanceColors.ToRgbHex(fill)}.");
     }
-    public void Dispose() { Application.Current = previousApp; DispatcherProvider.SetCurrent(previousDispatcher); }
-
-    private sealed class InlineDispatcherProvider : IDispatcherProvider
-    {
-        public IDispatcher GetForCurrentThread() => new InlineDispatcher();
-    }
-    private sealed class InlineDispatcher : IDispatcher
-    {
-        public bool IsDispatchRequired => false;
-        public bool Dispatch(Action action) { action(); return true; }
-        public bool DispatchDelayed(TimeSpan delay, Action action) => throw new NotSupportedException();
-        public IDispatcherTimer CreateTimer() => throw new NotSupportedException();
-    }
+    public void Dispose() => context.Dispose();
 }

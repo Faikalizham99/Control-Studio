@@ -32,7 +32,7 @@ public sealed class ClipboardPage : ContentPage
         add.Clicked += async (_, _) => await GuardAsync(_ => Navigation.PushAsync(new ClipboardEditorPage(repository, validator, preferences, colourPicker, selected)));
         ToolbarItems.Add(add);
         items.ItemsLayout = new LinearItemsLayout(ItemsLayoutOrientation.Vertical) { ItemSpacing = 12 };
-        items.ItemTemplate = new DataTemplate(() => new ClipboardTile(CopyAsync, SecondaryAsync, EditAsync, DeleteAsync));
+        items.ItemTemplate = new DataTemplate(() => new ClipboardTile(CopyAsync, SecondaryAsync, EditAsync, DeleteAsync, ShareLinkAsync));
         refresh.Content = items; refresh.SetDynamicResource(RefreshView.RefreshColorProperty, "AccentText");
         refresh.Refreshing += async (_, _) => await ReloadAsync();
         var switcher = new Grid { ColumnSpacing = 4, Padding = 4 };
@@ -106,6 +106,11 @@ public sealed class ClipboardPage : ContentPage
         validator.Validate(item);
         if (item.Parameters is PhotoParameters photo) await Navigation.PushAsync(new ClipboardPhotoPage(item.Name, photo.AssetKey));
     });
+    private Task ShareLinkAsync(ActionDefinition item) => GuardAsync(async token =>
+    {
+        validator.Validate(item); token.ThrowIfCancellationRequested();
+        if (item.Parameters is OpenUrlParameters link) await Share.Default.RequestAsync(new ShareTextRequest { Title = item.Name, Uri = link.Url });
+    });
     private Task EditAsync(ActionDefinition item) => GuardAsync(async token =>
     {
         validator.Validate(item);
@@ -149,6 +154,8 @@ public sealed class ClipboardPage : ContentPage
         private const int PreviewLines = 3;
         private readonly ClipboardHeaderView header = new();
         private readonly Label text = SettingsControls.Text("", 14, secondary: true);
+        private readonly ClipboardLinkLabel link;
+        private Label ActiveLabel => link.IsVisible ? link : text;
         private readonly Button expand = new()
         {
             Text = "\u2026 Show more", FontSize = 13, FontAttributes = FontAttributes.Bold, BackgroundColor = Colors.Transparent,
@@ -163,28 +170,31 @@ public sealed class ClipboardPage : ContentPage
         private readonly ClipboardIconButton edit = new(StudioSymbol.Edit, "Edit");
         private readonly ClipboardIconButton delete = new(StudioSymbol.Delete, "Delete", destructive: true);
         public ClipboardTile(Func<ActionDefinition, Task> copyAction, Func<ActionDefinition, Task> secondaryAction,
-            Func<ActionDefinition, Task> editAction, Func<ActionDefinition, Task> deleteAction)
+            Func<ActionDefinition, Task> editAction, Func<ActionDefinition, Task> deleteAction, Func<ActionDefinition, Task> shareAction)
         {
+            link = new ClipboardLinkLabel(secondaryAction, copyAction, shareAction) { IsVisible = false };
             text.MaxLines = PreviewLines; text.LineBreakMode = LineBreakMode.TailTruncation;
             expand.SetDynamicResource(Button.TextColorProperty, "AccentText");
             expand.Clicked += (_, _) =>
             {
                 expanded = !expanded;
-                text.MaxLines = expanded ? -1 : PreviewLines;
-                text.LineBreakMode = expanded ? LineBreakMode.WordWrap : LineBreakMode.TailTruncation;
+                ActiveLabel.MaxLines = expanded ? -1 : PreviewLines;
+                ActiveLabel.LineBreakMode = expanded ? LineBreakMode.WordWrap : LineBreakMode.TailTruncation;
                 UpdateExpandCaption();
                 InvalidateMeasure();
             };
-            text.SizeChanged += (_, _) => QueueOverflowCheck();
-            text.HandlerChanged += (_, _) => QueueOverflowCheck();
-            text.Loaded += (_, _) => QueueOverflowCheck();
-            text.PropertyChanged += (_, args) =>
+            foreach (var label in new Label[] { text, link })
             {
-                if (args.PropertyName is nameof(Label.FontSize) or nameof(Label.FontFamily) or nameof(Label.FontAttributes) or nameof(Label.FontAutoScalingEnabled))
-                    QueueOverflowCheck();
-            };
+                label.SizeChanged += (_, _) => QueueOverflowCheck();
+                label.HandlerChanged += (_, _) => QueueOverflowCheck();
+                label.Loaded += (_, _) => QueueOverflowCheck();
+                label.PropertyChanged += (_, args) =>
+                {
+                    if (args.PropertyName is nameof(Label.FontSize) or nameof(Label.FontFamily) or nameof(Label.FontAttributes) or nameof(Label.FontAutoScalingEnabled)) QueueOverflowCheck();
+                };
+            }
             var actions = new HorizontalStackLayout { Spacing = 8, HorizontalOptions = LayoutOptions.End, Children = { edit, delete, open, preview, copy } };
-            var content = new VerticalStackLayout { Spacing = 0, Children = { text, expand } };
+            var content = new VerticalStackLayout { Spacing = 0, Children = { text, link, expand } };
             var divider = new BoxView { HeightRequest = 1, HorizontalOptions = LayoutOptions.Fill, InputTransparent = true };
             divider.SetAppThemeColor(BoxView.ColorProperty, Color.FromArgb("#D2D7E1"), Colors.White.WithAlpha(.18f));
             AutomationProperties.SetIsInAccessibleTree(divider, false);
@@ -202,6 +212,7 @@ public sealed class ClipboardPage : ContentPage
             // CollectionView reuses tiles; a different item always starts with its own collapsed preview.
             expanded = false; expand.IsVisible = false;
             text.MaxLines = PreviewLines; text.LineBreakMode = LineBreakMode.TailTruncation;
+            link.Item = null; link.IsVisible = false; link.MaxLines = PreviewLines; link.LineBreakMode = LineBreakMode.TailTruncation; text.IsVisible = true;
             photo.Source = null; photo.IsVisible = false;
             open.IsVisible = preview.IsVisible = false;
             if (BindingContext is not ActionDefinition action) { header.SetItem("", null); text.Text = ""; return; }
@@ -210,9 +221,10 @@ public sealed class ClipboardPage : ContentPage
             preview.IsVisible = action.Parameters is PhotoParameters;
             text.Text = action.Parameters switch
             {
-                CopyTextParameters value => value.Text, OpenUrlParameters value => value.Url,
+                CopyTextParameters value => value.Text,
                 PhotoParameters value => ClipboardPhotoStore.GetPath(value.AssetKey) is null ? "Photo missing. Choose it again in Edit." : "Photo · saved on this iPhone", _ => ""
             };
+            if (action.Parameters is OpenUrlParameters) { link.Item = action; link.IsVisible = true; text.IsVisible = false; }
             if (action.Parameters is PhotoParameters p && ClipboardPhotoStore.GetThumbnailPath(p.AssetKey) is { } path)
             { photo.Source = path; photo.IsVisible = true; SemanticProperties.SetDescription(photo, action.Name); }
             copy.Describe("Copy", action.Name); edit.Describe("Edit", action.Name); delete.Describe("Delete", action.Name);
@@ -238,11 +250,11 @@ public sealed class ClipboardPage : ContentPage
                 overflowCheckQueued = false;
                 if (BindingContext is not ActionDefinition action || action.Parameters is not (CopyTextParameters or OpenUrlParameters))
                 { expand.IsVisible = false; return; }
-                if (ClipboardTextMeasurement.ExceedsLines(text, PreviewLines) is not { } overflows) return;
+                if (ClipboardTextMeasurement.ExceedsLines(ActiveLabel, PreviewLines) is not { } overflows) return;
                 expand.IsVisible = overflows;
                 if (!overflows && expanded)
                 {
-                    expanded = false; text.MaxLines = PreviewLines; text.LineBreakMode = LineBreakMode.TailTruncation;
+                    expanded = false; ActiveLabel.MaxLines = PreviewLines; ActiveLabel.LineBreakMode = LineBreakMode.TailTruncation;
                     UpdateExpandCaption();
                 }
             });
