@@ -45,6 +45,8 @@ public interface IActionRepository
     Task SaveAsync(ActionDefinition action, CancellationToken cancellationToken = default);
     Task DeleteAsync(Guid id, CancellationToken cancellationToken = default);
     Task MoveAsync(Guid id, int offset, CancellationToken cancellationToken = default);
+    Task SetPinnedAsync(Guid id, bool pinned, CancellationToken cancellationToken = default);
+    Task ReorderClipboardAsync(IReadOnlyList<Guid> orderedIds, CancellationToken cancellationToken = default);
 }
 
 public interface IActionValidator { void Validate(ActionDefinition action); }

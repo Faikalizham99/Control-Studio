@@ -42,6 +42,73 @@ public sealed class SqliteActionRepositoryTests : IDisposable
     }
 
     [Fact]
+    public async Task PinPatchesLatestMetadataAndSurvivesRelaunchWithoutMovingOtherItems()
+    {
+        var original = NewAction(); var other = NewAction("Other");
+        await Repository().SaveAsync(original); await Repository().SaveAsync(other);
+        var edited = original with { Name = "New name", HeaderColorHex = "#123456", Parameters = new CopyTextParameters("Updated\n🐱  ") };
+        await Repository().SaveAsync(edited); await Repository().SetPinnedAsync(original.Id, true);
+        var pinned = await Repository().ReadAsync(); Assert.Equal(edited with { IsFavorite = true }, pinned[0]);
+        Assert.Equal(other with { SortOrder = 1 }, pinned[1]);
+        await Repository().SetPinnedAsync(original.Id, false); Assert.Equal(edited, (await Repository().ReadAsync())[0]);
+        var counter = NewAction("Counter") with { Parameters = new IncrementCounterParameters() }; await Repository().SaveAsync(counter);
+        var before = await Repository().ReadAsync();
+        await Assert.ThrowsAsync<ActionValidationException>(() => Repository().SetPinnedAsync(counter.Id, true));
+        await Assert.ThrowsAsync<ActionValidationException>(() => Repository().SetPinnedAsync(Guid.NewGuid(), true));
+        Assert.Equal(before, await Repository().ReadAsync());
+    }
+
+    [Theory]
+    [InlineData("text")]
+    [InlineData("photo")]
+    [InlineData("link")]
+    public async Task ArrangementIsAtomicPreservesOtherSlotsAndRetainsLatestContent(string type)
+    {
+        ActionParameters Parameters(int i) => type switch
+        {
+            "photo" => new PhotoParameters(Guid.NewGuid().ToString("N")),
+            "link" => new OpenUrlParameters($"https://example.com/{i}?q=exact%20value#part"),
+            _ => new CopyTextParameters($"Exact {i}\n🐱  ")
+        };
+        var selected = Enumerable.Range(0, 4).Select(i => NewAction($"Item {i}") with { Parameters = Parameters(i), IsFavorite = i < 2, HeaderColorHex = "#00FFD2" }).ToArray();
+        var untouched = NewAction("Other") with { Parameters = type == "text" ? new OpenUrlParameters("https://example.org") : new CopyTextParameters("Other content") };
+        var counter = NewAction("Counter") with { Parameters = new IncrementCounterParameters(), IsFavorite = true };
+        foreach (var item in new[] { selected[0], untouched, selected[1], counter, selected[2], selected[3] }) await Repository().SaveAsync(item);
+        // An edit made after the arrangement draft was captured must survive saving that draft.
+        await Repository().SaveAsync(selected[1] with { Name = "Edited while arranging" });
+        var before = await Repository().ReadAsync(); var lookup = before.ToDictionary(item => item.Id);
+        await Repository().ReorderClipboardAsync(new[] { selected[1].Id, selected[0].Id, selected[3].Id, selected[2].Id });
+        var result = await Repository().ReadAsync();
+        var expected = new[] { selected[1].Id, untouched.Id, selected[0].Id, counter.Id, selected[3].Id, selected[2].Id };
+        Assert.Equal(expected, result.Select(item => item.Id));
+        for (var i = 0; i < result.Count; i++) Assert.Equal(lookup[expected[i]] with { SortOrder = i }, result[i]);
+        Assert.Equal(before[1], result[1]); Assert.Equal(before[3], result[3]);
+    }
+
+    [Fact]
+    public async Task InvalidStaleAndCancelledArrangementsLeaveTheEntireDocumentUnchanged()
+    {
+        var pinned = NewAction("Pinned") with { IsFavorite = true }; var normal = NewAction("Normal");
+        var link = NewAction("Link") with { Parameters = new OpenUrlParameters("https://example.com") };
+        foreach (var item in new[] { pinned, normal, link }) await Repository().SaveAsync(item);
+        var before = await Repository().ReadAsync();
+        foreach (var order in new[] { Array.Empty<Guid>(), new[] { pinned.Id, pinned.Id }, new[] { normal.Id, pinned.Id }, new[] { pinned.Id }, new[] { pinned.Id, Guid.NewGuid() }, new[] { pinned.Id, normal.Id, link.Id } })
+        {
+            await Assert.ThrowsAsync<ActionValidationException>(() => Repository().ReorderClipboardAsync(order));
+            Assert.Equal(before, await Repository().ReadAsync());
+        }
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => Repository().ReorderClipboardAsync(new[] { pinned.Id, normal.Id }, new CancellationToken(true)));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => Repository().SetPinnedAsync(normal.Id, true, new CancellationToken(true)));
+        Assert.Equal(before, await Repository().ReadAsync());
+        await Repository().SaveAsync(NewAction("Added later")); before = await Repository().ReadAsync();
+        await Assert.ThrowsAsync<ActionValidationException>(() => Repository().ReorderClipboardAsync(new[] { pinned.Id, normal.Id }));
+        Assert.Equal(before, await Repository().ReadAsync());
+        await Repository().DeleteAsync(pinned.Id); before = await Repository().ReadAsync();
+        await Assert.ThrowsAsync<ActionValidationException>(() => Repository().ReorderClipboardAsync(new[] { pinned.Id, normal.Id }));
+        Assert.Equal(before, await Repository().ReadAsync());
+    }
+
+    [Fact]
     public async Task InvalidAndCancelledSavesLeaveExistingDataAlone()
     {
         var original = NewAction(); await Repository().SaveAsync(original);

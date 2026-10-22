@@ -5,9 +5,16 @@ internal sealed class ClipboardHeaderView : ContentView
 {
     private readonly Label title = new() { FontSize = 19, FontAttributes = FontAttributes.Bold, MaxLines = 2, LineBreakMode = LineBreakMode.TailTruncation };
 
-    public ClipboardHeaderView()
+    public ClipboardHeaderView(View? trailing = null)
     {
-        Padding = new Thickness(12, 14); Content = title; SetItem("Item title", null);
+        Padding = new Thickness(12, trailing is null ? 14 : 10);
+        if (trailing is null) Content = title;
+        else
+        {
+            var layout = new Grid { ColumnDefinitions = { new(GridLength.Star), new(GridLength.Auto) }, ColumnSpacing = 10 };
+            title.VerticalOptions = LayoutOptions.Center; layout.Add(title); layout.Add(trailing, 1); Content = layout;
+        }
+        SetItem("Item title", null);
     }
 
     public void SetItem(string name, string? colourOverride)

@@ -2,6 +2,7 @@ using ControlStudio.App.Platforms.iOS;
 using ControlStudio.Core.Actions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Maui.Controls.Shapes;
+using System.Collections.ObjectModel;
 
 namespace ControlStudio.App.Views;
 
@@ -19,6 +20,10 @@ public sealed class ClipboardPage : ContentPage
     private readonly RefreshView refresh = new();
     private readonly Dictionary<ClipboardKind, ClipboardSegment> segments = [];
     private readonly HashSet<Guid> concealedItems = [];
+    private readonly ToolbarItem arrange = new() { Text = "Arrange", AutomationId = "ArrangeClipboardItems" };
+    private readonly ToolbarItem add = new() { Text = "Add", AutomationId = "AddClipboardItem" };
+    private ObservableCollection<ActionDefinition> visible = [];
+    private ClipboardKind? displayedKind;
     private IReadOnlyList<ActionDefinition> saved = [];
     private ClipboardKind selected;
     private CancellationTokenSource lifetime = new();
@@ -29,11 +34,18 @@ public sealed class ClipboardPage : ContentPage
         this.repository = repository; this.validator = validator; this.executor = executor; this.logger = logger;
         this.preferences = preferences; this.colourPicker = colourPicker;
         Title = "Clipboard"; AutomationId = "ClipboardPage"; SafeAreaEdges = SafeAreaEdges.All; DashboardStyle.Page(this);
-        var add = new ToolbarItem { Text = "Add", AutomationId = "AddClipboardItem" };
         add.Clicked += async (_, _) => await GuardAsync(_ => Navigation.PushAsync(new ClipboardEditorPage(repository, validator, preferences, colourPicker, selected)));
+        arrange.Clicked += async (_, _) => await GuardAsync(_ =>
+        {
+            var navigation = new NavigationPage(new ClipboardArrangePage(repository, logger, selected, visible.ToArray()));
+            Microsoft.Maui.Controls.PlatformConfiguration.iOSSpecific.Page.SetModalPresentationStyle(navigation.On<Microsoft.Maui.Controls.PlatformConfiguration.iOS>(),
+                Microsoft.Maui.Controls.PlatformConfiguration.iOSSpecific.UIModalPresentationStyle.FullScreen);
+            return Navigation.PushModalAsync(navigation);
+        });
+        ToolbarItems.Add(arrange);
         ToolbarItems.Add(add);
         items.ItemsLayout = new LinearItemsLayout(ItemsLayoutOrientation.Vertical) { ItemSpacing = 12 };
-        items.ItemTemplate = new DataTemplate(() => new ClipboardTile(CopyAsync, SecondaryAsync, EditAsync, DeleteAsync, ShareLinkAsync, concealedItems));
+        items.ItemTemplate = new DataTemplate(() => new ClipboardTile(CopyAsync, SecondaryAsync, EditAsync, DeleteAsync, ShareLinkAsync, PinAsync, concealedItems));
         refresh.Content = items; refresh.SetDynamicResource(RefreshView.RefreshColorProperty, "AccentText");
         refresh.Refreshing += async (_, _) => await ReloadAsync();
         var switcher = new Grid { ColumnSpacing = 4, Padding = 4 };
@@ -61,7 +73,13 @@ public sealed class ClipboardPage : ContentPage
     private void Filter()
     {
         foreach (var (kind, segment) in segments) segment.Update(kind == selected);
-        items.ItemsSource = StudioContent.ClipboardItems(saved, selected);
+        var desired = StudioContent.ClipboardItems(saved, selected);
+        if (displayedKind != selected)
+        {
+            visible = new ObservableCollection<ActionDefinition>(desired); items.ItemsSource = visible; displayedKind = selected;
+        }
+        else ClipboardCollection.Update(visible, desired);
+        arrange.IsEnabled = !busy && visible.Count > 1;
         description.Text = selected switch
         {
             ClipboardKind.Text => "Save text. Copy it in a tap.",
@@ -130,10 +148,18 @@ public sealed class ClipboardPage : ContentPage
         if (!active) return;
         saved = await repository.ReadAsync(); Filter(); ShowStatus("Clipboard item deleted.");
     });
+    private Task PinAsync(ActionDefinition item) => GuardAsync(async token =>
+    {
+        await repository.SetPinnedAsync(item.Id, !item.IsFavorite, token);
+        saved = await repository.ReadAsync();
+        if (!active) { reloadPending = true; return; }
+        Filter(); ShowStatus(item.IsFavorite ? "Item unpinned." : "Item pinned to the top.");
+        SemanticScreenReader.Default.Announce(status.Text);
+    });
     private async Task GuardAsync(Func<CancellationToken, Task> operation)
     {
         if (busy || !active) return;
-        busy = true; items.IsEnabled = false;
+        busy = true; items.IsEnabled = add.IsEnabled = arrange.IsEnabled = false;
         try { await operation(lifetime.Token); }
         catch (OperationCanceledException) { }
         catch (Exception ex)
@@ -144,7 +170,7 @@ public sealed class ClipboardPage : ContentPage
         }
         finally
         {
-            busy = false; items.IsEnabled = true; refresh.IsRefreshing = false;
+            busy = false; items.IsEnabled = add.IsEnabled = true; arrange.IsEnabled = visible.Count > 1; refresh.IsRefreshing = false;
             if (active && reloadPending) { reloadPending = false; await ReloadAsync(); }
         }
     }
@@ -154,7 +180,8 @@ public sealed class ClipboardPage : ContentPage
     private sealed class ClipboardTile : ContentView
     {
         private const int PreviewLines = 3;
-        private readonly ClipboardHeaderView header = new();
+        private readonly ClipboardHeaderView header;
+        private readonly ClipboardIconButton pin = new(StudioSymbol.Pin, "Pin");
         private readonly Label text = SettingsControls.Text("", 14, secondary: true);
         private readonly ClipboardLinkLabel link;
         private Label ActiveLabel => link.IsVisible ? link : text;
@@ -165,6 +192,7 @@ public sealed class ClipboardPage : ContentPage
             HorizontalOptions = LayoutOptions.Start, IsVisible = false, AutomationId = "ToggleClipboardPreview"
         };
         private bool expanded, overflowCheckQueued;
+        private Guid? boundId;
         private readonly Image photo = new() { Aspect = Aspect.AspectFit, HeightRequest = 130, HorizontalOptions = LayoutOptions.Start, WidthRequest = 160 };
         private readonly ClipboardIconButton copy = new(StudioSymbol.Clipboard, "Copy", primary: true);
         private readonly ClipboardIconButton open = new(StudioSymbol.Open, "Open link");
@@ -174,8 +202,9 @@ public sealed class ClipboardPage : ContentPage
         private readonly ClipboardIconButton visibility = new(StudioSymbol.Preview, "Hide content");
         private readonly ClipboardConcealView conceal;
         public ClipboardTile(Func<ActionDefinition, Task> copyAction, Func<ActionDefinition, Task> secondaryAction,
-            Func<ActionDefinition, Task> editAction, Func<ActionDefinition, Task> deleteAction, Func<ActionDefinition, Task> shareAction, ISet<Guid> concealedItems)
+            Func<ActionDefinition, Task> editAction, Func<ActionDefinition, Task> deleteAction, Func<ActionDefinition, Task> shareAction, Func<ActionDefinition, Task> pinAction, ISet<Guid> concealedItems)
         {
+            header = new ClipboardHeaderView(pin);
             link = new ClipboardLinkLabel(secondaryAction, copyAction, shareAction) { IsVisible = false };
             text.MaxLines = PreviewLines; text.LineBreakMode = LineBreakMode.TailTruncation;
             expand.SetDynamicResource(Button.TextColorProperty, "AccentText");
@@ -206,6 +235,7 @@ public sealed class ClipboardPage : ContentPage
             var body = new VerticalStackLayout { Padding = 12, Spacing = 12, Children = { conceal, actions } };
             Content = new GlassCard(new VerticalStackLayout { Spacing = 0, Children = { header, divider, body } }, 0);
             visibility.Clicked += (_, _) => { conceal.Toggle(); UpdateVisibilityCaption(); };
+            pin.Clicked += async (_, _) => { if (BindingContext is ActionDefinition action) await pinAction(action); };
             copy.Clicked += async (_, _) => { if (BindingContext is ActionDefinition action) await copyAction(action); };
             edit.Clicked += async (_, _) => { if (BindingContext is ActionDefinition action) await editAction(action); };
             delete.Clicked += async (_, _) => { if (BindingContext is ActionDefinition action) await deleteAction(action); };
@@ -217,14 +247,18 @@ public sealed class ClipboardPage : ContentPage
             base.OnBindingContextChanged();
             // Apply concealment before installing a recycled tile's new text/image.
             conceal.Bind((BindingContext as ActionDefinition)?.Id); UpdateVisibilityCaption();
-            // CollectionView reuses tiles; a different item always starts with its own collapsed preview.
-            expanded = false; expand.IsVisible = false;
-            text.MaxLines = PreviewLines; text.LineBreakMode = LineBreakMode.TailTruncation;
-            link.Item = null; link.IsVisible = false; link.MaxLines = PreviewLines; link.LineBreakMode = LineBreakMode.TailTruncation; text.IsVisible = true;
+            // A different item starts collapsed; metadata updates to the same item retain expansion.
+            var nextId = (BindingContext as ActionDefinition)?.Id;
+            if (nextId != boundId) expanded = false;
+            boundId = nextId; expand.IsVisible = false;
+            text.MaxLines = expanded ? -1 : PreviewLines; text.LineBreakMode = expanded ? LineBreakMode.WordWrap : LineBreakMode.TailTruncation;
+            link.Item = null; link.IsVisible = false; link.MaxLines = text.MaxLines; link.LineBreakMode = text.LineBreakMode; text.IsVisible = true;
             photo.Source = null; photo.IsVisible = false;
             open.IsVisible = preview.IsVisible = false;
             if (BindingContext is not ActionDefinition action) { header.SetItem("", null); text.Text = ""; return; }
             header.SetItem(action.Name, action.HeaderColorHex);
+            pin.Symbol = action.IsFavorite ? StudioSymbol.PinFilled : StudioSymbol.Pin;
+            pin.Describe(action.IsFavorite ? "Unpin" : "Pin", action.Name);
             open.IsVisible = action.Parameters is OpenUrlParameters;
             preview.IsVisible = action.Parameters is PhotoParameters;
             text.Text = action.Parameters switch

@@ -20,6 +20,7 @@ public static class MauiProgram
             handlers.AddHandler<ProfileNameEntry, ProfileNameEntryHandler>();
             handlers.AddHandler<ClipboardLinkLabel, ClipboardLinkLabelHandler>();
             handlers.AddHandler<ClipboardConcealView, ClipboardConcealViewHandler>();
+            handlers.AddHandler<ClipboardArrangeView, ClipboardArrangeViewHandler>();
         });
         builder.Logging.AddProvider(new DeviceLoggerProvider());
         builder.Services.AddSingleton<AppearancePreferences>();

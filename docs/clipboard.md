@@ -10,6 +10,8 @@ Clipboard has three sections: **Text / Photo / Link**. The owner requested this 
 
 Names are limited to 60 characters. Existing IDs, metadata and ordering survive edits. Text is never trimmed; only outer whitespace in names/URLs is removed. Generic counter records remain preserved and hidden. User content is not included in application logs.
 
+Cards can be pinned to the top of their own tab. Arrange opens a native title-only reorder editor with separate pinned/unpinned groups and Done/Cancel; pin choices and saved order survive relaunch. See [pinning, arrangement and review evidence](clipboard-arrangement.md).
+
 Long text and link cards initially show at most three lines with a trailing ellipsis. An accent-coloured “Show more” control appears only when native text measurement detects overflow at the card's current width and font size; tapping it displays the full content, and “Show less” collapses it again. Short items and photo previews have no expansion control. This is display-only: Copy, Open and Edit still receive the complete saved content. Recycled/reloaded cards start collapsed, and overflow is rechecked after width/font/handler changes. CollectionView measures individual item heights.
 
 Each card has a one-point horizontal divider between its title and body. It spans the card's inner width, uses a neutral colour adapted to Light/Dark mode and is excluded from accessibility navigation.

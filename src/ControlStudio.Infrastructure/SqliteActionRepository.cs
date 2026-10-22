@@ -45,6 +45,44 @@ public sealed class SqliteActionRepository(string path, IActionValidator validat
         }, cancellationToken);
     }
 
+    public async Task SetPinnedAsync(Guid id, bool pinned, CancellationToken cancellationToken = default) =>
+        await AccessAsync(actions =>
+        {
+            var index = actions.FindIndex(action => action.Id == id);
+            if (index < 0 || !IsClipboard(actions[index].Parameters)) throw new ActionValidationException("This clipboard item no longer exists.");
+            // Patch only the flag on the latest record; never overwrite an intervening edit.
+            actions[index] = actions[index] with { IsFavorite = pinned };
+        }, cancellationToken);
+
+    public async Task ReorderClipboardAsync(IReadOnlyList<Guid> orderedIds, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(orderedIds);
+        var ids = orderedIds.ToArray(); // Caller-owned lists cannot change during the transaction.
+        if (ids.Length == 0 || ids.Distinct().Count() != ids.Length) throw ArrangementChanged();
+        await AccessAsync(actions =>
+        {
+            var first = actions.FirstOrDefault(action => action.Id == ids[0]);
+            if (first is null || !IsClipboard(first.Parameters)) throw ArrangementChanged();
+            var type = first.Parameters.GetType();
+            var group = actions.Where(action => action.Parameters.GetType() == type).ToDictionary(action => action.Id);
+            if (group.Count != ids.Length || ids.Any(id => !group.ContainsKey(id))) throw ArrangementChanged();
+            var ordered = ids.Select(id => group[id]).ToArray();
+            var sawUnpinned = false;
+            foreach (var action in ordered)
+            {
+                if (!action.IsFavorite) sawUnpinned = true;
+                else if (sawUnpinned) throw ArrangementChanged();
+            }
+            // Replace only this type's slots. Other tabs/counters keep their positions and metadata.
+            var next = 0;
+            for (var i = 0; i < actions.Count; i++)
+                if (actions[i].Parameters.GetType() == type) actions[i] = ordered[next++];
+        }, cancellationToken);
+    }
+
+    private static bool IsClipboard(ActionParameters parameters) => parameters is CopyTextParameters or PhotoParameters or OpenUrlParameters;
+    private static ActionValidationException ArrangementChanged() => new("Clipboard changed while arranging. Reopen Arrange and try again.");
+
     private async Task<IReadOnlyList<ActionDefinition>> AccessAsync(Action<List<ActionDefinition>>? change, CancellationToken token)
     {
         await gate.WaitAsync(token);

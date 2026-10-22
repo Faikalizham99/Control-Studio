@@ -8,7 +8,7 @@ internal enum ClipboardKind { Text, Photo, Link }
 internal static class StudioContent
 {
     public static IReadOnlyList<ActionDefinition> ClipboardItems(IEnumerable<ActionDefinition> actions, ClipboardKind kind = ClipboardKind.Text) =>
-        actions.Where(action => Kind(action.Parameters) == kind).OrderBy(action => action.SortOrder).ToArray();
+        actions.Where(action => Kind(action.Parameters) == kind).OrderByDescending(action => action.IsFavorite).ThenBy(action => action.SortOrder).ToArray();
 
     public static ClipboardKind? Kind(ActionParameters parameters) => parameters switch
     {

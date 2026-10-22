@@ -1,0 +1,21 @@
+# Clipboard pinning and arrangement
+
+Each Text, Photo and Link card has a 48-point pin button in its coloured header. Outline means unpinned; filled means pinned, and the accessible action changes between Pin and Unpin. Placing it in the header keeps the existing action row within smaller phone widths. A tab displays pinned items first, then other items, retaining saved order within each group. Unpinning returns the item to its saved-order position among other items.
+
+Arrange opens a full-screen editor for the current tab, with title-only native iOS rows, separate Pinned/Other items sections, standard reorder handles and Done/Cancel. Content and photos are never displayed in Arrange, including concealed items. Dragging stays inside the source group. Single-item groups have no drag handle. Done saves a changed order atomically or simply closes an unchanged draft; Cancel discards the draft. Controls are disabled while saving, and repeated close/save taps are guarded. Failed saves retain the draft and show an error.
+
+The editor uses UIKit's [table-row reordering](https://developer.apple.com/documentation/uikit/uitableviewdatasource/tableview%28_%3Amoverowat%3Ato%3A%29) and native movement animations, with single-line title rows that adapt to Dynamic Type. It does not drag variable-height text/photo cards. Returning a drag to its original position is a no-op. VoiceOver offers Move up/Move down custom actions with position announcements; these use native row moves and suppress their animation when Reduce Motion is enabled. Touch-drag animation and auto-scroll remain system behaviour and need device verification.
+
+Pinning patches only the latest record's existing `IsFavorite` flag. Arrangement sends IDs, then the repository validates a complete, unique set from one Clipboard type and ensures that pinned items precede unpinned items. It uses the latest records and replaces only that type's positions in the existing order. Other tabs, counter records, names, colours, content and photo asset references are preserved. Added/deleted items or an incompatible pin-group change cause a stale-arrangement error without partial writes. Both operations use the existing SQLite transaction and cancellation path. No schema change, new dependency, entitlement or version bump is needed.
+
+The main library retains its observable collection during pin/reload changes, emitting moves rather than resetting every card. Switching tabs installs the other tab's collection. Concealed state remains keyed to item IDs; same-tile metadata updates preserve expanded previews. Copy, Edit, Delete, Open, Preview and link context menus retain their existing paths.
+
+## Review and validation
+
+The implementation review covered small-screen action-row width, title contrast for custom/default header colours, hidden content, pinned-group boundaries, cancellation and stale drafts, metadata preservation, other-tab isolation, lifecycle, duplicate taps, no-op moves, native accessibility actions and appearance adaptation. The review rule is recorded in AGENTS.md for future work.
+
+Local verification on 22 October 2026: **80 app tests**, **29 infrastructure tests**, **50 Core tests** and **22 packaging tests** pass. Source configuration, whitespace checks and managed iOS compilation also pass. New regressions exercise pin persistence/unpinning, order round trips for all three types, intervening content edits, retained other-type positions, invalid/missing/duplicate/cross-group IDs, stale additions/deletions, cancelled operations, draft moves/undo, observable move notifications and the header pin's layout/contrast.
+
+Native builds, animation smoothness, handle dragging/auto-scroll, boundary clamping, Cancel/Done/navigation, save failures, small screens, long names, large fonts, Light/Dark mode, Reduce Motion and VoiceOver remain **NOT VERIFIED** on an iPhone. Managed compilation and tests do not establish native rendering or touch correctness.
+
+The owner explicitly authorized committing, pushing and a new release tag on 22 October 2026. Release **v0.2.10**, app and extension version **0.2.10 (12)**, includes pinning/arrangement and the eye-toggle changes committed after v0.2.9. The owner monitors the tag-triggered IPA build personally.
