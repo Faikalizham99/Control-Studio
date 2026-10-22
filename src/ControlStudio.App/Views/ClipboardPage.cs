@@ -20,20 +20,24 @@ public sealed class ClipboardPage : ContentPage
     private readonly RefreshView refresh = new();
     private readonly Dictionary<ClipboardKind, ClipboardSegment> segments = [];
     private readonly HashSet<Guid> concealedItems = [];
-    private readonly ToolbarItem arrange = new() { Text = "Arrange", AutomationId = "ArrangeClipboardItems" };
-    private readonly ToolbarItem add = new() { Text = "Add", AutomationId = "AddClipboardItem" };
+    private readonly PageActionButton arrange = new("Arrange", "ArrangeClipboardItems");
+    private readonly PageActionButton add = new("Add", "AddClipboardItem");
+    private readonly PageActionButton back = new("", "BackFromClipboard", ProfileSymbol.Back);
+    private readonly Label arrangeHint = SettingsControls.Text("", 13, secondary: true);
     private ObservableCollection<ActionDefinition> visible = [];
     private ClipboardKind? displayedKind;
     private IReadOnlyList<ActionDefinition> saved = [];
     private ClipboardKind selected;
     private CancellationTokenSource lifetime = new();
-    private bool busy, active, reloadPending;
+    private bool busy, active, reloadPending, loaded;
 
     public ClipboardPage(IActionRepository repository, IActionValidator validator, IActionExecutor executor, ILogger<ClipboardPage> logger, AppearancePreferences preferences, AppleColorPicker colourPicker)
     {
         this.repository = repository; this.validator = validator; this.executor = executor; this.logger = logger;
         this.preferences = preferences; this.colourPicker = colourPicker;
         Title = "Clipboard"; AutomationId = "ClipboardPage"; SafeAreaEdges = SafeAreaEdges.All; DashboardStyle.Page(this);
+        NavigationPage.SetHasNavigationBar(this, false);
+        back.Clicked += async (_, _) => await GuardAsync(_ => Navigation.PopAsync());
         add.Clicked += async (_, _) => await GuardAsync(_ => Navigation.PushAsync(new ClipboardEditorPage(repository, validator, preferences, colourPicker, selected)));
         arrange.Clicked += async (_, _) => await GuardAsync(_ =>
         {
@@ -42,8 +46,6 @@ public sealed class ClipboardPage : ContentPage
                 Microsoft.Maui.Controls.PlatformConfiguration.iOSSpecific.UIModalPresentationStyle.FullScreen);
             return Navigation.PushModalAsync(navigation);
         });
-        ToolbarItems.Add(arrange);
-        ToolbarItems.Add(add);
         items.ItemsLayout = new LinearItemsLayout(ItemsLayoutOrientation.Vertical) { ItemSpacing = 12 };
         items.ItemTemplate = new DataTemplate(() => new ClipboardTile(CopyAsync, SecondaryAsync, EditAsync, DeleteAsync, ShareLinkAsync, PinAsync, concealedItems));
         refresh.Content = items; refresh.SetDynamicResource(RefreshView.RefreshColorProperty, "AccentText");
@@ -58,10 +60,10 @@ public sealed class ClipboardPage : ContentPage
         var heading = new VerticalStackLayout { Padding = new Thickness(16, 12, 16, 16), Spacing = 12, Children =
         {
             SettingsControls.Text("Keep it in Clipboard.", 25, bold: true),
-            SettingsControls.Rounded(switcher, 24), description, status
+            SettingsControls.Rounded(switcher, 24), description, arrangeHint, status
         } };
-        var layout = new Grid { RowDefinitions = { new(GridLength.Auto), new(GridLength.Star) } };
-        layout.Add(heading); layout.Add(refresh, 0, 1); Content = layout; ShowStatus(""); Filter();
+        var layout = new Grid { RowDefinitions = { new(GridLength.Auto), new(GridLength.Auto), new(GridLength.Star) } };
+        layout.Add(PageActionBar.Clipboard(back, arrange, add)); layout.Add(heading, 0, 1); layout.Add(refresh, 0, 2); Content = layout; ShowStatus(""); Filter();
     }
 
     protected override async void OnAppearing()
@@ -79,7 +81,7 @@ public sealed class ClipboardPage : ContentPage
             visible = new ObservableCollection<ActionDefinition>(desired); items.ItemsSource = visible; displayedKind = selected;
         }
         else ClipboardCollection.Update(visible, desired);
-        arrange.IsEnabled = !busy && visible.Count > 1;
+        UpdateActions();
         description.Text = selected switch
         {
             ClipboardKind.Text => "Save text. Copy it in a tap.",
@@ -99,7 +101,7 @@ public sealed class ClipboardPage : ContentPage
         if (busy) { reloadPending = true; return; }
         await GuardAsync(async token =>
         {
-            reloadPending = false; saved = await repository.ReadAsync(token); token.ThrowIfCancellationRequested(); Filter();
+            reloadPending = false; saved = await repository.ReadAsync(token); token.ThrowIfCancellationRequested(); loaded = true; Filter();
         });
     }
     private Task SecondaryAsync(ActionDefinition item) => item.Parameters switch
@@ -159,7 +161,7 @@ public sealed class ClipboardPage : ContentPage
     private async Task GuardAsync(Func<CancellationToken, Task> operation)
     {
         if (busy || !active) return;
-        busy = true; items.IsEnabled = add.IsEnabled = arrange.IsEnabled = false;
+        busy = true; items.IsEnabled = false; UpdateActions();
         try { await operation(lifetime.Token); }
         catch (OperationCanceledException) { }
         catch (Exception ex)
@@ -170,9 +172,18 @@ public sealed class ClipboardPage : ContentPage
         }
         finally
         {
-            busy = false; items.IsEnabled = add.IsEnabled = true; arrange.IsEnabled = visible.Count > 1; refresh.IsRefreshing = false;
+            busy = false; items.IsEnabled = true; UpdateActions(); refresh.IsRefreshing = false;
             if (active && reloadPending) { reloadPending = false; await ReloadAsync(); }
         }
+    }
+    private void UpdateActions()
+    {
+        var availability = ClipboardArrangeAvailability.For(visible, selected);
+        back.IsEnabled = add.IsEnabled = !busy;
+        back.DisabledReason = add.DisabledReason = "Please wait for the current action to finish.";
+        arrange.DisabledReason = busy ? "Please wait for the current action to finish." : !loaded ? "Load your items to arrange." : availability.Reason;
+        arrange.IsEnabled = loaded && !busy && availability.CanArrange;
+        arrangeHint.Text = availability.Reason; arrangeHint.IsVisible = loaded && !availability.CanArrange;
     }
     private void ShowStatus(string message) { status.Text = message; status.IsVisible = !string.IsNullOrEmpty(message); }
     private static StudioSymbol Symbol(ClipboardKind kind) => kind switch { ClipboardKind.Photo => StudioSymbol.Photo, ClipboardKind.Link => StudioSymbol.Link, _ => StudioSymbol.Text };

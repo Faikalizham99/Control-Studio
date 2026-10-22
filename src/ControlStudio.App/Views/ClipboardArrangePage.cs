@@ -9,8 +9,8 @@ internal sealed class ClipboardArrangePage : ContentPage
     private readonly ILogger logger;
     private readonly ClipboardArrangement draft;
     private readonly ClipboardArrangeView list;
-    private readonly ToolbarItem done = new() { Text = "Done", AutomationId = "SaveClipboardArrangement" };
-    private readonly ToolbarItem cancel = new() { Text = "Cancel", AutomationId = "CancelClipboardArrangement" };
+    private readonly PageActionButton done = new("Done", "SaveClipboardArrangement") { DisabledReason = "Please wait while the order is saved." };
+    private readonly PageActionButton cancel = new("Cancel", "CancelClipboardArrangement") { DisabledReason = "Please wait while the order is saved." };
     private readonly Label status = SettingsControls.Text("", 14, secondary: true);
     private bool saving, closing, active;
     private CancellationTokenSource lifetime = new();
@@ -20,19 +20,19 @@ internal sealed class ClipboardArrangePage : ContentPage
         this.repository = repository; this.logger = logger; draft = new ClipboardArrangement(items);
         Title = $"Arrange {kind.ToString().ToLowerInvariant()}"; AutomationId = "ArrangeClipboardPage";
         SafeAreaEdges = SafeAreaEdges.All; DashboardStyle.Page(this);
+        NavigationPage.SetHasNavigationBar(this, false);
         list = new ClipboardArrangeView(draft) { AutomationId = "ClipboardArrangeList" };
         draft.Changed += DraftChanged;
         done.Clicked += async (_, _) => await SaveAsync();
         cancel.Clicked += async (_, _) => { if (!saving) await CloseAsync(); };
-        ToolbarItems.Add(cancel); ToolbarItems.Add(done);
         var heading = new VerticalStackLayout { Padding = new Thickness(20, 16, 20, 4), Spacing = 10, Children =
         {
             SettingsControls.Text("Make it your order.", 25, bold: true),
             SettingsControls.Text("Drag the handles within each group. Changes save when you tap Done. Pin or unpin from Clipboard to change groups.", 14, secondary: true), status
         } };
         status.IsVisible = false;
-        var layout = new Grid { RowDefinitions = { new(GridLength.Auto), new(GridLength.Star) } };
-        layout.Add(heading); layout.Add(list, 0, 1); Content = layout;
+        var layout = new Grid { RowDefinitions = { new(GridLength.Auto), new(GridLength.Auto), new(GridLength.Star) } };
+        layout.Add(PageActionBar.Modal(Title, cancel, done)); layout.Add(heading, 0, 1); layout.Add(list, 0, 2); Content = layout;
     }
 
     private void DraftChanged(object? sender, EventArgs args) { if (!saving) status.IsVisible = false; }

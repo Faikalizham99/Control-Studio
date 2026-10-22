@@ -154,7 +154,7 @@ internal sealed class ColourPickerView : ContentView
         {
             var colour = Color.FromArgb(SelectedHex);
             for (var i = 0; i < choices.Count; i++) choices[i].Update(i < AppearanceValues.Presets.Count ? AppearanceValues.Presets[i] == SelectedHex : !AppearanceValues.Presets.Contains(SelectedHex), colour);
-            custom.IsToggled = CustomEditingEnabled; customEditor.IsEnabled = CustomEditingEnabled; customEditor.Opacity = CustomEditingEnabled ? 1 : .4;
+            custom.IsToggled = CustomEditingEnabled; customEditor.IsEnabled = CustomEditingEnabled;
             if (forceHex || (!hex.IsFocused && !dirtyHex && !invalidHex)) hex.Text = SelectedHex;
             if (!dragging) hue.Value = (300 - Hue(colour) + 360) % 360;
             well.Background = new SolidColorBrush(colour); UpdateHexBorder();

@@ -55,12 +55,11 @@ internal sealed class ProfileGlyph : GraphicsView, IDrawable
 
 internal sealed class ProfileActionButton : ContentView
 {
-    private readonly bool primary;
+    private readonly Border surface;
     public event EventHandler? Clicked;
 
     public ProfileActionButton(string text, ProfileSymbol symbol, string automationId, bool primary = true, double radius = 18)
     {
-        this.primary = primary;
         MinimumHeightRequest = 48;
         var glyph = new ProfileGlyph(symbol, primary ? "AccentActionText" : "AccentText");
         var label = new Label { Text = text, FontSize = primary ? 19 : 14, FontAttributes = primary ? FontAttributes.Bold : FontAttributes.None };
@@ -68,17 +67,21 @@ internal sealed class ProfileActionButton : ContentView
         var caption = new HorizontalStackLayout { Spacing = 10, HorizontalOptions = LayoutOptions.Center, VerticalOptions = LayoutOptions.Center, InputTransparent = true, Children = { glyph, label } };
         var hit = new Button { Text = "", Padding = 0, CornerRadius = (int)radius, BackgroundColor = Colors.Transparent, BorderWidth = 0, MinimumHeightRequest = 48, AutomationId = automationId };
         SemanticProperties.SetDescription(hit, text);
-        hit.Clicked += (_, args) => Clicked?.Invoke(this, args);
-        Border surface;
+        hit.Clicked += (_, args) => { if (IsEnabled) Clicked?.Invoke(this, args); };
         if (primary)
         {
             var accent = new AccentSurface(caption, radius);
             accent.BindForeground(label, Label.TextColorProperty); accent.BindForeground(glyph, ProfileGlyph.TintProperty);
             surface = accent;
         }
-        else { surface = SettingsControls.Rounded(caption, radius); label.SetDynamicResource(Label.TextColorProperty, "AccentText"); }
+        else
+        {
+            var secondary = new SecondaryActionSurface(caption, radius);
+            secondary.BindForeground(label, Label.TextColorProperty); secondary.BindForeground(glyph, ProfileGlyph.TintProperty);
+            surface = secondary;
+        }
         surface.InputTransparent = true;
-        hit.Pressed += (_, _) => surface.Scale = .98;
+        hit.Pressed += (_, _) => { if (IsEnabled) surface.Scale = .98; };
         hit.Released += (_, _) => surface.Scale = 1;
         Content = new Grid { MinimumHeightRequest = 48, Children = { hit, surface } };
     }
@@ -86,7 +89,7 @@ internal sealed class ProfileActionButton : ContentView
     protected override void OnPropertyChanged(string? propertyName = null)
     {
         base.OnPropertyChanged(propertyName);
-        if (propertyName == nameof(IsEnabled)) Opacity = primary || IsEnabled ? 1 : .7;
+        if (propertyName == nameof(IsEnabled)) { Opacity = 1; if (surface is not null) surface.Scale = 1; }
     }
 }
 

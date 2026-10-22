@@ -14,6 +14,8 @@
     <Compile Include="../../src/ControlStudio.App/PhotoImportInput.cs" Link="PhotoImportInput.cs" />
     <Compile Include="../../src/ControlStudio.App/Views/AccentButton.cs" Link="Views/AccentButton.cs" />
     <Compile Include="../../src/ControlStudio.App/Views/AccentSurface.cs" Link="Views/AccentSurface.cs" />
+    <Compile Include="../../src/ControlStudio.App/Views/SecondaryActionSurface.cs" Link="Views/SecondaryActionSurface.cs" />
+    <Compile Include="../../src/ControlStudio.App/Views/PageActionButton.cs" Link="Views/PageActionButton.cs" />
     <Compile Include="../../src/ControlStudio.App/Views/ClipboardEditorControls.cs" Link="Views/ClipboardEditorControls.cs" />
     <Compile Include="../../src/ControlStudio.App/Views/ClipboardIconButton.cs" Link="Views/ClipboardIconButton.cs" />
     <Compile Include="../../src/ControlStudio.App/Views/ProfileControls.cs" Link="Views/ProfileControls.cs" />

@@ -3,6 +3,20 @@ using ControlStudio.Core.Actions;
 
 namespace ControlStudio.App;
 
+internal sealed record ClipboardArrangeAvailability(bool CanArrange, string Reason)
+{
+    public static ClipboardArrangeAvailability For(IEnumerable<ActionDefinition> items, ClipboardKind kind)
+    {
+        var selected = StudioContent.ClipboardItems(items, kind);
+        var singular = kind switch { ClipboardKind.Photo => "photo", ClipboardKind.Link => "link", _ => "text item" };
+        if (selected.Count < 2) return new(false, selected.Count == 1 ? $"Add another {singular} to arrange." : $"Add at least two {singular}s to arrange.");
+        var pinned = selected.Count(item => item.IsFavorite);
+        return pinned > 1 || selected.Count - pinned > 1
+            ? new(true, "")
+            : new(false, "Pin or unpin an item to arrange within a group.");
+    }
+}
+
 /// <summary>A private arrangement draft: moving a title never mutates saved content.</summary>
 internal sealed class ClipboardArrangement
 {

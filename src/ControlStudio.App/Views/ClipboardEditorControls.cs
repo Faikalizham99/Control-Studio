@@ -61,12 +61,11 @@ internal static class ClipboardEditorControls
 internal sealed class ClipboardEditorActionButton : ContentView
 {
     private readonly Button tap;
-    private readonly bool primary;
+    private readonly Border surface;
     public event EventHandler? Clicked;
 
     public ClipboardEditorActionButton(string text, View? icon, string automationId, bool primary = false, bool accentCaption = false)
     {
-        this.primary = primary;
         var height = primary ? 52 : 44;
         MinimumHeightRequest = height;
         var caption = new HorizontalStackLayout { Spacing = 8, HorizontalOptions = LayoutOptions.Center, VerticalOptions = LayoutOptions.Center, InputTransparent = true };
@@ -79,7 +78,6 @@ internal sealed class ClipboardEditorActionButton : ContentView
             else if (!primary) label.SetAppThemeColor(Label.TextColorProperty, Color.FromArgb("#252A34"), Color.FromArgb("#F5F5F7"));
             AutomationProperties.SetIsInAccessibleTree(label, false); caption.Children.Add(label);
         }
-        Border surface;
         var padding = new Thickness(text.Length == 0 ? 10 : 12, 0);
         if (primary)
         {
@@ -89,7 +87,14 @@ internal sealed class ClipboardEditorActionButton : ContentView
             if (icon is StudioGlyph studio) accent.BindForeground(studio, StudioGlyph.TintProperty);
             surface = accent;
         }
-        else surface = ClipboardEditorControls.Surface(caption, 22, padding);
+        else
+        {
+            var secondary = new SecondaryActionSurface(caption, 22, padding);
+            if (label is not null) secondary.BindForeground(label, Label.TextColorProperty, accentCaption);
+            if (icon is ProfileGlyph profile) secondary.BindForeground(profile, ProfileGlyph.TintProperty);
+            if (icon is StudioGlyph studio) secondary.BindForeground(studio, StudioGlyph.TintProperty);
+            surface = secondary;
+        }
         surface.InputTransparent = true;
         if (primary)
         {
@@ -97,8 +102,8 @@ internal sealed class ClipboardEditorActionButton : ContentView
             surface.Shadow.SetDynamicResource(Shadow.BrushProperty, "AccentGlow");
         }
         tap = SettingsControls.TapTarget(text, automationId); tap.MinimumHeightRequest = height; tap.CornerRadius = primary ? 25 : 22;
-        tap.Clicked += (_, args) => Clicked?.Invoke(this, args);
-        tap.Pressed += (_, _) => surface.Scale = .97; tap.Released += (_, _) => surface.Scale = 1;
+        tap.Clicked += (_, args) => { if (IsEnabled) Clicked?.Invoke(this, args); };
+        tap.Pressed += (_, _) => { if (IsEnabled) surface.Scale = .97; }; tap.Released += (_, _) => surface.Scale = 1;
         Content = new Grid { MinimumHeightRequest = height, Children = { tap, surface } };
     }
 
@@ -107,6 +112,6 @@ internal sealed class ClipboardEditorActionButton : ContentView
     protected override void OnPropertyChanged(string? propertyName = null)
     {
         base.OnPropertyChanged(propertyName);
-        if (propertyName == nameof(IsEnabled)) Opacity = primary || IsEnabled ? 1 : .6;
+        if (propertyName == nameof(IsEnabled)) { Opacity = 1; if (surface is not null) surface.Scale = 1; }
     }
 }
