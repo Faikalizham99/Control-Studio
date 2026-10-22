@@ -6,5 +6,6 @@
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5"><PrivateAssets>all</PrivateAssets></PackageReference>
     <ProjectReference Include="../../src/ControlStudio.Core/ControlStudio.Core.csproj" />
     <None Include="../../contracts/counter-v1.example.json" Link="counter-v1.example.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../contracts/widget-designs-v1.example.json" Link="widget-designs-v1.example.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

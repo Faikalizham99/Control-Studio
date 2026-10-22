@@ -1,0 +1,49 @@
+using System.Text.Json;
+using ControlStudio.Core.Widgets;
+
+namespace ControlStudio.Infrastructure;
+
+/// <summary>Installs immutable renders first, then atomically replaces the shared manifest.</summary>
+public sealed class WidgetDesignPublisher(WidgetDesignRepository repository, Func<string> sharedDirectory)
+{
+    private readonly SemaphoreSlim gate = new(1, 1);
+    public async Task PublishAsync(CancellationToken token = default)
+    {
+        await gate.WaitAsync(token);
+        try
+        {
+            var directory = sharedDirectory();
+            var manifest = Path.Combine(directory, "catalog.json");
+            if (File.Exists(manifest))
+            {
+                if (new FileInfo(manifest).Length > WidgetDesignRules.MaximumCatalogBytes) throw new IOException("The shared widget catalog is too large.");
+                var old = JsonSerializer.Deserialize(await File.ReadAllBytesAsync(manifest, token), WidgetDesignRules.JsonContext.WidgetCatalog)
+                    ?? throw new IOException("The shared widget catalog is invalid.");
+                WidgetDesignRules.Validate(old);
+            }
+            var designs = await repository.ReadAsync(token);
+            foreach (var design in designs)
+            {
+                var path = repository.RenderPath(design.RenderKey) ?? throw new IOException("A widget preview is missing. Open its editor and save it again.");
+                if (new FileInfo(path).Length > WidgetDesignRules.MaximumImageBytes) throw new IOException("A widget preview is too large.");
+                var bytes = await File.ReadAllBytesAsync(path, token); WidgetDesignRepository.ValidatePng(bytes);
+                var target = Path.Combine(directory, "renders", design.RenderKey + ".png");
+                if (!File.Exists(target)) await WidgetDesignRepository.AtomicWriteAsync(target, bytes, token);
+            }
+            var catalog = new WidgetCatalog(1, designs); WidgetDesignRules.Validate(catalog);
+            await WidgetDesignRepository.AtomicWriteAsync(manifest, JsonSerializer.SerializeToUtf8Bytes(catalog, WidgetDesignRules.JsonContext.WidgetCatalog), token);
+            // Cached timelines may still refer to the previous generation. Keep recent immutable renders.
+            var current = designs.Select(x => x.RenderKey).ToHashSet();
+            var folder = Path.Combine(directory, "renders");
+            try
+            {
+                if (Directory.Exists(folder))
+                    foreach (var path in Directory.EnumerateFiles(folder, "*.png"))
+                        if (!current.Contains(Path.GetFileNameWithoutExtension(path)) && File.GetLastWriteTimeUtc(path) < DateTime.UtcNow.AddDays(-7))
+                            try { File.Delete(path); } catch (IOException) { } catch (UnauthorizedAccessException) { }
+            }
+            catch (IOException) { } catch (UnauthorizedAccessException) { }
+        }
+        finally { gate.Release(); }
+    }
+}

@@ -1,10 +1,10 @@
 {
   "sdk": {
-    "version": "10.0.302",
+    "version": "10.0.401",
     "rollForward": "disable",
     "allowPrerelease": false,
-    "paths": [".tools/dotnet", "$host$"],
-    "errorMessage": "Control Studio requires .NET SDK 10.0.302. Install that exact SDK or place it in .tools/dotnet. See docs/windows-development.md."
+    "paths": [".tools/dotnet27", ".tools/dotnet", "$host$"],
+    "errorMessage": "Control Studio requires .NET SDK 10.0.401. Install that exact SDK or place it in .tools/dotnet27. See docs/windows-development.md."
   },
-  "workload": { "version": "10.0.302.1" }
+  "workload": { "version": "10.0.401.1" }
 }

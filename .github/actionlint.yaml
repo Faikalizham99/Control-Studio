@@ -1,0 +1,6 @@
+# actionlint 1.7.12 predates GitHub's hosted Xcode 27 label (GA 2026-10-15).
+# https://github.blog/changelog/2026-10-15-xcode-27-runner-image-generally-available/
+paths:
+  .github/workflows/build-ios.yml:
+    ignore:
+      - '^label "xcode-27" is unknown\.'

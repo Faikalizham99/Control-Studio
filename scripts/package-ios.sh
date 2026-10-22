@@ -3,7 +3,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 mode="${1:-unsigned}"
 case "$mode" in signed|unsigned) ;; *) echo "Expected signed or unsigned" >&2; exit 1 ;; esac
-app="src/ControlStudio.App/bin/Release/net10.0-ios26.5/ios-arm64/ControlStudio.app"
+app="src/ControlStudio.App/bin/Release/net10.0-ios27.0/ios-arm64/ControlStudio.app"
 test -d "$app"
 mkdir -p artifacts/package/Payload artifacts/ipa
 test ! -e artifacts/package/Payload/ControlStudio.app

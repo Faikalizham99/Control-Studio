@@ -25,6 +25,7 @@ public static class MauiProgram
         builder.Logging.AddProvider(new DeviceLoggerProvider());
         builder.Services.AddSingleton<AppearancePreferences>();
         builder.Services.AddSingleton<AppleColorPicker>();
+        builder.Services.AddSingleton<WidgetStudioService>();
         builder.Services.AddSingleton<ProfilePhotoStore>();
         builder.Services.AddSingleton<INativeCounterBridge, AppleCounterBridge>();
         builder.Services.AddSingleton<ICounterRepository, NativeCounterRepository>();

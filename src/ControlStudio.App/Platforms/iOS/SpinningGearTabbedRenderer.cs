@@ -26,9 +26,9 @@ public sealed class SpinningGearTabbedRenderer : TabbedRenderer
     public override void ViewDidLoad()
     {
         base.ViewDidLoad();
-        Observe(UIApplication.DidBecomeActiveNotification);
-        Observe(UIApplication.WillResignActiveNotification);
-        Observe(UIApplication.DidEnterBackgroundNotification);
+        Observe(UIScene.DidActivateNotification);
+        Observe(UIScene.WillDeactivateNotification, stop: true);
+        Observe(UIScene.DidEnterBackgroundNotification, stop: true);
         Observe(UIApplication.ReduceMotionStatusDidChangeNotification);
     }
 
@@ -62,20 +62,23 @@ public sealed class SpinningGearTabbedRenderer : TabbedRenderer
         }
     }
 
-    private void Observe(NSString notification)
+    private void Observe(NSString notification, bool stop = false)
     {
         var weakSelf = new WeakReference<SpinningGearTabbedRenderer>(this);
         observers.Add(NSNotificationCenter.DefaultCenter.AddObserver(notification, _ =>
         {
             MainThread.BeginInvokeOnMainThread(() =>
             {
-                if (weakSelf.TryGetTarget(out var renderer)) renderer.UpdateAnimation();
+                if (weakSelf.TryGetTarget(out var renderer))
+                {
+                    if (stop) renderer.StopAnimation(); else renderer.UpdateAnimation();
+                }
             });
         }));
     }
 
     private bool CanAnimate => !disposed && visible && !TabBar.Hidden && TabBar.Window is not null &&
-        UIApplication.SharedApplication.ApplicationState == UIApplicationState.Active &&
+        TabBar.Window.WindowScene?.ActivationState == UISceneActivationState.ForegroundActive &&
         !UIAccessibility.IsReduceMotionEnabled;
 
     private void UpdateAnimation()

@@ -23,7 +23,11 @@ class PackagingTests(unittest.TestCase):
             info = dict(CFBundleIdentifier=identifier, CFBundleExecutable="Executable", CFBundleName="Control Studio",
                         CFBundleShortVersionString="0.1.0", CFBundleVersion="1", MinimumOSVersion="17.0",
                         CFBundleSupportedPlatforms=["iPhoneOS"], CFBundlePackageType="XPC!" if relative else "APPL",
-                        ControlStudioAppGroup=GROUP)
+                        ControlStudioAppGroup=GROUP, UIDeviceFamily=[1, 2])
+            if not relative:
+                info["UIApplicationSceneManifest"] = {"UIApplicationSupportsMultipleScenes": False, "UISceneConfigurations": {
+                    "UIWindowSceneSessionRoleApplication": [{"UISceneConfigurationName": "__MAUI_DEFAULT_SCENE_CONFIGURATION__",
+                                                           "UISceneDelegateClassName": "SceneDelegate"}]}}
             if point:
                 if relative.startswith("Extensions/"):
                     info["EXAppExtensionAttributes"] = {"EXExtensionPointIdentifier": point}
@@ -31,9 +35,15 @@ class PackagingTests(unittest.TestCase):
                     info["NSExtension"] = {"NSExtensionPointIdentifier": point}
             (bundle / "Info.plist").write_bytes(plistlib.dumps(info))
             (bundle / "Executable").write_bytes(b"test fixture only - not an actual executable")
+            (bundle / "PrivacyInfo.xcprivacy").write_bytes(plistlib.dumps({"NSPrivacyAccessedAPITypes": [
+                {"NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryFileTimestamp", "NSPrivacyAccessedAPITypeReasons": ["C617.1"]}
+            ]}))
         metadata = self.app / "Extensions/ControlStudioIntents.appex/Metadata.appintents"
         metadata.mkdir()
         (metadata / "extract.actionsdata").write_text(json.dumps({"id": "IncrementControlStudioCounter", "title": "Increment Control Studio Counter"}))
+        widget_metadata = self.app / "PlugIns/ControlStudioWidgets.appex/Metadata.appintents"
+        widget_metadata.mkdir()
+        (widget_metadata / "extract.actionsdata").write_text(json.dumps({"intent": "StudioDesignIntent", "entity": "StudioDesignEntity"}))
 
     def mutate(self, relative, key, value):
         path = self.app / relative / "Info.plist"
@@ -53,6 +63,15 @@ class PackagingTests(unittest.TestCase):
 
     def test_accepts_expected_structure_only(self):
         self.assertEqual(len(validate_metadata(self.app)), 3)
+
+    def test_rejects_missing_or_misconfigured_scene_lifecycle(self):
+        for manifest in [{}, {"UIApplicationSupportsMultipleScenes": True},
+                         {"UIApplicationSupportsMultipleScenes": False, "UISceneConfigurations": {
+                             "UIWindowSceneSessionRoleApplication": [{"UISceneConfigurationName": "WrongName", "UISceneDelegateClassName": "SceneDelegate"}]}}]:
+            with self.subTest(manifest=manifest):
+                self.mutate("", "UIApplicationSceneManifest", manifest)
+                with self.assertRaisesRegex(ValueError, "scene"):
+                    validate_metadata(self.app)
 
     def test_rejects_bundle_id_change(self):
         self.mutate("PlugIns/ControlStudioWidgets.appex", "CFBundleIdentifier", "wrong.id")
@@ -88,6 +107,27 @@ class PackagingTests(unittest.TestCase):
     def test_rejects_missing_intent_metadata(self):
         (self.app / "Extensions/ControlStudioIntents.appex/Metadata.appintents/extract.actionsdata").unlink()
         with self.assertRaises(ValueError): validate_metadata(self.app)
+
+    def test_rejects_missing_widget_configuration_metadata(self):
+        (self.app / "PlugIns/ControlStudioWidgets.appex/Metadata.appintents/extract.actionsdata").unlink()
+        with self.assertRaisesRegex(ValueError, "Widget configuration metadata"): validate_metadata(self.app)
+
+    def test_rejects_missing_container_metadata_privacy_reason(self):
+        path = self.app / "PlugIns/ControlStudioWidgets.appex/PrivacyInfo.xcprivacy"
+        path.write_bytes(plistlib.dumps({"NSPrivacyAccessedAPITypes": []}))
+        with self.assertRaisesRegex(ValueError, "Container file metadata reason"): validate_metadata(self.app)
+
+    def test_rejects_widget_metadata_without_design_selector(self):
+        path = self.app / "PlugIns/ControlStudioWidgets.appex/Metadata.appintents/extract.actionsdata"
+        path.write_text('{"intent":"OtherIntent"}')
+        with self.assertRaisesRegex(ValueError, "Widget design selector"): validate_metadata(self.app)
+
+    def test_rejects_missing_ipad_support(self):
+        for relative in BUNDLES:
+            with self.subTest(bundle=relative):
+                self.mutate(relative, "UIDeviceFamily", [1])
+                with self.assertRaisesRegex(ValueError, "iPhone/iPad device support"): validate_metadata(self.app)
+                self.mutate(relative, "UIDeviceFamily", [1, 2])
 
     def test_rejects_extensionkit_in_plugins(self):
         source = self.app / "Extensions/ControlStudioIntents.appex"

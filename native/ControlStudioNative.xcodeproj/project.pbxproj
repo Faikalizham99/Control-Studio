@@ -18,6 +18,18 @@
 			"path" = "Shared/AppGroupConfiguration.swift";
 			"sourceTree" = "<group>";
 		};
+		"2EAE80D65C910A9C1E47FE9F" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "sourcecode.swift";
+			"path" = "Shared/WidgetDesignStore.swift";
+			"sourceTree" = "<group>";
+		};
+		"3647715DBD47B59F9F21A188" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "text.xml";
+			"path" = "PrivacyInfo.xcprivacy";
+			"sourceTree" = "<group>";
+		};
 		"C9FF7C42709595CD3EDE50C0" = {
 			"isa" = "PBXFileReference";
 			"lastKnownFileType" = "sourcecode.swift";
@@ -39,9 +51,23 @@
 			"isa" = "PBXBuildFile";
 			"fileRef" = "04786B615021C841DE4B25D5";
 		};
+		"DD3FF1AF259ABD55EF7DF8C2" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "2EAE80D65C910A9C1E47FE9F";
+		};
 		"79CC07C72413E552BC034B32" = {
 			"isa" = "PBXBuildFile";
 			"fileRef" = "C9FF7C42709595CD3EDE50C0";
+		};
+		"426B8C1CC1D827B47E22F7EE" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "sourcecode.swift";
+			"path" = "ControlStudioWidgets/StudioDesignWidget.swift";
+			"sourceTree" = "<group>";
+		};
+		"0480B9A3EB8F2DFC39FD0B81" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "426B8C1CC1D827B47E22F7EE";
 		};
 		"281240187B75A46D30C238C0" = {
 			"isa" = "PBXSourcesBuildPhase";
@@ -49,7 +75,9 @@
 			"files" = (
 				"F430A744B207801389326C9D",
 				"6B6C4C4DD3FCEE1032DC64CE",
+				"DD3FF1AF259ABD55EF7DF8C2",
 				"79CC07C72413E552BC034B32",
+				"0480B9A3EB8F2DFC39FD0B81",
 			);
 			"runOnlyForDeploymentPostprocessing" = 0;
 		};
@@ -58,6 +86,18 @@
 			"buildActionMask" = 2147483647;
 			"files" = (
 
+			);
+			"runOnlyForDeploymentPostprocessing" = 0;
+		};
+		"BDB09F0C096EB210DAAE5A9E" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "3647715DBD47B59F9F21A188";
+		};
+		"1D1B269577594FC2DF9B8C5D" = {
+			"isa" = "PBXResourcesBuildPhase";
+			"buildActionMask" = 2147483647;
+			"files" = (
+				"BDB09F0C096EB210DAAE5A9E",
 			);
 			"runOnlyForDeploymentPostprocessing" = 0;
 		};
@@ -77,9 +117,9 @@
 				"SWIFT_VERSION" = "5.0";
 				"SWIFT_OPTIMIZATION_LEVEL" = "-O";
 				"SWIFT_EMIT_LOC_STRINGS" = "YES";
-				"TARGETED_DEVICE_FAMILY" = "1";
-				"CURRENT_PROJECT_VERSION" = "14";
-				"MARKETING_VERSION" = "0.2.12";
+				"TARGETED_DEVICE_FAMILY" = "1,2";
+				"CURRENT_PROJECT_VERSION" = "15";
+				"MARKETING_VERSION" = "0.2.13";
 				"LD_RUNPATH_SEARCH_PATHS" = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -109,6 +149,7 @@
 			"buildPhases" = (
 				"281240187B75A46D30C238C0",
 				"7ED5D55C3067C217927A2DE7",
+				"1D1B269577594FC2DF9B8C5D",
 			);
 			"buildRules" = (
 
@@ -138,6 +179,10 @@
 			"isa" = "PBXBuildFile";
 			"fileRef" = "04786B615021C841DE4B25D5";
 		};
+		"54626119CD8E19FA691F0396" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "2EAE80D65C910A9C1E47FE9F";
+		};
 		"35A4E769309D648BFD716BE3" = {
 			"isa" = "PBXBuildFile";
 			"fileRef" = "0F641DB0626D777B6F91FE44";
@@ -148,6 +193,7 @@
 			"files" = (
 				"68C8EFE988CBAD16433F5014",
 				"4F0671E5C956C1BFA384AE36",
+				"54626119CD8E19FA691F0396",
 				"35A4E769309D648BFD716BE3",
 			);
 			"runOnlyForDeploymentPostprocessing" = 0;
@@ -157,6 +203,18 @@
 			"buildActionMask" = 2147483647;
 			"files" = (
 
+			);
+			"runOnlyForDeploymentPostprocessing" = 0;
+		};
+		"8FDF02B04EBE53BEFDC2384D" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "3647715DBD47B59F9F21A188";
+		};
+		"52F77ECF59248F0DCA2D1839" = {
+			"isa" = "PBXResourcesBuildPhase";
+			"buildActionMask" = 2147483647;
+			"files" = (
+				"8FDF02B04EBE53BEFDC2384D",
 			);
 			"runOnlyForDeploymentPostprocessing" = 0;
 		};
@@ -176,9 +234,9 @@
 				"SWIFT_VERSION" = "5.0";
 				"SWIFT_OPTIMIZATION_LEVEL" = "-O";
 				"SWIFT_EMIT_LOC_STRINGS" = "YES";
-				"TARGETED_DEVICE_FAMILY" = "1";
-				"CURRENT_PROJECT_VERSION" = "14";
-				"MARKETING_VERSION" = "0.2.12";
+				"TARGETED_DEVICE_FAMILY" = "1,2";
+				"CURRENT_PROJECT_VERSION" = "15";
+				"MARKETING_VERSION" = "0.2.13";
 				"LD_RUNPATH_SEARCH_PATHS" = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -208,6 +266,7 @@
 			"buildPhases" = (
 				"D111DD5BE970BBBCA4CDC634",
 				"638144CC12080A816AC84A82",
+				"52F77ECF59248F0DCA2D1839",
 			);
 			"buildRules" = (
 
@@ -230,7 +289,10 @@
 			"children" = (
 				"12E8AECD5B05A5139654507F",
 				"04786B615021C841DE4B25D5",
+				"2EAE80D65C910A9C1E47FE9F",
+				"3647715DBD47B59F9F21A188",
 				"C9FF7C42709595CD3EDE50C0",
+				"426B8C1CC1D827B47E22F7EE",
 				"0F641DB0626D777B6F91FE44",
 				"0A3E27B8CA818264D75C8D81",
 			);

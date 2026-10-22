@@ -30,3 +30,6 @@ public func counterIncrement() -> UnsafeMutablePointer<CChar>? { response(increm
 
 @_cdecl("cs_counter_free")
 public func counterFree(_ pointer: UnsafeMutablePointer<CChar>?) { free(pointer) }
+
+@_cdecl("cs_widgets_reload_designs")
+public func reloadWidgetDesigns() { WidgetCenter.shared.reloadTimelines(ofKind: WidgetDesignStore.widgetKind) }

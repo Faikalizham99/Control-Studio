@@ -43,9 +43,19 @@ def read_plist(path):
         return plistlib.load(stream)
 
 
+def validate_scene_manifest(info):
+    manifest = info.get("UIApplicationSceneManifest", {})
+    require(manifest.get("UIApplicationSupportsMultipleScenes") is False, "Host must use the single-window scene lifecycle")
+    scenes = manifest.get("UISceneConfigurations", {}).get("UIWindowSceneSessionRoleApplication", [])
+    require(any(scene.get("UISceneConfigurationName") == "__MAUI_DEFAULT_SCENE_CONFIGURATION__" and
+                scene.get("UISceneDelegateClassName") == "SceneDelegate" and not scene.get("UISceneStoryboardFile")
+                for scene in scenes), "Required MAUI scene configuration missing")
+
+
 def validate_metadata(app):
     app = Path(app)
     host = read_plist(app / "Info.plist")
+    validate_scene_manifest(host)
     bundles = []
     for relative, (identifier, point) in BUNDLES.items():
         bundle = app / relative
@@ -59,6 +69,13 @@ def validate_metadata(app):
             require(bool(info.get(key)), f"Missing {key}: {identifier}")
         require(info.get("CFBundlePackageType") == ("XPC!" if relative else "APPL"), f"Invalid package type: {identifier}")
         require("iPhoneOS" in info.get("CFBundleSupportedPlatforms", []), f"Not an iPhoneOS product: {identifier}")
+        require({1, 2}.issubset(set(info.get("UIDeviceFamily", []))), f"iPhone/iPad device support missing: {identifier}")
+        privacy_path = bundle / "PrivacyInfo.xcprivacy"
+        require(privacy_path.is_file(), f"Privacy manifest missing: {identifier}")
+        privacy = read_plist(privacy_path)
+        require(any(entry.get("NSPrivacyAccessedAPIType") == "NSPrivacyAccessedAPICategoryFileTimestamp" and
+                    "C617.1" in entry.get("NSPrivacyAccessedAPITypeReasons", [])
+                    for entry in privacy.get("NSPrivacyAccessedAPITypes", [])), f"Container file metadata reason missing: {identifier}")
         require(info.get("CFBundleVersion") == host.get("CFBundleVersion"), "Host/extension build versions differ")
         require(info.get("CFBundleShortVersionString") == host.get("CFBundleShortVersionString"), "Host/extension versions differ")
         if point:
@@ -74,6 +91,10 @@ def validate_metadata(app):
     data = json.dumps(json.loads(metadata.read_bytes()))
     require("IncrementControlStudioCounter" in data and "Increment Control Studio Counter" in data,
             "Increment action missing from extracted metadata")
+    widget_metadata = app / "PlugIns/ControlStudioWidgets.appex/Metadata.appintents/extract.actionsdata"
+    require(widget_metadata.is_file() and widget_metadata.stat().st_size > 0, "Widget configuration metadata missing")
+    widget_data = json.dumps(json.loads(widget_metadata.read_bytes()))
+    require("StudioDesignIntent" in widget_data and "StudioDesignEntity" in widget_data, "Widget design selector missing from extracted metadata")
     return bundles
 
 

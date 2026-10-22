@@ -9,6 +9,7 @@ import importlib.util
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 from app_group_config import synchronize
+from validate_ipa import validate_scene_manifest
 
 
 def main():
@@ -22,8 +23,10 @@ def main():
                     plistlib.load(stream)
     synchronize(check=True)
     toolchain = json.loads((ROOT / "global.json").read_text())
-    assert toolchain["sdk"]["version"] == "10.0.302"
-    assert toolchain["workload"]["version"] == "10.0.302.1"
+    assert toolchain["sdk"]["version"] == "10.0.401"
+    assert toolchain["workload"]["version"] == "10.0.401.1"
+    host = plistlib.loads((ROOT / "src/ControlStudio.App/Platforms/iOS/Info.plist").read_bytes())
+    validate_scene_manifest(host)
     spec = importlib.util.spec_from_file_location("generator", ROOT / "scripts/generate-xcode-project.py")
     generator = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(generator)

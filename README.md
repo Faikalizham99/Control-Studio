@@ -1,12 +1,14 @@
 # Control Studio
 
+Version **0.2.13 (15)** adds the first **Widget Studio** builder: Small, Medium, Large and Extra Large designs (Portrait on iPhone/iPadOS 27+, Landscape on iPad) with optional ordered photo layers, live positioning/cropping, saved designs and a configurable Home Screen widget. Existing counter widgets remain available. See [builder behaviour, storage and verification limits](docs/widget-studio.md). The owner authorized the version tag and will monitor its build; native Xcode/device verification remains pending.
+
 Release **0.2.11 (13)** replaces Clipboard's solid concealment cover with a transparent Gaussian blur of the actual text, photo or link, removing the old material/tint transition. It also includes readable disabled actions, shared header buttons and explanations when Arrange is unavailable. Clipboard pinning, saved ordering, photo paste/import, link previews and coloured headers remain available. See [Clipboard behavior](docs/clipboard.md), [shared action styles](docs/ui-components.md) and [arrangement review evidence](docs/clipboard-arrangement.md). Native build, animation matching and white-flash verification on an iPhone remain pending; the owner monitors the release build.
 
 Release **0.2.4 (7)** replaces the Shortcuts tab with **Studio**, a two-card hub for **Widgets** and **Clipboard**. Widgets previews the existing Small/Medium counter; Clipboard keeps saved-text creation, editing, copying and deletion using the existing private data. The owner authorized the release and will monitor the tag build. See [Studio behavior and pending device checks](docs/studio.md); native CI and phone verification remain pending.
 
 Release **0.2.3 (6)** includes Photo Library/Files selection with crop preview, consistent app accents, clearer Light-mode borders, a compact hex editor and the reference-inspired Edit profile layout on plain Light/Dark backgrounds. The owner authorized the release tag and will monitor its build; final native CI and phone verification remain pending. See the [Settings and profile validation record](docs/settings-appearance.md).
 
-An offline-first .NET MAUI iPhone app with a private shortcut dashboard, native SwiftUI counter widget and native Apple Shortcuts action. **Milestone 1 is approved and implemented:** create, edit, run, favorite, categorize, search, reorder and delete web-link, copy-text and counter actions. The widget editor remains future work.
+An offline-first .NET MAUI iPhone app with a private shortcut dashboard, native SwiftUI counter widget and native Apple Shortcuts action. **Milestone 1 is approved and implemented:** create, edit, run, favorite, categorize, search, reorder and delete web-link, copy-text and counter actions. The first widget editor is implemented in the working tree; see the Widget Studio notes above.
 
 Version **0.2.0 (3)** adds a Shortcuts tab with private SQLite persistence, typed action parameters, bounded validation and source-generated JSON. Web links support HTTP(S); additional URL schemes and dynamic Apple Shortcuts actions are deferred. See the [Milestone 1 build record and phone checklist](docs/milestone-1.md). The existing App Group and counter schema are retained.
 
@@ -38,23 +40,23 @@ The app increments a persistent SQLite counter, asks WidgetKit to refresh, and r
 
 Current output: `ControlStudio-m1-unsigned.ipa` or `ControlStudio-m1-signed.ipa`; artifact container `ControlStudio-m1-<mode>-<run_number>`. Older Milestone 0 runs retain `m0` filenames. An unsigned IPA **cannot be installed directly**. A signed validation result also does not establish successful installation.
 
-Current CI-verified build: [ControlStudio-m1-unsigned-6](https://github.com/Faikalizham99/Control-Studio/actions/runs/39258396606/artifacts/12188459102), version **0.2.0 (3)** from commit `43786fa6fb98ab918a66f05a471188cfad00640c` on `codex/milestone-1`. The artifact is retained for 14 days; save a copy. The default branch has not been changed. [Compare the implementation](https://github.com/Faikalizham99/Control-Studio/compare/main...codex/milestone-1) before merging it to enable default-branch manual dispatch. New device checks remain unverified; the prior 0.1.1 device evidence is preserved in [Milestone 0](docs/milestone-0.md).
+Historical Milestone 1 CI evidence: [ControlStudio-m1-unsigned-6](https://github.com/Faikalizham99/Control-Studio/actions/runs/39258396606/artifacts/12188459102), version **0.2.0 (3)** from commit `43786fa6fb98ab918a66f05a471188cfad00640c` on the former `codex/milestone-1` branch. That artifact had a 14-day retention period. Current development uses `main`; IPA generation runs only for newly pushed version tags. New device checks remain unverified; the prior 0.1.1 device evidence is preserved in [Milestone 0](docs/milestone-0.md).
 
 ## Toolchain
 
-Pinned baseline, checked against upstream documentation on 18 October 2026:
+Pinned baseline, checked against upstream documentation on 22 October 2026:
 
 | Component | Version |
 |---|---|
-| .NET SDK | 10.0.302 |
-| Workload set | 10.0.302.1 |
+| .NET SDK | 10.0.401 |
+| Workload set | 10.0.401.1 |
 | Microsoft.Maui.Controls | 10.0.110 |
-| Xcode / iPhoneOS SDK | 26.6 (17F113) / 26.5 |
-| Runner | `macos-26` (arm64 hosted image) |
+| Xcode / iPhoneOS SDK | 27.0 (27A266a) / 27.0 |
+| Runner | `xcode-27` (arm64 hosted image) |
 | App / extension deployment minimum | iOS 17.0 |
 | Device binary | arm64 |
 
-This uses established APIs on the newer iOS 27 device; it does not use an iOS 27 SDK or claim device compatibility has been verified. The [Microsoft release](https://github.com/dotnet/macios/releases/tag/dotnet-10.0.1xx-xcode26.5-10315) explicitly pairs SDK 10.0.302/workload 10.0.302.1 with Xcode 26.6. [MAUI 10.0.110](https://github.com/dotnet/maui/releases/tag/10.0.110) is a stable service release. The [runner inventory](https://github.com/actions/runner-images/blob/main/images/macos/macos-26-arm64-Readme.md) lists the selected Xcode. CI checks these versions and fails if the runner drops them; it does not switch silently to a new Xcode.
+The iOS 27 SDK is required for the Extra Large Portrait family. The [Microsoft release](https://github.com/dotnet/macios/releases/tag/dotnet-10.0.1xx-xcode27.0-10722) pairs SDK 10.0.401/workload 10.0.401.1 with Xcode 27.0 and recommends MAUI 10.0.110+. The [GitHub runner inventory](https://github.com/actions/runner-images/blob/main/images/macos/xcode-27-arm64-Readme.md) lists the selected Xcode. CI checks the exact Xcode/SDK and fails if unavailable. The host adopts the required single-window UIKit scene lifecycle using MauiUISceneDelegate. Minimum deployment remains iOS 17; portrait XL registration is guarded for iOS 27+. Xcode compilation and device compatibility remain unverified for this working tree.
 
 ## Repository
 

@@ -21,7 +21,11 @@ def generate():
                  path="Shared/CounterStore.swift", sourceTree="<group>")
     group_source = add("app-group-source", "PBXFileReference", lastKnownFileType="sourcecode.swift",
                        path="Shared/AppGroupConfiguration.swift", sourceTree="<group>")
-    targets, products, children = [], [], [source, group_source]
+    widget_store = add("widget-design-store", "PBXFileReference", lastKnownFileType="sourcecode.swift",
+                       path="Shared/WidgetDesignStore.swift", sourceTree="<group>")
+    privacy = add("privacy-manifest", "PBXFileReference", lastKnownFileType="text.xml",
+                  path="PrivacyInfo.xcprivacy", sourceTree="<group>")
+    targets, products, children = [], [], [source, group_source, widget_store, privacy]
     for name, suffix, kind in [
         ("ControlStudioWidgets", "widgets", "app-extension"),
         ("ControlStudioIntents", "intents", "extensionkit-extension"),
@@ -32,11 +36,19 @@ def generate():
         product = add(name + "-product", "PBXFileReference", explicitFileType=f"wrapper.{kind}",
                       path=name + ".appex", sourceTree="BUILT_PRODUCTS_DIR", includeInIndex=0)
         products.append(product)
-        build_files = [add(name + "-" + ref, "PBXBuildFile", fileRef=ref) for ref in [source, group_source, file]]
+        build_files = [add(name + "-" + ref, "PBXBuildFile", fileRef=ref) for ref in [source, group_source, widget_store, file]]
+        if name == "ControlStudioWidgets":
+            design_view = add("widget-design-view", "PBXFileReference", lastKnownFileType="sourcecode.swift",
+                              path="ControlStudioWidgets/StudioDesignWidget.swift", sourceTree="<group>")
+            children.append(design_view)
+            build_files.append(add("widget-design-view-build", "PBXBuildFile", fileRef=design_view))
         sources = add(name + "-sources", "PBXSourcesBuildPhase", buildActionMask=2147483647,
                       files=build_files, runOnlyForDeploymentPostprocessing=0)
         frameworks = add(name + "-frameworks", "PBXFrameworksBuildPhase", buildActionMask=2147483647,
                          files=[], runOnlyForDeploymentPostprocessing=0)
+        privacy_build = add(name + "-privacy-build", "PBXBuildFile", fileRef=privacy)
+        resources = add(name + "-resources", "PBXResourcesBuildPhase", buildActionMask=2147483647,
+                        files=[privacy_build], runOnlyForDeploymentPostprocessing=0)
         settings = {
             "PRODUCT_NAME": name, "PRODUCT_BUNDLE_IDENTIFIER": f"com.faikalizham.controlstudio.{suffix}",
             "INFOPLIST_FILE": f"{name}/Info.plist", "GENERATE_INFOPLIST_FILE": "YES",
@@ -44,8 +56,8 @@ def generate():
             "CODE_SIGNING_ALLOWED": "NO", "SKIP_INSTALL": "YES",
             "APPLICATION_EXTENSION_API_ONLY": "YES", "IPHONEOS_DEPLOYMENT_TARGET": "17.0",
             "SWIFT_VERSION": "5.0", "SWIFT_OPTIMIZATION_LEVEL": "-O",
-            "SWIFT_EMIT_LOC_STRINGS": "YES", "TARGETED_DEVICE_FAMILY": "1",
-            "CURRENT_PROJECT_VERSION": "14", "MARKETING_VERSION": "0.2.12",
+            "SWIFT_EMIT_LOC_STRINGS": "YES", "TARGETED_DEVICE_FAMILY": "1,2",
+            "CURRENT_PROJECT_VERSION": "15", "MARKETING_VERSION": "0.2.13",
             "LD_RUNPATH_SEARCH_PATHS": ["$(inherited)", "@executable_path/Frameworks", "@executable_path/../../Frameworks"],
             "OTHER_LDFLAGS": ["$(inherited)", "-lsqlite3"],
         }
@@ -54,7 +66,7 @@ def generate():
                       defaultConfigurationIsVisible=0, defaultConfigurationName="Release")
         targets.append(add(name + "-target", "PBXNativeTarget", name=name, productName=name,
                            productReference=product, productType="com.apple.product-type." + kind,
-                           buildConfigurationList=configs, buildPhases=[sources, frameworks],
+                           buildConfigurationList=configs, buildPhases=[sources, frameworks, resources],
                            buildRules=[], dependencies=[]))
     products_group = add("products", "PBXGroup", name="Products", children=products, sourceTree="<group>")
     main = add("main", "PBXGroup", children=children + [products_group], sourceTree="<group>")

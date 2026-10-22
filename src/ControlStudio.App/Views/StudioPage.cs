@@ -16,7 +16,7 @@ public sealed class StudioPage : ContentPage
     private readonly ILoggerFactory logs;
     private bool opening;
 
-    public StudioPage(ICounterRepository counter, IActionRepository actions, IActionValidator validator, IActionExecutor executor, ILoggerFactory logs, AppearancePreferences preferences, AppleColorPicker colourPicker)
+    public StudioPage(ICounterRepository counter, IActionRepository actions, IActionValidator validator, IActionExecutor executor, ILoggerFactory logs, AppearancePreferences preferences, AppleColorPicker colourPicker, WidgetStudioService widgets)
     {
         this.counter = counter; this.actions = actions; this.validator = validator; this.executor = executor; this.logs = logs;
         Title = "Studio"; AutomationId = "StudioPage"; SafeAreaEdges = SafeAreaEdges.All;
@@ -27,7 +27,7 @@ public sealed class StudioPage : ContentPage
             Padding = new Thickness(8, 8, 8, 24), Spacing = 12, Children =
             {
                 Header(),
-                Entry("Widgets", "Small, Medium, Large\nand Extra Large widgets", StudioSymbol.Widgets, "OpenWidgets", () => new WidgetsPage(this.counter),
+                Entry("Widgets", "Small, Medium, Large\nand Extra Large widgets", StudioSymbol.Widgets, "OpenWidgets", () => new WidgetsPage(this.counter, widgets, colourPicker, logs.CreateLogger<WidgetsPage>()),
                     [("Counters", StudioSymbol.Bars), ("Dates", StudioSymbol.Calendar), ("Photos", StudioSymbol.Photo)]),
                 Entry("Clipboard", "Text, photos and links.\nKeep it ready to use.", StudioSymbol.Clipboard, "OpenClipboard", () => new ClipboardPage(this.actions, this.validator, this.executor, this.logs.CreateLogger<ClipboardPage>(), preferences, colourPicker),
                     [("Text", StudioSymbol.Text), ("Links", StudioSymbol.Link), ("Images", StudioSymbol.Photo)])

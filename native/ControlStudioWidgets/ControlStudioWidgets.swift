@@ -66,8 +66,7 @@ struct CounterWidgetView: View {
     }
 }
 
-@main
-struct ControlStudioWidgets: Widget {
+struct CounterWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: StudioConstants.widgetKind, provider: CounterProvider()) { entry in
             CounterWidgetView(entry: entry)
@@ -76,4 +75,9 @@ struct ControlStudioWidgets: Widget {
         .description("Your locally shared counter and its last update.")
         .supportedFamilies([.systemSmall, .systemMedium])
     }
+}
+
+@main
+struct ControlStudioWidgets: WidgetBundle {
+    var body: some Widget { CounterWidget(); StudioDesignWidget() }
 }
