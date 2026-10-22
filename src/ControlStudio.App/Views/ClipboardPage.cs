@@ -14,7 +14,9 @@ public sealed class ClipboardPage : ContentPage
     private readonly ILogger<ClipboardPage> logger;
     private readonly AppearancePreferences preferences;
     private readonly AppleColorPicker colourPicker;
-    private readonly CollectionView items = new() { SelectionMode = SelectionMode.None, ItemSizingStrategy = ItemSizingStrategy.MeasureAllItems, AutomationId = "ClipboardItems", Margin = new Thickness(16, 0, 16, 16) };
+    // The list owns the full scroll viewport; each tile owns its horizontal inset.
+    // This leaves a gutter for the native scroll indicator outside the cards.
+    private readonly CollectionView items = new() { SelectionMode = SelectionMode.None, ItemSizingStrategy = ItemSizingStrategy.MeasureAllItems, AutomationId = "ClipboardItems", Margin = new Thickness(0, 0, 0, 16) };
     private readonly Label status = SettingsControls.Text("", 13, secondary: true);
     private readonly Label description = SettingsControls.Text("", 15, secondary: true);
     private readonly RefreshView refresh = new();
@@ -222,6 +224,7 @@ public sealed class ClipboardPage : ContentPage
         public ClipboardTile(Func<ActionDefinition, Task> copyAction, Func<ActionDefinition, Task> secondaryAction,
             Func<ActionDefinition, Task> editAction, Func<ActionDefinition, Task> deleteAction, Func<ActionDefinition, Task> shareAction, Func<ActionDefinition, Task> pinAction, ClipboardVisibilityPreferences visibilityStore, Action<ClipboardVisibilityErrorEventArgs> visibilityFailed)
         {
+            Margin = new Thickness(16, 0);
             header = new ClipboardHeaderView(pin);
             link = new ClipboardLinkLabel(secondaryAction, copyAction, shareAction) { IsVisible = false };
             text.MaxLines = PreviewLines; text.LineBreakMode = LineBreakMode.TailTruncation;
