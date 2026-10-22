@@ -21,6 +21,7 @@
     <Compile Include="../../src/ControlStudio.App/Views/ClipboardHeaderView.cs" Link="Views/ClipboardHeaderView.cs" />
     <Compile Include="../../src/ControlStudio.App/Views/ClipboardSegment.cs" Link="Views/ClipboardSegment.cs" />
     <Compile Include="../../src/ControlStudio.App/Views/ClipboardLinkLabel.cs" Link="Views/ClipboardLinkLabel.cs" />
+    <Compile Include="../../src/ControlStudio.App/Views/ClipboardConcealView.cs" Link="Views/ClipboardConcealView.cs" />
     <Using Include="Microsoft.Maui" />
     <Using Include="Microsoft.Maui.Controls" />
     <Using Include="Microsoft.Maui.Graphics" />

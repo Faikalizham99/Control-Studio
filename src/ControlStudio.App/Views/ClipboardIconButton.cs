@@ -6,12 +6,14 @@ namespace ControlStudio.App.Views;
 internal sealed class ClipboardIconButton : ContentView
 {
     private readonly Button tap;
+    private readonly StudioGlyph icon;
+    public StudioSymbol Symbol { get => icon.Symbol; set => icon.Symbol = value; }
     public event EventHandler? Clicked;
 
     public ClipboardIconButton(StudioSymbol symbol, string action, bool primary = false, bool destructive = false)
     {
         WidthRequest = HeightRequest = 48; MinimumWidthRequest = MinimumHeightRequest = 48;
-        var icon = new StudioGlyph(symbol, useAccent: false)
+        icon = new StudioGlyph(symbol, useAccent: false)
         {
             WidthRequest = HeightRequest = 23, HorizontalOptions = LayoutOptions.Center, VerticalOptions = LayoutOptions.Center
         };

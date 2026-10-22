@@ -2,13 +2,14 @@ using Microsoft.Maui.Graphics;
 
 namespace ControlStudio.App.Views;
 
-internal enum StudioSymbol { Widgets, Clipboard, Counter, Bars, Calendar, Photo, Text, Link, Chevron, Edit, Delete, Open, Preview, Tag, Expand, Clear }
+internal enum StudioSymbol { Widgets, Clipboard, Counter, Bars, Calendar, Photo, Text, Link, Chevron, Edit, Delete, Open, Preview, Tag, Expand, Clear, EyeOff }
 
 internal sealed class StudioGlyph : GraphicsView, IDrawable
 {
     public static readonly BindableProperty TintProperty = BindableProperty.Create(nameof(Tint), typeof(Color), typeof(StudioGlyph), Colors.Black,
         propertyChanged: (view, _, _) => ((StudioGlyph)view).Invalidate());
-    private readonly StudioSymbol symbol;
+    private StudioSymbol symbol;
+    public StudioSymbol Symbol { get => symbol; set { symbol = value; Invalidate(); } }
     public Color Tint { get => (Color)GetValue(TintProperty); set => SetValue(TintProperty, value); }
 
     public StudioGlyph(StudioSymbol symbol, bool useAccent = true)
@@ -81,10 +82,11 @@ internal sealed class StudioGlyph : GraphicsView, IDrawable
             Lines(canvas, 11, 4, 4, 4, 4, 20, 20, 20, 20, 13);
             Lines(canvas, 14, 3, 21, 3, 21, 10); canvas.DrawLine(11, 13, 21, 3);
         }
-        else if (symbol == StudioSymbol.Preview)
+        else if (symbol is StudioSymbol.Preview or StudioSymbol.EyeOff)
         {
             var eye = new PathF(); eye.MoveTo(2, 12); eye.CurveTo(7, 3, 17, 3, 22, 12);
             eye.CurveTo(17, 21, 7, 21, 2, 12); eye.Close(); canvas.DrawPath(eye); canvas.DrawCircle(12, 12, 3);
+            if (symbol == StudioSymbol.EyeOff) canvas.DrawLine(3, 3, 21, 21);
         }
         else if (symbol == StudioSymbol.Tag)
         {

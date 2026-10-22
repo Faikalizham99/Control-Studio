@@ -18,6 +18,7 @@ public sealed class ClipboardPage : ContentPage
     private readonly Label description = SettingsControls.Text("", 15, secondary: true);
     private readonly RefreshView refresh = new();
     private readonly Dictionary<ClipboardKind, ClipboardSegment> segments = [];
+    private readonly HashSet<Guid> concealedItems = [];
     private IReadOnlyList<ActionDefinition> saved = [];
     private ClipboardKind selected;
     private CancellationTokenSource lifetime = new();
@@ -32,7 +33,7 @@ public sealed class ClipboardPage : ContentPage
         add.Clicked += async (_, _) => await GuardAsync(_ => Navigation.PushAsync(new ClipboardEditorPage(repository, validator, preferences, colourPicker, selected)));
         ToolbarItems.Add(add);
         items.ItemsLayout = new LinearItemsLayout(ItemsLayoutOrientation.Vertical) { ItemSpacing = 12 };
-        items.ItemTemplate = new DataTemplate(() => new ClipboardTile(CopyAsync, SecondaryAsync, EditAsync, DeleteAsync, ShareLinkAsync));
+        items.ItemTemplate = new DataTemplate(() => new ClipboardTile(CopyAsync, SecondaryAsync, EditAsync, DeleteAsync, ShareLinkAsync, concealedItems));
         refresh.Content = items; refresh.SetDynamicResource(RefreshView.RefreshColorProperty, "AccentText");
         refresh.Refreshing += async (_, _) => await ReloadAsync();
         var switcher = new Grid { ColumnSpacing = 4, Padding = 4 };
@@ -124,6 +125,7 @@ public sealed class ClipboardPage : ContentPage
         token.ThrowIfCancellationRequested();
         // Finish the delete before removing its file; cancellation cannot orphan a committed item.
         await repository.DeleteAsync(item.Id);
+        concealedItems.Remove(item.Id);
         if (item.Parameters is PhotoParameters photo) ClipboardPhotoStore.Remove(photo.AssetKey);
         if (!active) return;
         saved = await repository.ReadAsync(); Filter(); ShowStatus("Clipboard item deleted.");
@@ -166,11 +168,13 @@ public sealed class ClipboardPage : ContentPage
         private readonly Image photo = new() { Aspect = Aspect.AspectFit, HeightRequest = 130, HorizontalOptions = LayoutOptions.Start, WidthRequest = 160 };
         private readonly ClipboardIconButton copy = new(StudioSymbol.Clipboard, "Copy", primary: true);
         private readonly ClipboardIconButton open = new(StudioSymbol.Open, "Open link");
-        private readonly ClipboardIconButton preview = new(StudioSymbol.Preview, "Preview photo");
+        private readonly ClipboardIconButton preview = new(StudioSymbol.Expand, "Preview photo");
         private readonly ClipboardIconButton edit = new(StudioSymbol.Edit, "Edit");
         private readonly ClipboardIconButton delete = new(StudioSymbol.Delete, "Delete", destructive: true);
+        private readonly ClipboardIconButton visibility = new(StudioSymbol.Preview, "Hide content");
+        private readonly ClipboardConcealView conceal;
         public ClipboardTile(Func<ActionDefinition, Task> copyAction, Func<ActionDefinition, Task> secondaryAction,
-            Func<ActionDefinition, Task> editAction, Func<ActionDefinition, Task> deleteAction, Func<ActionDefinition, Task> shareAction)
+            Func<ActionDefinition, Task> editAction, Func<ActionDefinition, Task> deleteAction, Func<ActionDefinition, Task> shareAction, ISet<Guid> concealedItems)
         {
             link = new ClipboardLinkLabel(secondaryAction, copyAction, shareAction) { IsVisible = false };
             text.MaxLines = PreviewLines; text.LineBreakMode = LineBreakMode.TailTruncation;
@@ -193,13 +197,15 @@ public sealed class ClipboardPage : ContentPage
                     if (args.PropertyName is nameof(Label.FontSize) or nameof(Label.FontFamily) or nameof(Label.FontAttributes) or nameof(Label.FontAutoScalingEnabled)) QueueOverflowCheck();
                 };
             }
-            var actions = new HorizontalStackLayout { Spacing = 8, HorizontalOptions = LayoutOptions.End, Children = { edit, delete, open, preview, copy } };
+            var actions = new HorizontalStackLayout { Spacing = 8, HorizontalOptions = LayoutOptions.End, Children = { visibility, edit, delete, open, preview, copy } };
             var content = new VerticalStackLayout { Spacing = 0, Children = { text, link, expand } };
             var divider = new BoxView { HeightRequest = 1, HorizontalOptions = LayoutOptions.Fill, InputTransparent = true };
             divider.SetAppThemeColor(BoxView.ColorProperty, Color.FromArgb("#D2D7E1"), Colors.White.WithAlpha(.18f));
             AutomationProperties.SetIsInAccessibleTree(divider, false);
-            var body = new VerticalStackLayout { Padding = 12, Spacing = 12, Children = { content, photo, actions } };
+            conceal = new ClipboardConcealView(new VerticalStackLayout { Spacing = 12, Children = { content, photo } }, concealedItems);
+            var body = new VerticalStackLayout { Padding = 12, Spacing = 12, Children = { conceal, actions } };
             Content = new GlassCard(new VerticalStackLayout { Spacing = 0, Children = { header, divider, body } }, 0);
+            visibility.Clicked += (_, _) => { conceal.Toggle(); UpdateVisibilityCaption(); };
             copy.Clicked += async (_, _) => { if (BindingContext is ActionDefinition action) await copyAction(action); };
             edit.Clicked += async (_, _) => { if (BindingContext is ActionDefinition action) await editAction(action); };
             delete.Clicked += async (_, _) => { if (BindingContext is ActionDefinition action) await deleteAction(action); };
@@ -209,6 +215,8 @@ public sealed class ClipboardPage : ContentPage
         protected override void OnBindingContextChanged()
         {
             base.OnBindingContextChanged();
+            // Apply concealment before installing a recycled tile's new text/image.
+            conceal.Bind((BindingContext as ActionDefinition)?.Id); UpdateVisibilityCaption();
             // CollectionView reuses tiles; a different item always starts with its own collapsed preview.
             expanded = false; expand.IsVisible = false;
             text.MaxLines = PreviewLines; text.LineBreakMode = LineBreakMode.TailTruncation;
@@ -230,6 +238,12 @@ public sealed class ClipboardPage : ContentPage
             copy.Describe("Copy", action.Name); edit.Describe("Edit", action.Name); delete.Describe("Delete", action.Name);
             open.Describe("Open link", action.Name); preview.Describe("Preview photo", action.Name);
             UpdateExpandCaption(); QueueOverflowCheck();
+        }
+
+        private void UpdateVisibilityCaption()
+        {
+            visibility.Symbol = conceal.IsConcealed ? StudioSymbol.EyeOff : StudioSymbol.Preview;
+            visibility.Describe(conceal.IsConcealed ? "Show content for" : "Hide content for", (BindingContext as ActionDefinition)?.Name ?? "item");
         }
 
         private void UpdateExpandCaption()

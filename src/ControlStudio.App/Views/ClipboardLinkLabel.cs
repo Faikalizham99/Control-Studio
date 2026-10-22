@@ -50,4 +50,11 @@ internal sealed class ClipboardLinkLabel : Label
         Text = (Item?.Parameters as OpenUrlParameters)?.Url ?? "";
         SemanticProperties.SetDescription(this, Item is null ? "Saved link" : $"{Item.Name}. {Text}");
     }
+
+    protected override void OnPropertyChanged(string? propertyName = null)
+    {
+        // A concealed/disabled link must not revive an earlier menu when revealed again.
+        if (propertyName == nameof(IsEnabled) && !IsEnabled) revision++;
+        base.OnPropertyChanged(propertyName);
+    }
 }

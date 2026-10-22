@@ -22,7 +22,19 @@ Local validation for card expansion: 42 app tests, managed iOS compilation and w
 
 The selected segment uses the same readable accent colour as navigation (`AccentText`) for its icon and bold label, with a subtle 12% accent background and an accent outline. It no longer uses the black/white foreground intended for filled action buttons. Unselected segments use neutral icons and regular labels on a transparent surface. Theme bindings and dynamic resources are explicitly removed before changing a segment's palette so they cannot compete. The native blank hit target sits beneath the independently drawn visuals. Accent and theme changes update the selected palette through dynamic resources. Switching sections clears feedback from the previous section.
 
-Items have pencil/Edit, red trash/Delete and filled-accent clipboard/Copy icons. Links add an external-open arrow; photos add an eye/Preview icon. Buttons have 48-point native hit targets and item-specific accessibility descriptions. Delete asks for confirmation. Selected accent rendering in both themes, touch routing, live accent/theme changes and VoiceOver still require phone checks.
+Items have pencil/Edit, red trash/Delete and filled-accent clipboard/Copy icons. Links add an external-open arrow; photos add an expand/Preview icon. Each card also has an eye visibility toggle. Buttons have 48-point native hit targets and item-specific accessibility descriptions. Delete asks for confirmation. Selected accent rendering in both themes, touch routing, live accent/theme changes and VoiceOver still require phone checks.
+
+## Concealing card content
+
+The eye button conceals or reveals an individual card's text, URL or photo. Its coloured header and action row remain visible; Copy, Edit, Delete and explicit Open/Preview actions stay available. The eye becomes slashed while concealed, and its accessible action changes to Show content. Photo Preview uses an expand symbol to distinguish it from this toggle.
+
+`ClipboardConcealView` wraps only the content area. Its iOS handler animates a native thick-material blur and an opaque, appearance-adaptive tint over 260 ms. At rest the actual native content is hidden behind a cover labelled Content hidden. The managed content remains measured, retaining the card's size, expanded state, full text and image source. Revealing reverses the transition. Rapid toggles cancel the previous animator; rebinding applies the correct item's state immediately, without animating another item's content. Handler/window teardown stops animation and removes effects and accessibility-preference observers.
+
+The effect view itself retains alpha 1; only its effect and separate tint/caption animate, following Apple's [visual-effect alpha guidance](https://developer.apple.com/documentation/uikit/uivisualeffectview). Reduce Motion or Reduce Transparency uses an immediate opaque cover, and preference changes settle an in-progress transition. Hidden content is disabled and excluded from native accessibility navigation; its links cannot tap, open a preview or revive an earlier menu after reveal. The action row remains accessible.
+
+Visibility choices belong to item IDs in the current Clipboard page instance, so scrolling, tab switching and refreshing preserve them. They are not saved to the database or retained after restarting the app. Saved content is unchanged; deleting an item also removes its temporary visibility choice. No schema, permission, dependency or version change is required.
+
+Local validation on 22 October 2026: **75 app tests**, **22 packaging tests**, source configuration and whitespace checks, and managed iOS compilation pass. New managed regressions cover recycled cards/tab reloads, unchanged content/layout properties, inherited link disabling and stale menus after reveal, and eye-button glyph/accessibility actions. Native animation appearance, stable card height, repeated rapid taps, scrolling/recycling, Light/Dark switching, Reduce Motion/Transparency and VoiceOver still need iPhone verification. This is visual concealment, not password authentication or encrypted storage.
 
 ## Link appearance and native preview
 
