@@ -51,7 +51,7 @@ public sealed class ClipboardEditorPage : ContentPage
         photoPlaceholder = new VerticalStackLayout { Spacing = 10, HorizontalOptions = LayoutOptions.Center, VerticalOptions = LayoutOptions.Center, Children =
         {
             ClipboardEditorControls.Icon(StudioSymbol.Photo, size: 44),
-            SettingsControls.Text("Choose a photo to preview it here", 13, secondary: true)
+            SettingsControls.Text("Paste or choose a photo to preview it here", 13, secondary: true)
         } };
         switch (kind)
         {
@@ -151,16 +151,23 @@ public sealed class ClipboardEditorPage : ContentPage
     private void BuildPhotoCard()
     {
         name.Placeholder = "E.g. Receipt, Inspiration, Favourite photo";
-        body.Children.Add(ClipboardEditorControls.Heading("Photo to copy", "Choose a photo and check the preview", ClipboardEditorControls.Icon(StudioSymbol.Photo)));
+        body.Children.Add(ClipboardEditorControls.Heading("Photo to copy", "Paste or choose a photo, then check the preview", ClipboardEditorControls.Icon(StudioSymbol.Photo)));
         photoKey = (original?.Parameters as PhotoParameters)?.AssetKey; RefreshPhoto();
         body.Children.Add(ClipboardEditorControls.Field(new Grid { HeightRequest = 220, Children = { photoPlaceholder, photo } }, 6));
-        var photos = Action("Photos", StudioSymbol.Photo, "ClipboardChooseLibraryPhoto", () => PickPhotoAsync(true));
+        var paste = Action("Paste photo", StudioSymbol.Clipboard, "ClipboardPastePhoto", async () =>
+        {
+            name.Unfocus();
+            var picked = await ClipboardPhotoStore.PasteAsync();
+            AcceptDraftPhoto(picked);
+        });
+        var photos = Action("Photo Library", StudioSymbol.Photo, "ClipboardChooseLibraryPhoto", () => PickPhotoAsync(true));
         var files = Action("Files", StudioSymbol.Text, "ClipboardChooseFilePhoto", () => PickPhotoAsync(false));
         var remove = Action("Remove", StudioSymbol.Delete, "ClipboardRemoveDraftPhoto", () =>
         {
             DiscardDraftPhoto(); photoKey = null; RefreshPhoto(); ShowStatus(""); return Task.CompletedTask;
         });
-        body.Children.Add(ActionRow(photos, files, remove));
+        // Two columns keep the full labels and 44-point targets readable on smaller screens.
+        body.Children.Add(ActionRow(paste, photos)); body.Children.Add(ActionRow(files, remove));
         body.Children.Add(SettingsControls.Text("A private copy is saved. Your original photo stays unchanged.", 12, secondary: true));
     }
 
@@ -246,6 +253,11 @@ public sealed class ClipboardEditorPage : ContentPage
         name.Unfocus();
         var picked = await ClipboardPhotoStore.PickAsync(fromLibrary);
         if (picked is null) return;
+        AcceptDraftPhoto(picked);
+    }
+
+    private void AcceptDraftPhoto(string picked)
+    {
         if (departed) { ClipboardPhotoStore.Remove(picked); return; }
         DiscardDraftPhoto(); photoKey = picked; RefreshPhoto(); ShowStatus("");
     }

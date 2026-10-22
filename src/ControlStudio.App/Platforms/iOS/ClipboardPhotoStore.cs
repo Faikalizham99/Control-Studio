@@ -1,6 +1,7 @@
 using Foundation;
 using ImageIO;
 using UIKit;
+using UniformTypeIdentifiers;
 
 namespace ControlStudio.App.Platforms.iOS;
 
@@ -28,16 +29,46 @@ internal static class ClipboardPhotoStore
     private static async Task<string> ImportAsync(FileResult file)
     {
         await using var input = await file.OpenReadAsync();
-        using var bytes = new MemoryStream();
-        var buffer = new byte[8192];
-        int length;
-        while ((length = await input.ReadAsync(buffer)) > 0)
+        return await ImportEncodedAsync(await PhotoImportInput.ReadAsync(input));
+    }
+
+    /// <summary>Called only by the explicit Paste photo action; never inspect content on page load.</summary>
+    public static async Task<string> PasteAsync()
+    {
+        // Reading providers is content access, so iOS may ask for approval. Do it only after a tap.
+        NSItemProvider[] providers;
+        try { providers = await MainThread.InvokeOnMainThreadAsync(() => UIPasteboard.General.ItemProviders) ?? []; }
+        catch (Exception ex) { throw new IOException("The clipboard could not be read. Allow pasting if iOS asks, then try again.", ex); }
+        try
         {
-            if (bytes.Length + length > 10_000_000) throw new IOException("Choose a photo smaller than 10 MB.");
-            bytes.Write(buffer, 0, length);
+            foreach (var provider in providers)
+            {
+                var type = provider.RegisteredTypeIdentifiers.FirstOrDefault(IsImageType);
+                if (type is null) continue;
+                NSData data;
+                try { data = await provider.LoadDataRepresentationAsync(type); }
+                catch (Exception ex) { throw new IOException("The copied photo could not be loaded. Copy it again and allow pasting if iOS asks.", ex); }
+                using (data)
+                {
+                    if (data is null) throw new IOException("The copied photo is unavailable. Copy an image and try again.");
+                    PhotoImportInput.ValidateLength((ulong)data.Length);
+                    return await ImportEncodedAsync(data.ToArray());
+                }
+            }
+            throw new IOException("No photo is available to paste. Copy an image and allow pasting if iOS asks. A copied link belongs in Link.");
         }
-        var sourceBytes = bytes.ToArray();
-        return await Task.Run(async () =>
+        finally { foreach (var provider in providers) provider.Dispose(); }
+    }
+
+    private static bool IsImageType(string identifier)
+    {
+        using var type = UTType.CreateFromIdentifier(identifier);
+        return type?.ConformsTo(UTTypes.Image) == true;
+    }
+
+    private static Task<string> ImportEncodedAsync(byte[] sourceBytes)
+    {
+        return Task.Run(async () =>
         {
             using var data = NSData.FromArray(sourceBytes);
             using var source = CGImageSource.FromData(data) ?? throw new IOException("Choose a JPEG, PNG or HEIC photo.");

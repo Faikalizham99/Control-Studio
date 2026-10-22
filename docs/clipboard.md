@@ -6,7 +6,7 @@ Clipboard has three sections: **Text / Photo / Link**. The owner requested this 
 |---|---|
 | Text | Copy; exact whitespace and Unicode, up to 10,000 characters. |
 | Link | Copy or Open in the default browser; validated HTTP(S) only, up to 2,048 characters. |
-| Photo | Import from Photo Library or Files; Copy image, Preview, Share / Save to Photos. Private orientation-correct PNG, longest side at most 4,096 pixels, with a 512-pixel thumbnail. Source at most 10 MB, saved PNG at most 20 MB. |
+| Photo | Paste a copied photo, import from Photo Library or Files; Copy image, Preview, Share / Save to Photos. Private orientation-correct PNG, longest side at most 4,096 pixels, with a 512-pixel thumbnail. Source at most 10 MB, saved PNG at most 20 MB. |
 
 Names are limited to 60 characters. Existing IDs, metadata and ordering survive edits. Text is never trimmed; only outer whitespace in names/URLs is removed. Generic counter records remain preserved and hidden. User content is not included in application logs.
 
@@ -30,7 +30,7 @@ Text, Photo and Link editors share the owner's 22 October 2026 reference layout:
 
 Text has a 10,000-character editor and count, Paste, Clear, Example and an expanded editor. The expanded editor updates the same draft and does not save it; Done returns to the form. Link has a 2,048-character URL field/count and matching Paste/Clear/Example actions. Paste reads the clipboard only after a tap, rejects oversized content without truncating it, and reports unavailable text. Example confirms before replacing nonempty draft content. Normal save validation still requires a name and valid text, HTTP(S) URL or imported image.
 
-Photo has a contained preview (no cropping of the original), an empty state and explicit Photos, Files and Remove actions. Removing/replacing an existing saved photo affects its file only after a successful save; new abandoned draft imports are cleaned up. An in-progress operation disables save, navigation and the form to prevent duplicate actions.
+Photo has a contained preview (no cropping of the original), an empty state and explicit **Paste photo**, **Photo Library**, **Files** and **Remove** actions in two rows with two buttons each. Removing/replacing an existing saved photo affects its file only after a successful save; new abandoned draft imports are cleaned up. An in-progress operation disables save, navigation and the form to prevent duplicate actions.
 
 All three editors include Header colour with a live title preview and a **Use app accent** switch. Turning it off reveals the same reusable `ColourPickerView` used in Settings: five presets, custom spectrum, hue slider, labelled HEX field/error/focus border, swatch and native iOS colour picker. The component emits selection events and owns no preferences or item storage. Settings persists global changes; the item editor keeps a draft until Save. Cancel discards that draft. Resetting Use app accent saves null rather than a copy of the current accent, so future Settings changes still apply. Invalid pending HEX blocks item saving. Busy native picking disables the item form/navigation.
 
@@ -39,6 +39,12 @@ Local validation: 42 app tests and managed iOS compilation pass. Native visual m
 ## Photos
 
 Photo Library uses MAUI `PickPhotosAsync` / iOS PHPicker with one selection and no broad library access. Files remains available. Originals in Photos/Files are never edited or deleted. Cancelled/replaced drafts and successfully replaced/deleted saved images are cleaned up. A database mutation finishes before its referenced file is removed. Process termination can leave an unreferenced private draft file; there is no automatic storage sweep yet.
+
+Paste photo accesses `UIPasteboard.General.ItemProviders` only after its explicit button tap. It selects the first item offering a concrete image UTI, loads that encoded representation and sends it through the same ImageIO orientation/size normalization and private PNG/thumbnail writer as Library and Files. It does not read the clipboard when opening/resuming the page, monitor clipboard changes, download an image URL, or save an item automatically. Image-link-only, empty, inaccessible and failed pastes show a status message without replacing the existing draft. iOS may ask for paste permission; the UI uses a custom action rather than `UIPasteControl`. Apple documents the [system paste approval behaviour](https://developer.apple.com/documentation/uikit/uipastecontrol) and [item-provider transfer model](https://developer.apple.com/documentation/foundation/nsitemprovider).
+
+`PhotoImportInput` supplies the shared 10 MB encoded-input bound, empty-input checks and bounded stream reader. Native paste data length is checked before creating a managed byte copy. A successful paste uses the existing draft acceptance/cleanup path: failed transfers leave the current photo intact, Cancel deletes newly imported drafts, and Save persists the selected private copy. Multiple copied images currently import only the first image-bearing item. Animation/Live Photo content becomes a still image.
+
+Local validation for Paste photo on 22 October 2026: 61 app tests pass, including exact chunked reads, oversized/empty input, native-length bounds and cancellation. Managed iOS compilation passes. Actual cross-app paste/permission/denial, unsupported clipboard formats, preview orientation/transparency, save/reopen, replacement/cancel cleanup and both-theme button layout remain **NOT VERIFIED** on an iPhone. No new dependency, permission key, schema/version change, commit or tag is needed for the implementation.
 
 Copy writes an actual `UIImage` to `UIPasteboard`. The destination app must accept image pastes. Preview displays the saved copy. The native share sheet offers sharing and, where available, Save Image. `NSPhotoLibraryAddUsageDescription` explains that explicit save operation. No undocumented Photos URL scheme is used. Images are normalized copies; animation/Live Photo behavior and original metadata are not retained. Transparency is retained where supported.
 
