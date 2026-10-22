@@ -3,7 +3,7 @@ using Microsoft.Maui.Controls.Shapes;
 namespace ControlStudio.App.Views;
 
 /// <summary>A native button hit target with an opaque, independently drawn icon surface.</summary>
-internal sealed class ClipboardIconButton : ContentView
+internal class ClipboardIconButton : ContentView
 {
     private readonly Button tap;
     private readonly StudioGlyph icon;

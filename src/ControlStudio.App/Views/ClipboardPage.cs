@@ -22,6 +22,10 @@ public sealed class ClipboardPage : ContentPage
     private readonly RefreshView refresh = new();
     private readonly Dictionary<ClipboardKind, ClipboardSegment> segments = [];
     private readonly ClipboardVisibilityPreferences visibility = new(Preferences.Default);
+    private readonly ClipboardCopyFeedback copyFeedback = new();
+    private Window? observedWindow;
+    private int copyEpoch;
+    private bool foreground;
     private readonly PageActionButton arrange = new("Arrange", "ArrangeClipboardItems");
     private readonly PageActionButton add = new("Add", "AddClipboardItem");
     private readonly PageActionButton back = new("", "BackFromClipboard", ProfileSymbol.Back);
@@ -49,14 +53,14 @@ public sealed class ClipboardPage : ContentPage
             return Navigation.PushModalAsync(navigation);
         });
         items.ItemsLayout = new LinearItemsLayout(ItemsLayoutOrientation.Vertical) { ItemSpacing = 12 };
-        items.ItemTemplate = new DataTemplate(() => new ClipboardTile(CopyAsync, SecondaryAsync, EditAsync, DeleteAsync, ShareLinkAsync, PinAsync, visibility, VisibilityFailed));
+        items.ItemTemplate = new DataTemplate(() => new ClipboardTile(CopyAsync, SecondaryAsync, EditAsync, DeleteAsync, ShareLinkAsync, PinAsync, visibility, VisibilityFailed, copyFeedback));
         refresh.Content = items; refresh.SetDynamicResource(RefreshView.RefreshColorProperty, "AccentText");
         refresh.Refreshing += async (_, _) => await ReloadAsync();
         var switcher = new Grid { ColumnSpacing = 4, Padding = 4 };
         foreach (var kind in Enum.GetValues<ClipboardKind>())
         {
             switcher.ColumnDefinitions.Add(new(GridLength.Star));
-            var segment = new ClipboardSegment(kind, Symbol(kind), () => { if (!busy && selected != kind) { selected = kind; ShowStatus(""); Filter(); } });
+            var segment = new ClipboardSegment(kind, Symbol(kind), () => { if (!busy && selected != kind) { selected = kind; ResetCopyFeedback(); ShowStatus(""); Filter(); } });
             segments.Add(kind, segment); switcher.Add(segment, (int)kind);
         }
         var heading = new VerticalStackLayout { Padding = new Thickness(16, 12, 16, 16), Spacing = 12, Children =
@@ -65,14 +69,35 @@ public sealed class ClipboardPage : ContentPage
             SettingsControls.Rounded(switcher, 24), description, arrangeHint, status
         } };
         var layout = new Grid { RowDefinitions = { new(GridLength.Auto), new(GridLength.Auto), new(GridLength.Star) } };
-        layout.Add(PageActionBar.Clipboard(back, arrange, add)); layout.Add(heading, 0, 1); layout.Add(refresh, 0, 2); Content = layout; ShowStatus(""); Filter();
+        layout.Add(PageActionBar.Clipboard(back, arrange, add)); layout.Add(heading, 0, 1); layout.Add(refresh, 0, 2);
+        var toast = new ClipboardToastView(copyFeedback); Grid.SetRowSpan(toast, 3); layout.Add(toast);
+        Content = layout; ShowStatus(""); Filter();
     }
 
     protected override async void OnAppearing()
     {
-        base.OnAppearing(); active = true; lifetime.Dispose(); lifetime = new(); await ReloadAsync();
+        base.OnAppearing(); active = foreground = true; lifetime.Dispose(); lifetime = new();
+        ObserveWindow(); await ReloadAsync();
     }
-    protected override void OnDisappearing() { active = false; lifetime.Cancel(); base.OnDisappearing(); }
+    protected override void OnDisappearing()
+    {
+        active = foreground = false; lifetime.Cancel(); ResetCopyFeedback(); StopObservingWindow(); base.OnDisappearing();
+    }
+
+    private void ObserveWindow()
+    {
+        StopObservingWindow(); observedWindow = Window;
+        if (observedWindow is null) return;
+        observedWindow.Stopped += WindowStopped; observedWindow.Resumed += WindowResumed;
+    }
+    private void StopObservingWindow()
+    {
+        if (observedWindow is null) return;
+        observedWindow.Stopped -= WindowStopped; observedWindow.Resumed -= WindowResumed; observedWindow = null;
+    }
+    private void WindowStopped(object? sender, EventArgs args) { foreground = false; ResetCopyFeedback(); }
+    private void WindowResumed(object? sender, EventArgs args) => foreground = active;
+    private void ResetCopyFeedback() { copyEpoch++; copyFeedback.Clear(); }
 
     private void Filter()
     {
@@ -113,17 +138,43 @@ public sealed class ClipboardPage : ContentPage
     };
     private Task CopyAsync(ActionDefinition item) => GuardAsync(async token =>
     {
-        validator.Validate(item); token.ThrowIfCancellationRequested();
-        switch (item.Parameters)
+        var epoch = copyEpoch; copyFeedback.Clear(); ShowStatus("");
+        try
         {
-            case PhotoParameters photo: await ClipboardPhotoStore.CopyAsync(photo.AssetKey); break;
-            case CopyTextParameters text: await Clipboard.Default.SetTextAsync(text.Text); break;
-            case OpenUrlParameters link: await Clipboard.Default.SetTextAsync(link.Url); break;
-            default: return;
+            validator.Validate(item); token.ThrowIfCancellationRequested();
+            switch (item.Parameters)
+            {
+                case PhotoParameters photo: await ClipboardPhotoStore.CopyAsync(photo.AssetKey); break;
+                case CopyTextParameters text: await Clipboard.Default.SetTextAsync(text.Text); break;
+                case OpenUrlParameters link: await Clipboard.Default.SetTextAsync(link.Url); break;
+                default: return;
+            }
+            token.ThrowIfCancellationRequested();
         }
-        var message = item.Parameters is PhotoParameters ? "Photo copied. Paste it into an app that accepts images." : "Copied to the clipboard.";
-        ShowStatus(message); SemanticScreenReader.Default.Announce(message);
+        catch (OperationCanceledException) { throw; }
+        catch (Exception ex)
+        {
+            logger.LogWarning("Clipboard copy failed. ErrorType={ErrorType}", ex.GetType().Name);
+            if (active && foreground && epoch == copyEpoch && !token.IsCancellationRequested)
+            {
+                var message = ex is IOException or ActionValidationException ? ex.Message : "Could not copy. Please try again.";
+                ShowStatus(message);
+                _ = copyFeedback.ErrorAsync(); AnnounceCopyFeedback(message);
+            }
+            return;
+        }
+        if (!active || !foreground || epoch != copyEpoch) return;
+        _ = copyFeedback.SuccessAsync(item.Id, UIKit.UIAccessibility.IsVoiceOverRunning);
+        AnnounceCopyFeedback(item.Parameters is PhotoParameters ? "Photo copied to clipboard. Paste it into an app that accepts images." : "Copied to clipboard.");
+        // Optional feedback must never turn a successful clipboard write into a reported failure.
+        try { HapticFeedback.Default.Perform(HapticFeedbackType.Click); }
+        catch (Exception ex) { logger.LogDebug("Copy haptic unavailable. ErrorType={ErrorType}", ex.GetType().Name); }
     });
+    private void AnnounceCopyFeedback(string message)
+    {
+        try { SemanticScreenReader.Default.Announce(message); }
+        catch (Exception ex) { logger.LogDebug("Copy announcement unavailable. ErrorType={ErrorType}", ex.GetType().Name); }
+    }
     private Task ViewAsync(ActionDefinition item) => GuardAsync(async _ =>
     {
         validator.Validate(item);
@@ -214,7 +265,7 @@ public sealed class ClipboardPage : ContentPage
         private bool expanded, overflowCheckQueued;
         private Guid? boundId;
         private readonly Image photo = new() { Aspect = Aspect.AspectFit, HeightRequest = 130, HorizontalOptions = LayoutOptions.Start, WidthRequest = 160 };
-        private readonly ClipboardIconButton copy = new(StudioSymbol.Clipboard, "Copy", primary: true);
+        private readonly ClipboardCopyButton copy;
         private readonly ClipboardIconButton open = new(StudioSymbol.Open, "Open link");
         private readonly ClipboardIconButton preview = new(StudioSymbol.Expand, "Preview photo");
         private readonly ClipboardIconButton edit = new(StudioSymbol.Edit, "Edit");
@@ -222,9 +273,10 @@ public sealed class ClipboardPage : ContentPage
         private readonly ClipboardIconButton visibility = new(StudioSymbol.Preview, "Hide content");
         private readonly ClipboardConcealView conceal;
         public ClipboardTile(Func<ActionDefinition, Task> copyAction, Func<ActionDefinition, Task> secondaryAction,
-            Func<ActionDefinition, Task> editAction, Func<ActionDefinition, Task> deleteAction, Func<ActionDefinition, Task> shareAction, Func<ActionDefinition, Task> pinAction, ClipboardVisibilityPreferences visibilityStore, Action<ClipboardVisibilityErrorEventArgs> visibilityFailed)
+            Func<ActionDefinition, Task> editAction, Func<ActionDefinition, Task> deleteAction, Func<ActionDefinition, Task> shareAction, Func<ActionDefinition, Task> pinAction, ClipboardVisibilityPreferences visibilityStore, Action<ClipboardVisibilityErrorEventArgs> visibilityFailed, ClipboardCopyFeedback copyFeedback)
         {
             Margin = new Thickness(16, 0);
+            copy = new ClipboardCopyButton(copyFeedback);
             header = new ClipboardHeaderView(pin);
             link = new ClipboardLinkLabel(secondaryAction, copyAction, shareAction) { IsVisible = false };
             text.MaxLines = PreviewLines; text.LineBreakMode = LineBreakMode.TailTruncation;
@@ -275,6 +327,7 @@ public sealed class ClipboardPage : ContentPage
             conceal.Bind((BindingContext as ActionDefinition)?.Id); UpdateVisibilityCaption();
             // A different item starts collapsed; metadata updates to the same item retain expansion.
             var nextId = (BindingContext as ActionDefinition)?.Id;
+            copy.Bind(nextId, (BindingContext as ActionDefinition)?.Name ?? "item");
             if (nextId != boundId) expanded = false;
             boundId = nextId; expand.IsVisible = false;
             text.MaxLines = expanded ? -1 : PreviewLines; text.LineBreakMode = expanded ? LineBreakMode.WordWrap : LineBreakMode.TailTruncation;
@@ -295,7 +348,7 @@ public sealed class ClipboardPage : ContentPage
             if (action.Parameters is OpenUrlParameters) { link.Item = action; link.IsVisible = true; text.IsVisible = false; }
             if (action.Parameters is PhotoParameters p && ClipboardPhotoStore.GetThumbnailPath(p.AssetKey) is { } path)
             { photo.Source = path; photo.IsVisible = true; SemanticProperties.SetDescription(photo, action.Name); }
-            copy.Describe("Copy", action.Name); edit.Describe("Edit", action.Name); delete.Describe("Delete", action.Name);
+            edit.Describe("Edit", action.Name); delete.Describe("Delete", action.Name);
             open.Describe("Open link", action.Name); preview.Describe("Preview photo", action.Name);
             conceal.RefreshContent(); UpdateExpandCaption(); QueueOverflowCheck();
         }

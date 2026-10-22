@@ -13,6 +13,8 @@
     <Compile Include="../../src/ControlStudio.App/ClipboardArrangement.cs" Link="ClipboardArrangement.cs" />
     <Compile Include="../../src/ControlStudio.App/ClipboardBlurPlan.cs" Link="ClipboardBlurPlan.cs" />
     <Compile Include="../../src/ControlStudio.App/ClipboardVisibilityPreferences.cs" Link="ClipboardVisibilityPreferences.cs" />
+    <Compile Include="../../src/ControlStudio.App/ClipboardCopyFeedback.cs" Link="ClipboardCopyFeedback.cs" />
+    <Compile Include="../../src/ControlStudio.App/Views/ClipboardCopyFeedbackViews.cs" Link="Views/ClipboardCopyFeedbackViews.cs" />
     <Compile Include="../../src/ControlStudio.App/PhotoImportInput.cs" Link="PhotoImportInput.cs" />
     <Compile Include="../../src/ControlStudio.App/Views/AccentButton.cs" Link="Views/AccentButton.cs" />
     <Compile Include="../../src/ControlStudio.App/Views/AccentSurface.cs" Link="Views/AccentSurface.cs" />
