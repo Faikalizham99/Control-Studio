@@ -17,6 +17,7 @@ public sealed class WidgetsPage : ContentPage
     private readonly PageActionButton add = new("Add", "AddWidgetDesign");
     private readonly PageActionButton back = new("", "BackFromWidgets", ProfileSymbol.Back);
     private readonly ClipboardEditorActionButton refresh = new("Refresh widgets", ClipboardEditorControls.Icon(StudioSymbol.Widgets), "RefreshWidgetDesigns");
+    private readonly ClipboardEditorActionButton diagnostics = new("Widget diagnostics", ClipboardEditorControls.Icon(StudioSymbol.Widgets), "OpenWidgetDiagnostics");
     private readonly CounterWidgetPreview small = new(false);
     private readonly CounterWidgetPreview medium = new(true);
     private readonly Label status = SettingsControls.Text("", 13, secondary: true);
@@ -35,11 +36,12 @@ public sealed class WidgetsPage : ContentPage
         refresh.Clicked += async (_, _) => await ReloadAsync(publish: true);
         var setup = DashboardStyle.Button("How to add a widget");
         setup.Clicked += async (_, _) => await GuardAsync(() => Navigation.PushAsync(new AboutPage()));
+        diagnostics.Clicked += async (_, _) => await GuardAsync(() => Navigation.PushAsync(new WidgetDiagnosticsPage(studio, logger)));
         var content = new ScrollView { Content = new VerticalStackLayout { Padding = 20, Spacing = 16, Children =
         {
             SettingsControls.Text("Your widgets", 28, bold: true),
             SettingsControls.Text("Build a widget with optional photo layers. Choose Small, Medium, Large or Extra Large. Portrait Extra Large works on iPhone and iPad with iOS/iPadOS 27+.", 15, secondary: true),
-            designs, status, refresh,
+            designs, status, refresh, diagnostics,
             SettingsControls.Text("Add Control Studio → Studio Widget on your Home Screen. Touch and hold → Edit Widget → choose a design in the matching size.", 13, secondary: true),
             SettingsControls.Text("Counter widgets", 28, bold: true),
             SettingsControls.Text("Preview your counter in the two available sizes.", 15, secondary: true),
@@ -130,7 +132,7 @@ public sealed class WidgetsPage : ContentPage
             } }));
         }
     }
-    private void SetEnabled(bool enabled) => add.IsEnabled = back.IsEnabled = refresh.IsEnabled = designs.IsEnabled = enabled;
+    private void SetEnabled(bool enabled) => add.IsEnabled = back.IsEnabled = refresh.IsEnabled = diagnostics.IsEnabled = designs.IsEnabled = enabled;
     private async Task GuardAsync(Func<Task> operation)
     {
         if (busy || !active) return; busy = true; SetEnabled(false);

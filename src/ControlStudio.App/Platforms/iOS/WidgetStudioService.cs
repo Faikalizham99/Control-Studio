@@ -91,6 +91,33 @@ public sealed class WidgetStudioService
         await gate.WaitAsync();
         try { return await PublishCoreAsync(); } finally { gate.Release(); }
     }
+    public Task<WidgetDiagnosticSnapshot> ReadDiagnosticsAsync() => new WidgetDiagnosticRepository(SharedDirectory()).ReadAsync();
+    public async Task<bool> ConfigureDiagnosticsAsync(bool? textOnly)
+    {
+        await gate.WaitAsync();
+        try
+        {
+            var diagnostics = new WidgetDiagnosticRepository(SharedDirectory());
+            WidgetDiagnosticSettings? started = null;
+            if (textOnly is { } mode)
+            {
+                started = await diagnostics.StartAsync(mode);
+                try { await diagnostics.RecordHostAsync(started, mode ? "session.text-started" : "session.photo-started"); }
+                catch (Exception ex) { logger.LogWarning("Widget diagnostic event unavailable. ErrorType={ErrorType}", ex.GetType().Name); }
+            }
+            else await diagnostics.StopAsync();
+            try
+            {
+                ReloadNative();
+                if (started is not null)
+                    try { await diagnostics.RecordHostAsync(started, "reload.requested"); }
+                    catch (Exception ex) { logger.LogWarning("Widget diagnostic event unavailable. ErrorType={ErrorType}", ex.GetType().Name); }
+                return true;
+            }
+            catch (Exception ex) { logger.LogWarning("Widget diagnostic reload unavailable. ErrorType={ErrorType}", ex.GetType().Name); return false; }
+        }
+        finally { gate.Release(); }
+    }
     public async Task<bool> DeleteAsync(Guid id)
     {
         await gate.WaitAsync();

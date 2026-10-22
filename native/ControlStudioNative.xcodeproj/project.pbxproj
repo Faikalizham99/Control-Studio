@@ -69,6 +69,16 @@
 			"isa" = "PBXBuildFile";
 			"fileRef" = "426B8C1CC1D827B47E22F7EE";
 		};
+		"F95EF3914B02A6C6D9F4266C" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "sourcecode.swift";
+			"path" = "Shared/WidgetDiagnostics.swift";
+			"sourceTree" = "<group>";
+		};
+		"C10286AEF3135D7F82F27BD1" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "F95EF3914B02A6C6D9F4266C";
+		};
 		"281240187B75A46D30C238C0" = {
 			"isa" = "PBXSourcesBuildPhase";
 			"buildActionMask" = 2147483647;
@@ -78,6 +88,7 @@
 				"DD3FF1AF259ABD55EF7DF8C2",
 				"79CC07C72413E552BC034B32",
 				"0480B9A3EB8F2DFC39FD0B81",
+				"C10286AEF3135D7F82F27BD1",
 			);
 			"runOnlyForDeploymentPostprocessing" = 0;
 		};
@@ -118,8 +129,8 @@
 				"SWIFT_OPTIMIZATION_LEVEL" = "-O";
 				"SWIFT_EMIT_LOC_STRINGS" = "YES";
 				"TARGETED_DEVICE_FAMILY" = "1,2";
-				"CURRENT_PROJECT_VERSION" = "15";
-				"MARKETING_VERSION" = "0.2.13";
+				"CURRENT_PROJECT_VERSION" = "16";
+				"MARKETING_VERSION" = "0.2.14";
 				"LD_RUNPATH_SEARCH_PATHS" = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -235,8 +246,8 @@
 				"SWIFT_OPTIMIZATION_LEVEL" = "-O";
 				"SWIFT_EMIT_LOC_STRINGS" = "YES";
 				"TARGETED_DEVICE_FAMILY" = "1,2";
-				"CURRENT_PROJECT_VERSION" = "15";
-				"MARKETING_VERSION" = "0.2.13";
+				"CURRENT_PROJECT_VERSION" = "16";
+				"MARKETING_VERSION" = "0.2.14";
 				"LD_RUNPATH_SEARCH_PATHS" = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -293,6 +304,7 @@
 				"3647715DBD47B59F9F21A188",
 				"C9FF7C42709595CD3EDE50C0",
 				"426B8C1CC1D827B47E22F7EE",
+				"F95EF3914B02A6C6D9F4266C",
 				"0F641DB0626D777B6F91FE44",
 				"0A3E27B8CA818264D75C8D81",
 			);

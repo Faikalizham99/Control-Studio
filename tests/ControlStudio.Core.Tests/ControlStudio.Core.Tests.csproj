@@ -8,4 +8,5 @@
     <None Include="../../contracts/counter-v1.example.json" Link="counter-v1.example.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../contracts/widget-designs-v1.example.json" Link="widget-designs-v1.example.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
+  <ItemGroup><None Include="../../contracts/widget-diagnostics-v1.*.json" Link="%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" /></ItemGroup>
 </Project>
