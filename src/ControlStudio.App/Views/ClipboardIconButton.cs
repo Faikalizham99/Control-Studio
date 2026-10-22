@@ -10,7 +10,7 @@ internal class ClipboardIconButton : ContentView
     public StudioSymbol Symbol { get => icon.Symbol; set => icon.Symbol = value; }
     public event EventHandler? Clicked;
 
-    public ClipboardIconButton(StudioSymbol symbol, string action, bool primary = false, bool destructive = false)
+    public ClipboardIconButton(StudioSymbol symbol, string action, bool primary = false, bool destructive = false, bool decorative = false)
     {
         WidthRequest = HeightRequest = 48; MinimumWidthRequest = MinimumHeightRequest = 48;
         icon = new StudioGlyph(symbol, useAccent: false)
@@ -40,6 +40,11 @@ internal class ClipboardIconButton : ContentView
         tap.Released += (_, _) => surface.Scale = 1;
         // Keep the native hit target beneath the visuals so its UIKit states cannot cover the fill/glyph.
         Content = new Grid { Children = { tap, surface } };
+        if (decorative)
+        {
+            // Retain the exact icon surface/size without offering a fake preview action.
+            tap.IsVisible = false; InputTransparent = true; CascadeInputTransparent = true;
+        }
     }
 
     public void Describe(string action, string name)

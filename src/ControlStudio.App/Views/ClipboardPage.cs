@@ -301,9 +301,6 @@ public sealed class ClipboardPage : ContentPage
             }
             var actions = new HorizontalStackLayout { Spacing = 8, HorizontalOptions = LayoutOptions.End, Children = { visibility, edit, delete, open, preview, copy } };
             var content = new VerticalStackLayout { Spacing = 0, Children = { text, link, expand } };
-            var divider = new BoxView { HeightRequest = 1, HorizontalOptions = LayoutOptions.Fill, InputTransparent = true };
-            divider.SetAppThemeColor(BoxView.ColorProperty, Color.FromArgb("#D2D7E1"), Colors.White.WithAlpha(.18f));
-            AutomationProperties.SetIsInAccessibleTree(divider, false);
             conceal = new ClipboardConcealView(new VerticalStackLayout { Spacing = 12, Children = { content, photo } }, visibilityStore);
             conceal.VisibilityFailed += (_, args) => visibilityFailed(args);
             photo.PropertyChanged += (_, args) =>
@@ -311,7 +308,7 @@ public sealed class ClipboardPage : ContentPage
                 if (args.PropertyName == nameof(Image.IsLoading) && !photo.IsLoading) conceal.RefreshContent();
             };
             var body = new VerticalStackLayout { Padding = 12, Spacing = 12, Children = { conceal, actions } };
-            Content = new GlassCard(new VerticalStackLayout { Spacing = 0, Children = { header, divider, body } }, 0);
+            Content = ClipboardCard.Create(header, body);
             visibility.Clicked += (_, _) => { conceal.Toggle(); UpdateVisibilityCaption(); };
             pin.Clicked += async (_, _) => { if (BindingContext is ActionDefinition action) await pinAction(action); };
             copy.Clicked += async (_, _) => { if (BindingContext is ActionDefinition action) await copyAction(action); };

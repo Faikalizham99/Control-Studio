@@ -12,7 +12,7 @@ public sealed class ClipboardEditorPage : ContentPage
     private readonly AppearancePreferences preferences;
     private readonly ColourPickerView headerColours;
     private readonly Switch useAppAccent = new() { HorizontalOptions = LayoutOptions.End, AutomationId = "ClipboardHeaderUseAccent" };
-    private readonly ClipboardHeaderView headerPreview = new();
+    private readonly ClipboardHeaderView headerPreview;
     private readonly View headerColourCard;
     private string? headerColourHex;
     private bool subscribed;
@@ -38,6 +38,8 @@ public sealed class ClipboardEditorPage : ContentPage
         if (original is not null && StudioContent.Kind(original.Parameters) != kind) throw new ArgumentException("Choose a matching clipboard item.", nameof(original));
         this.repository = repository; this.validator = validator; this.original = original; this.kind = kind;
         this.preferences = preferences; headerColourHex = original?.HeaderColorHex;
+        headerPreview = new ClipboardHeaderView(new ClipboardIconButton(
+            original?.IsFavorite == true ? StudioSymbol.PinFilled : StudioSymbol.Pin, "Pin", decorative: true));
         headerColours = new ColourPickerView(colourPicker, "ClipboardHeader", "Header");
         headerColourCard = BuildHeaderColourCard();
         Title = $"{(original is null ? "New" : "Edit")} {kind.ToString().ToLowerInvariant()}";
@@ -101,8 +103,10 @@ public sealed class ClipboardEditorPage : ContentPage
         var follow = new Grid { ColumnSpacing = 12, ColumnDefinitions = { new(GridLength.Star), new(GridLength.Auto) } };
         var label = SettingsControls.Text("Use app accent", 14); label.VerticalOptions = LayoutOptions.Center;
         follow.Add(label); follow.Add(useAppAccent, 1);
-        var preview = ClipboardEditorControls.Field(headerPreview, 0);
-        preview.StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = 16 };
+        var previewBody = SettingsControls.Text("Your content appears below this header.", 13, secondary: true);
+        previewBody.Margin = 12;
+        var preview = ClipboardCard.Create(headerPreview, previewBody);
+        preview.AutomationId = "ClipboardHeaderPreview";
         return ClipboardEditorControls.Card(new VerticalStackLayout { Spacing = 12, Children =
         {
             ClipboardEditorControls.Heading("Header colour", "Personalise this item's title area", ClipboardEditorControls.Icon(StudioSymbol.Tag)),
