@@ -120,7 +120,7 @@ public sealed class WidgetStudioService
         var scale = Math.Min(2, WidgetDesignRules.MaximumImageEdge / Math.Max(canvas.Width, canvas.Height));
         var width = Math.Floor(canvas.Width * scale); var height = Math.Floor(canvas.Height * scale);
         using var format = UIGraphicsImageRendererFormat.DefaultFormat;
-        format.Scale = 1; format.Opaque = true; format.PreferredRange = UIGraphicsImageRendererFormatRange.Standard;
+        format.Scale = 1; format.Opaque = !design.TransparentBackground; format.PreferredRange = UIGraphicsImageRendererFormatRange.Standard;
         using var renderer = new UIGraphicsImageRenderer(new CGSize(width, height), format);
         var sources = new List<(UIImage Image, CGRect Frame, WidgetImageRect Placement)>();
         try
@@ -139,11 +139,22 @@ public sealed class WidgetStudioService
             using var fill = Color.FromArgb(design.BackgroundHex).ToCGColor();
             using var rendered = renderer.CreateImage(context =>
             {
-                var graphics = context.CGContext; graphics.SetFillColor(fill); graphics.FillRect(new CGRect(0, 0, width, height));
-                foreach (var source in sources)
+                var graphics = context.CGContext;
+                if (design.TransparentBackground) graphics.ClearRect(new CGRect(0, 0, width, height));
+                else { graphics.SetFillColor(fill); graphics.FillRect(new CGRect(0, 0, width, height)); }
+                var index = 0;
+                foreach (var layer in design.Layers.Where(x => x.Visible))
                 {
+                    var source = sources[index++];
                     graphics.SaveState(); graphics.ClipToRect(source.Frame);
-                    source.Image.Draw(new CGRect(source.Frame.X + source.Placement.X, source.Frame.Y + source.Placement.Y, source.Placement.Width, source.Placement.Height));
+                    graphics.TranslateCTM((nfloat)(source.Frame.X + source.Placement.X + source.Placement.Width / 2),
+                        (nfloat)(source.Frame.Y + source.Placement.Y + source.Placement.Height / 2));
+                    graphics.RotateCTM((nfloat)(layer.QuarterTurns * Math.PI / 2));
+                    var odd = layer.QuarterTurns % 2 != 0;
+                    graphics.ScaleCTM((odd ? layer.FlipVertical : layer.FlipHorizontal) ? -1 : 1, (odd ? layer.FlipHorizontal : layer.FlipVertical) ? -1 : 1);
+                    var imageWidth = odd ? source.Placement.Height : source.Placement.Width;
+                    var imageHeight = odd ? source.Placement.Width : source.Placement.Height;
+                    source.Image.Draw(new CGRect(-imageWidth / 2, -imageHeight / 2, imageWidth, imageHeight), CGBlendMode.Normal, (nfloat)layer.Opacity);
                     graphics.RestoreState();
                 }
             });

@@ -32,6 +32,20 @@ final class WidgetDesignStoreTests: XCTestCase {
         try png.write(to: folder.appendingPathComponent(designs[0].renderKey + ".png"))
         XCTAssertEqual(try store.imageData(for: designs[0]), png)
     }
+    func testTransparencyIsOptionalForLegacyCatalogsAndReadFromUpdatedDesigns() throws {
+        let url = directory.appendingPathComponent("catalog.json")
+        try fixture.write(to: url)
+        XCTAssertNil(try store.read().first?.transparentBackground)
+        var catalog = try JSONSerialization.jsonObject(with: fixture) as! [String: Any]
+        var design = (catalog["designs"] as! [[String: Any]])[0]
+        for transparent in [true, false] {
+            design["transparentBackground"] = transparent; catalog["designs"] = [design]
+            let bytes = try JSONSerialization.data(withJSONObject: catalog)
+            try bytes.write(to: url)
+            XCTAssertEqual(try store.read().first?.transparentBackground, transparent)
+            XCTAssertEqual(try Data(contentsOf: url), bytes)
+        }
+    }
     func testMissingCatalogIsEmptyButCorruptAndFutureCatalogAreNeverReset() throws {
         XCTAssertTrue(try store.read().isEmpty)
         let url = directory.appendingPathComponent("catalog.json")

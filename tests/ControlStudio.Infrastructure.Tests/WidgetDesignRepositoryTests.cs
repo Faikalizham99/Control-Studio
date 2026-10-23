@@ -30,6 +30,25 @@ public sealed class WidgetDesignRepositoryTests : IDisposable
         return WidgetDesignRules.New() with { Layers = [new WidgetLayer(Guid.NewGuid(), "Photo 1", key, 1, 1, new(.1, .2, .5, .5), 2, .3, .7)] };
     }
     [Fact]
+    public async Task TransparentTransformsSurviveSavePublishReopenAndFailedEdits()
+    {
+        var repo = Repository(); var draft = await PhotoDraft();
+        draft = draft with { Layers = [draft.Layers[0] with { QuarterTurns = 3, FlipHorizontal = true, FlipVertical = true, Opacity = .45 }] };
+        var saved = await repo.SaveAsync(draft, Png, thumbnail: Png); await repo.AssignSlotAsync(saved.Size, 2, saved.Id);
+        var reopened = Assert.Single(await Repository().ReadAsync());
+        Assert.True(reopened.TransparentBackground); Assert.Equal(draft.Layers, reopened.Layers);
+        var before = await File.ReadAllBytesAsync(Path.Combine(Private, "catalog.json"));
+        await Assert.ThrowsAsync<IOException>(() => repo.SaveAsync(reopened with { Layers = [reopened.Layers[0] with { Opacity = 2 }] }, Png));
+        Assert.Equal(before, await File.ReadAllBytesAsync(Path.Combine(Private, "catalog.json")));
+        await new WidgetDesignPublisher(repo, () => Shared).PublishAsync();
+        var shared = JsonSerializer.Deserialize(await File.ReadAllBytesAsync(Path.Combine(Shared, "catalog.json")), WidgetDesignRules.JsonContext.WidgetCatalog)!;
+        var published = Assert.Single(shared.Designs); Assert.True(published.TransparentBackground); Assert.Equal(draft.Layers, published.Layers);
+        Assert.Equal(saved.Id, Assert.Single((await Repository().ReadLibraryAsync()).Slots).DesignId);
+        var solid = await repo.SaveAsync(reopened with { TransparentBackground = false, BackgroundHex = "#FFFFFF" }, Png);
+        Assert.False(Assert.Single(await Repository().ReadAsync()).TransparentBackground);
+        Assert.Equal(saved.Id, solid.Id); Assert.Equal(saved.Revision + 1, solid.Revision);
+    }
+    [Fact]
     public async Task RetiredDesignsStayPrivateUntilExplicitResizeAndCannotStealExistingPhoneSlots()
     {
         var repo = Repository();

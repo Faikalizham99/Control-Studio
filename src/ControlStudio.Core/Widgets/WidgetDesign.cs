@@ -10,9 +10,9 @@ public enum WidgetLayerKind { Photo }
 public sealed record WidgetFrame(double X = 0, double Y = 0, double Width = 1, double Height = 1);
 public sealed record WidgetLayer(Guid Id, string Name, string AssetKey, int PixelWidth, int PixelHeight,
     WidgetFrame Frame, double Zoom = 1, double CropX = .5, double CropY = .5, bool Visible = true,
-    WidgetLayerKind Kind = WidgetLayerKind.Photo);
+    WidgetLayerKind Kind = WidgetLayerKind.Photo, int QuarterTurns = 0, bool FlipHorizontal = false, bool FlipVertical = false, double Opacity = 1);
 public sealed record WidgetDesign(Guid Id, string Name, WidgetSize Size, string BackgroundHex,
-    IReadOnlyList<WidgetLayer> Layers, string RenderKey, int Revision = 0);
+    IReadOnlyList<WidgetLayer> Layers, string RenderKey, int Revision = 0, bool TransparentBackground = false);
 public sealed record WidgetCatalog(int SchemaVersion, IReadOnlyList<WidgetDesign> Designs);
 
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
@@ -44,7 +44,7 @@ public static class WidgetDesignRules
         json.Converters.Add(new JsonStringEnumConverter<WidgetLayerKind>(JsonNamingPolicy.CamelCase, false));
         return json;
     }
-    public static WidgetDesign New() => new(Guid.NewGuid(), "My widget", WidgetSize.Small, "#101116", [], Guid.NewGuid().ToString("N"));
+    public static WidgetDesign New() => new(Guid.NewGuid(), "My widget", WidgetSize.Small, "#101116", [], Guid.NewGuid().ToString("N"), TransparentBackground: true);
     public static bool ValidKey(string? key) => key is { Length: 32 } && Guid.TryParseExact(key, "N", out _) && key == key.ToLowerInvariant();
     public static string SizeName(WidgetSize size) => size switch
     {
@@ -78,7 +78,8 @@ public static class WidgetDesignRules
                 || layer.Frame is not { } f || !Range(f.X, 0, 1) || !Range(f.Y, 0, 1)
                 || !Range(f.Width, .05, 1) || !Range(f.Height, .05, 1)
                 || f.X + f.Width > 1.000001 || f.Y + f.Height > 1.000001
-                || !Range(layer.Zoom, 1, 4) || !Range(layer.CropX, 0, 1) || !Range(layer.CropY, 0, 1))
+                || !Range(layer.Zoom, 1, 4) || !Range(layer.CropX, 0, 1) || !Range(layer.CropY, 0, 1)
+                || layer.QuarterTurns is < 0 or > 3 || !Range(layer.Opacity, 0, 1))
                 throw new IOException("A photo layer is invalid. Its data was not changed.");
         }
     }
@@ -98,8 +99,11 @@ public static class WidgetPhotoGeometry
     public static WidgetImageRect Image(WidgetLayer layer, double frameWidth, double frameHeight)
     {
         if (frameWidth <= 0 || frameHeight <= 0 || !double.IsFinite(frameWidth) || !double.IsFinite(frameHeight)) return default;
-        var scale = Math.Max(frameWidth / layer.PixelWidth, frameHeight / layer.PixelHeight) * layer.Zoom;
-        var width = layer.PixelWidth * scale; var height = layer.PixelHeight * scale;
+        var rotated = layer.QuarterTurns % 2 != 0;
+        var pixelsWide = rotated ? layer.PixelHeight : layer.PixelWidth;
+        var pixelsHigh = rotated ? layer.PixelWidth : layer.PixelHeight;
+        var scale = Math.Max(frameWidth / pixelsWide, frameHeight / pixelsHigh) * layer.Zoom;
+        var width = pixelsWide * scale; var height = pixelsHigh * scale;
         return new(-(width - frameWidth) * layer.CropX, -(height - frameHeight) * layer.CropY, width, height);
     }
 }

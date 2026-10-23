@@ -2,7 +2,7 @@ using Microsoft.Maui.Graphics;
 
 namespace ControlStudio.App.Views;
 
-internal enum StudioSymbol { Widgets, Clipboard, Counter, Bars, Calendar, Photo, Text, Link, Chevron, Edit, Delete, Open, Preview, Tag, Expand, Clear, EyeOff, Pin, PinFilled, Check, LayerUp, LayerDown, Plus, Hash, Refresh }
+internal enum StudioSymbol { Widgets, Clipboard, Counter, Bars, Calendar, Photo, Text, Link, Chevron, Edit, Delete, Open, Preview, Tag, Expand, Clear, EyeOff, Pin, PinFilled, Check, LayerUp, LayerDown, Plus, Hash, Refresh, RotateLeft, RotateRight, Flip, Opacity, Drag, More }
 
 internal sealed class StudioGlyph : GraphicsView, IDrawable
 {
@@ -130,6 +130,27 @@ internal sealed class StudioGlyph : GraphicsView, IDrawable
             var arc = new PathF(); arc.MoveTo(20, 9); arc.CurveTo(17, 1, 5, 1, 3, 11);
             arc.MoveTo(4, 15); arc.CurveTo(7, 23, 19, 23, 21, 13); canvas.DrawPath(arc);
             Lines(canvas, 20, 3, 20, 9, 14, 9); Lines(canvas, 4, 21, 4, 15, 10, 15);
+        }
+        else if (symbol is StudioSymbol.RotateLeft or StudioSymbol.RotateRight)
+        {
+            if (symbol == StudioSymbol.RotateRight) { canvas.Translate(24, 0); canvas.Scale(-1, 1); }
+            var arc = new PathF(); arc.MoveTo(5, 8); arc.CurveTo(13, -2, 25, 10, 18, 18); arc.CurveTo(12, 25, 2, 19, 4, 13); canvas.DrawPath(arc);
+            Lines(canvas, 5, 2, 5, 8, 11, 8);
+        }
+        else if (symbol == StudioSymbol.Flip)
+        {
+            Lines(canvas, 3, 9, 10, 3, 10, 9, 3, 9); Lines(canvas, 14, 15, 21, 15, 14, 21, 14, 15);
+            canvas.DrawLine(3, 12, 21, 12);
+        }
+        else if (symbol == StudioSymbol.Opacity)
+        {
+            var drop = new PathF(); drop.MoveTo(12, 2); drop.CurveTo(9, 7, 4, 12, 4, 15); drop.CurveTo(4, 24, 20, 24, 20, 15); drop.CurveTo(20, 12, 15, 7, 12, 2); drop.Close(); canvas.DrawPath(drop);
+        }
+        else if (symbol is StudioSymbol.Drag or StudioSymbol.More)
+        {
+            canvas.FillColor = Tint;
+            if (symbol == StudioSymbol.More) { canvas.FillCircle(5, 12, 1.5f); canvas.FillCircle(12, 12, 1.5f); canvas.FillCircle(19, 12, 1.5f); }
+            else for (var y = 5; y <= 19; y += 7) { canvas.FillCircle(9, y, 1.2f); canvas.FillCircle(15, y, 1.2f); }
         }
         else if (symbol == StudioSymbol.Check) Lines(canvas, 4, 12, 9, 17, 20, 6);
         else if (symbol == StudioSymbol.Chevron) Lines(canvas, 9, 5, 16, 12, 9, 19);

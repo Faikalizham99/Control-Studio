@@ -22,6 +22,7 @@ struct WidgetDesignSummary: Decodable, Equatable {
     let size: WidgetDesignSize
     let renderKey: String
     let revision: Int
+    let transparentBackground: Bool?
 }
 
 struct WidgetDesignCatalog: Decodable {

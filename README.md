@@ -1,6 +1,8 @@
 # Control Studio
 
-The button alignment fix shares vertical centring of text and icons across widget, Clipboard editor, profile and common page actions, and corrects the Counter preview header. See [affected controls and verification](docs/ui-components.md). The owner authorized committing and pushing main; no new version tag or IPA build is authorized for this fix.
+Version **0.2.22 (24)** redesigns the photo-layer widget editor with size-aware live previews, drag/pinch/corner resizing, rotation, flips, opacity, layer visibility/reordering and optional solid or transparent backgrounds. It also includes the shared button-caption alignment fix. The owner authorized committing, pushing main and pushing the new version tag, and will monitor the IPA build. All 310 local automated tests and managed iOS C# compilation pass; native/device UI, gestures and actual wallpaper-through transparency still require verification. See [editor behavior and verification limits](docs/widget-editor.md).
+
+The button alignment fix shares vertical centring of text and icons across widget, Clipboard editor, profile and common page actions, and corrects the Counter preview header. See [affected controls and verification](docs/ui-components.md). This is included in the authorized 0.2.22 release.
 
 Version **0.2.21 (23)** includes the My Widgets clarity fix, Counter theme/accent sharing, Studio icon accents and iPhone widget-size cleanup. My Widgets loads the saved full render in large preview cards instead of enlarging the 256-pixel thumbnail. Images load around the visible scroll area with at most six active sources, and release on departure/rebuild. Existing saved designs need no recreation. See [root cause and validation](docs/widget-preview-clarity.md). The owner authorized committing, pushing main and pushing the new version tag, and will monitor the IPA build. Native/device verification remains pending.
 

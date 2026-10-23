@@ -7,6 +7,7 @@ struct StudioSlotEntry: TimelineEntry {
     let slot: Int
     var image: UIImage? = nil
     var name = ""
+    var transparentBackground = false
     var message = "Assign a saved design to this slot in Control Studio, under Studio → My Widgets → Widget slots."
 }
 
@@ -43,7 +44,7 @@ struct StudioSlotProvider: TimelineProvider {
                     message: "Assign a \(size.title) design to slot \(slot) in Control Studio → Studio → My Widgets → Widget slots.")
             }
             guard let image = UIImage(data: try store.imageData(for: design)) else { throw WidgetDesignError.imageUnavailable }
-            return StudioSlotEntry(date: .now, slot: slot, image: image, name: design.name)
+            return StudioSlotEntry(date: .now, slot: slot, image: image, name: design.name, transparentBackground: design.transparentBackground ?? false)
         } catch CounterError.storageUnavailable {
             return StudioSlotEntry(date: .now, slot: slot, message: "App Group access is unavailable. Open Control Studio and check signing in Settings.")
         } catch {
@@ -69,7 +70,10 @@ struct StudioSlotView: View {
                 }.padding(16).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
             }
         }
-        .containerBackground(.background, for: .widget)
+        .containerBackground(for: .widget) {
+            if entry.image != nil && entry.transparentBackground { Color.clear }
+            else { Color(uiColor: .systemBackground) }
+        }
     }
     @ViewBuilder private func photo(_ image: UIImage) -> some View {
         if #available(iOS 18.0, *) { Image(uiImage: image).resizable().widgetAccentedRenderingMode(.fullColor) }

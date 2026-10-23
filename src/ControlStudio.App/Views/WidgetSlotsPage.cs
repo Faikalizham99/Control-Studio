@@ -152,6 +152,7 @@ internal sealed class WidgetSlotsPage : ContentPage
         private readonly Label empty = SettingsControls.Text("", 14, secondary: true);
         private readonly Image preview = new() { Aspect = Aspect.AspectFit, HeightRequest = 130, InputTransparent = true };
         private readonly Border emptyPreview;
+        private readonly WidgetCheckerboard checker = new() { HeightRequest = 130 };
         private readonly ClipboardEditorActionButton assign, change, clear;
         private readonly string title;
         private string? imagePath;
@@ -160,7 +161,7 @@ internal sealed class WidgetSlotsPage : ContentPage
             title = WidgetSlotRules.Title(family, number);
             name.MaxLines = 2; name.LineBreakMode = LineBreakMode.TailTruncation;
             emptyPreview = ClipboardEditorControls.Field(empty, 18); emptyPreview.HeightRequest = 130;
-            var image = new Grid { Children = { emptyPreview, preview } };
+            var image = new Grid { Children = { checker, emptyPreview, preview } };
             assign = new("Assign", null, $"Assign{family}Slot{number}", primary: true);
             change = new("Change", null, $"Change{family}Slot{number}", primary: true);
             clear = new("Clear", null, $"Clear{family}Slot{number}");
@@ -178,6 +179,7 @@ internal sealed class WidgetSlotsPage : ContentPage
             empty.Text = design is null ? "Not assigned" : "Preview missing";
             if (imagePath != path) { imagePath = path; preview.Source = path; }
             preview.IsVisible = path is not null; emptyPreview.IsVisible = path is null;
+            checker.IsVisible = path is not null && design?.TransparentBackground == true;
             assign.IsVisible = design is null; change.IsVisible = clear.IsVisible = design is not null;
             SemanticProperties.SetDescription(preview, $"{title} preview: {design?.Name}");
             SemanticProperties.SetDescription(emptyPreview, design is null ? $"{title} is empty" : $"{title} preview unavailable. Open the design and save it again.");

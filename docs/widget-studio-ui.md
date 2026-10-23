@@ -1,5 +1,7 @@
 # Studio widget library interface
 
+The [photo layer editor update](widget-editor.md) supersedes the earlier deferred drag/pinch work and documents the new editor controls, transparency pipeline and device verification limits.
+
 The [iPhone widget-size cleanup](iphone-widget-sizes.md) removes the former XL layout switch and keeps one Extra Large option. This supersedes the earlier multi-layout behavior; saved designs in the retired layout remain recoverable without deleting photos.
 
 ## Studio icon accent update
