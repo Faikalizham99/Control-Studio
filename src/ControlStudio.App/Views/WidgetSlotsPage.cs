@@ -6,7 +6,7 @@ namespace ControlStudio.App.Views;
 
 internal sealed class WidgetSlotsPage : ContentPage
 {
-    private static readonly WidgetSize[] Sizes = [WidgetSize.Small, WidgetSize.Medium, WidgetSize.Large, WidgetSize.ExtraLargePortrait, WidgetSize.ExtraLarge];
+    private static readonly WidgetSize[] Sizes = WidgetDesignRules.SupportedSizes.ToArray();
     private readonly WidgetStudioService studio;
     private readonly ILogger logger;
     private readonly PageActionButton back = new("", "BackFromWidgetSlots", ProfileSymbol.Back);
@@ -47,7 +47,7 @@ internal sealed class WidgetSlotsPage : ContentPage
         var content = new VerticalStackLayout { Padding = new Thickness(20, 12, 24, 24), Spacing = 14, Children =
         {
             status, slots,
-            SettingsControls.Text("Studio 1 in Small uses Small 1; Studio 1 in Medium uses Medium 1. Copies of the same slot and size show the same design. Empty slots never substitute another photo. Home Screen availability depends on your iPhone/iPad and iOS version.", 13, secondary: true)
+            SettingsControls.Text("Studio 1 in Small uses Small 1; Studio 1 in Medium uses Medium 1. Copies of the same slot and size show the same design. Empty slots never substitute another photo. Extra Large requires iOS 27 or later on iPhone.", 13, secondary: true)
         } };
         var layout = new Grid { RowDefinitions = { new(GridLength.Auto), new(GridLength.Auto), new(GridLength.Star) } };
         layout.Add(PageActionBar.Modal(Title, back, refresh)); layout.Add(header, 0, 1);

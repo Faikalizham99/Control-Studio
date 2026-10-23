@@ -14,7 +14,6 @@ internal sealed class WidgetEditorPage : ContentPage
     private readonly WidgetCanvasView canvas;
     private readonly ProfileNameEntry name = new() { MaxLength = 60, Placeholder = "Widget name", BackgroundColor = Colors.Transparent, FontSize = 15, HeightRequest = 44 };
     private readonly Picker size = new() { Title = "Widget size", ItemsSource = new[] { "Small", "Medium", "Large", "Extra Large" } };
-    private readonly Picker extraLargeLayout = new() { Title = "Extra Large layout", ItemsSource = new[] { "Portrait · iPhone/iPadOS 27+", "Landscape · iPad" } };
     private readonly VerticalStackLayout form = new() { Padding = new Thickness(16, 12, 16, 28), Spacing = 16 };
     private readonly VerticalStackLayout layerList = new() { Spacing = 8 };
     private readonly VerticalStackLayout controls = new() { Spacing = 6 };
@@ -35,37 +34,29 @@ internal sealed class WidgetEditorPage : ContentPage
 
     public WidgetEditorPage(WidgetStudioService studio, AppleColorPicker colourPicker, ILogger logger, WidgetDesign? original = null, WidgetSize initialSize = WidgetSize.Small)
     {
-        this.studio = studio; this.logger = logger; draft = original ?? (WidgetDesignRules.New() with { Size = initialSize });
+        this.studio = studio; this.logger = logger; draft = WidgetDesignRules.ForEditing(original ?? (WidgetDesignRules.New() with { Size = initialSize }));
         Title = original is null ? "New widget" : "Edit widget"; AutomationId = "WidgetEditorPage";
         SafeAreaEdges = SafeAreaEdges.All; DashboardStyle.Page(this); NavigationPage.SetHasNavigationBar(this, false);
-        name.Text = draft.Name; size.SelectedIndex = Math.Min(3, (int)draft.Size);
-        extraLargeLayout.SelectedIndex = draft.Size == WidgetSize.ExtraLarge ? 1 : 0;
+        name.Text = draft.Name; size.SelectedIndex = Array.IndexOf(WidgetDesignRules.SupportedSizes.ToArray(), draft.Size);
         name.SetAppThemeColor(Entry.TextColorProperty, Color.FromArgb("#16171C"), Colors.White);
         size.SetAppThemeColor(Picker.TextColorProperty, Color.FromArgb("#16171C"), Colors.White);
-        extraLargeLayout.SetAppThemeColor(Picker.TextColorProperty, Color.FromArgb("#16171C"), Colors.White);
         SemanticProperties.SetDescription(name, "Widget name"); SemanticProperties.SetDescription(size, "Widget size");
-        SemanticProperties.SetDescription(extraLargeLayout, "Extra Large layout and device compatibility");
         canvas = new WidgetCanvasView(studio.Repository.AssetPath, id => { selected = id; RefreshLayers(); });
-        var layoutField = ClipboardEditorControls.Field(extraLargeLayout, new Thickness(12, 0));
-        layoutField.IsVisible = size.SelectedIndex == 3;
         void ChangeSize()
         {
             if (size.SelectedIndex < 0 || busy) return;
-            layoutField.IsVisible = size.SelectedIndex == 3;
-            draft = draft with { Size = size.SelectedIndex == 3
-                ? (extraLargeLayout.SelectedIndex == 1 ? WidgetSize.ExtraLarge : WidgetSize.ExtraLargePortrait)
-                : (WidgetSize)size.SelectedIndex };
+            draft = draft with { Size = WidgetDesignRules.SupportedSizes[size.SelectedIndex] };
             RefreshControls(); UpdateCanvas();
         }
         size.SelectedIndexChanged += (_, _) => ChangeSize();
-        extraLargeLayout.SelectedIndexChanged += (_, _) => ChangeSize();
         form.Children.Add(ClipboardEditorControls.Card(new VerticalStackLayout { Spacing = 10, Children =
         {
             SettingsControls.Text("Make it your widget.", 25, bold: true),
             ClipboardEditorControls.Field(name, new Thickness(12, 0)), ClipboardEditorControls.Field(size, new Thickness(12, 0)),
-            layoutField,
-            SettingsControls.Text("Extra Large Portrait works on iPhone and iPad with iOS/iPadOS 27 or later. Landscape is for iPad. You can design either here; changing size keeps layer positions proportionally, but photo crops may change.", 12, secondary: true)
+            SettingsControls.Text("Extra Large requires iOS 27 or later on iPhone. Changing size keeps layer positions proportionally, but photo crops may change.", 12, secondary: true)
         } }));
+        if (original is not null && !WidgetDesignRules.IsSupported(original.Size))
+            form.Children.Add(SettingsControls.Text("This saved design uses a retired layout. Review the new proportions, then Save widget and assign an Extra Large slot. Your photos are kept. Cancel leaves the saved design unchanged.", 14, secondary: true));
         form.Children.Add(SettingsControls.Text("Live preview", 19, bold: true)); form.Children.Add(canvas);
         form.Children.Add(SettingsControls.Text("Preview proportions vary by device. Tap a photo to select it, then use the controls to position, resize and crop it.", 12, secondary: true));
         addPhoto = Action("Add photo layer", StudioSymbol.Photo, "AddWidgetPhoto", PickPhotoAsync);

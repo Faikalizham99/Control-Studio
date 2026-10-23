@@ -12,7 +12,7 @@ public sealed class WidgetStudioLayoutTests : IDisposable
     [Fact]
     public void EveryPreviewFitsNarrowAndWidePagesWithoutCroppingOrChangingProportions()
     {
-        foreach (var family in Enum.GetValues<WidgetSize>())
+        foreach (var family in WidgetDesignRules.SupportedSizes)
         foreach (var width in new[] { 140d, 270, 360, 820 })
         {
             var frame = WidgetPreviewFrame.Fit(family, width); var canvas = WidgetDesignRules.Canvas(family);

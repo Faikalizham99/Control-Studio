@@ -86,6 +86,7 @@ public sealed class WidgetDesignRepository
     public async Task<WidgetDesign> SaveAsync(WidgetDesign draft, byte[] render, CancellationToken token = default, byte[]? thumbnail = null)
     {
         WidgetDesignRules.Validate(draft); ValidatePng(render);
+        if (!WidgetDesignRules.IsSupported(draft.Size)) throw new IOException("Open this saved design in the editor and save it in a supported iPhone size.");
         if (thumbnail is not null) ValidatePng(thumbnail);
         await gate.WaitAsync(token);
         try

@@ -25,9 +25,11 @@ public sealed class WidgetSlotTests
     [Fact]
     public void EveryFamilyHasTenSlotsAndSerializedPayloadFitsItsBound()
     {
-        var slots = Enum.GetValues<WidgetSize>().SelectMany(size => Enumerable.Range(1, 10).Select(number => new WidgetSlotAssignment(size, number, Guid.NewGuid()))).ToArray();
+        var slots = WidgetDesignRules.SupportedSizes.SelectMany(size => Enumerable.Range(1, 10).Select(number => new WidgetSlotAssignment(size, number, Guid.NewGuid()))).ToArray();
         var catalog = new WidgetSlotCatalog(1, slots); WidgetSlotRules.Validate(catalog);
-        Assert.Equal(50, slots.Length);
+        Assert.Equal(40, slots.Length);
+        Assert.Equal("Extra Large 10", WidgetSlotRules.Title(WidgetSize.ExtraLargePortrait, 10));
+        Assert.Throws<IOException>(() => WidgetSlotRules.ValidateAddress(WidgetSize.ExtraLarge, 1));
         Assert.True(JsonSerializer.SerializeToUtf8Bytes(catalog, WidgetDesignRules.JsonContext.WidgetSlotCatalog).Length < WidgetSlotRules.MaximumCatalogBytes);
         Assert.Throws<IOException>(() => WidgetSlotRules.Validate(new WidgetSlotCatalog(1, [.. slots, slots[0]])));
     }

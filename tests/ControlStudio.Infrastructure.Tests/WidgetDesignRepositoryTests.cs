@@ -30,29 +30,73 @@ public sealed class WidgetDesignRepositoryTests : IDisposable
         return WidgetDesignRules.New() with { Layers = [new WidgetLayer(Guid.NewGuid(), "Photo 1", key, 1, 1, new(.1, .2, .5, .5), 2, .3, .7)] };
     }
     [Fact]
-    public async Task PortraitAndLandscapePersistAndPublishAsDistinctDesigns()
+    public async Task RetiredDesignsStayPrivateUntilExplicitResizeAndCannotStealExistingPhoneSlots()
     {
         var repo = Repository();
         var portrait = await repo.SaveAsync(WidgetDesignRules.New() with { Size = WidgetSize.ExtraLargePortrait }, Png);
-        var landscape = await repo.SaveAsync(WidgetDesignRules.New() with { Size = WidgetSize.ExtraLarge }, Png);
+        var landscape = await repo.SaveAsync((await PhotoDraft()) with { Name = "Retired design", Size = WidgetSize.Large }, Png);
+        // Simulate a library written by the previous version. New saves reject this size.
+        landscape = landscape with { Size = WidgetSize.ExtraLarge };
+        var library = new WidgetLibraryCatalog(2, [portrait, landscape], [new(portrait.Size, 1, portrait.Id), new(landscape.Size, 1, landscape.Id)]);
+        var path = Path.Combine(Private, "catalog.json");
+        var before = JsonSerializer.SerializeToUtf8Bytes(library, WidgetDesignRules.JsonContext.WidgetLibraryCatalog);
+        await File.WriteAllBytesAsync(path, before);
         var reopened = await Repository().ReadAsync();
         Assert.Equal(WidgetSize.ExtraLargePortrait, reopened.Single(x => x.Id == portrait.Id).Size);
         Assert.Equal(WidgetSize.ExtraLarge, reopened.Single(x => x.Id == landscape.Id).Size);
+        Directory.CreateDirectory(Shared);
+        await File.WriteAllBytesAsync(Path.Combine(Shared, "catalog.json"), JsonSerializer.SerializeToUtf8Bytes(new WidgetCatalog(1, library.Designs), WidgetDesignRules.JsonContext.WidgetCatalog));
+        await File.WriteAllBytesAsync(Path.Combine(Shared, "slots.json"), JsonSerializer.SerializeToUtf8Bytes(new WidgetSlotCatalog(1, library.Slots), WidgetDesignRules.JsonContext.WidgetSlotCatalog));
+        File.Delete(repo.RenderPath(landscape.RenderKey)!); // A retired render must not block valid iPhone widgets.
         await new WidgetDesignPublisher(repo, () => Shared).PublishAsync();
         var catalog = JsonSerializer.Deserialize<WidgetCatalog>(await File.ReadAllBytesAsync(Path.Combine(Shared, "catalog.json")), WidgetDesignRules.Json)!;
-        Assert.Equal(2, catalog.Designs.Count);
+        Assert.Single(catalog.Designs);
         Assert.Equal(WidgetSize.ExtraLargePortrait, catalog.Designs.Single(x => x.Id == portrait.Id).Size);
-        Assert.Equal(WidgetSize.ExtraLarge, catalog.Designs.Single(x => x.Id == landscape.Id).Size);
+        var slots = JsonSerializer.Deserialize(await File.ReadAllBytesAsync(Path.Combine(Shared, "slots.json")), WidgetDesignRules.JsonContext.WidgetSlotCatalog)!;
+        Assert.Equal(portrait.Id, Assert.Single(slots.Slots).DesignId);
+        Assert.Equal(before, await File.ReadAllBytesAsync(path));
+        await Assert.ThrowsAsync<IOException>(() => repo.SaveAsync(landscape, Png));
+        await Assert.ThrowsAsync<IOException>(() => repo.AssignSlotAsync(WidgetSize.ExtraLarge, 2, landscape.Id));
+        Assert.Equal(before, await File.ReadAllBytesAsync(path));
+        var resized = await repo.SaveAsync(WidgetDesignRules.ForEditing(landscape), Png);
+        Assert.Equal(landscape.Id, resized.Id); Assert.Equal(landscape.Revision + 1, resized.Revision);
+        Assert.Equal(landscape.Layers, resized.Layers); Assert.NotNull(repo.AssetPath(landscape.Layers[0].AssetKey));
+        Assert.Equal(portrait.Id, Assert.Single((await repo.ReadLibraryAsync()).Slots).DesignId);
+        await repo.AssignSlotAsync(resized.Size, 2, resized.Id);
+        await new WidgetDesignPublisher(repo, () => Shared).PublishAsync();
+        var after = await repo.ReadLibraryAsync(); Assert.Equal(2, after.Slots.Count);
+        Assert.Contains(after.Slots, x => x.Number == 1 && x.DesignId == portrait.Id);
+        Assert.Contains(after.Slots, x => x.Number == 2 && x.DesignId == resized.Id);
+    }
+    [Theory]
+    [InlineData(1)] [InlineData(2)]
+    public async Task OldLibrariesAndPhotosRemainUnchangedWhenResizeIsCanceledOrConflicts(int schema)
+    {
+        var repo = Repository();
+        var phone = await repo.SaveAsync(WidgetDesignRules.New() with { Size = WidgetSize.ExtraLargePortrait }, Png);
+        var old = (await repo.SaveAsync((await PhotoDraft()) with { Size = WidgetSize.Large }, Png)) with { Size = WidgetSize.ExtraLarge };
+        var bytes = schema == 1
+            ? JsonSerializer.SerializeToUtf8Bytes(new WidgetCatalog(1, [phone, old]), WidgetDesignRules.JsonContext.WidgetCatalog)
+            : JsonSerializer.SerializeToUtf8Bytes(new WidgetLibraryCatalog(2, [phone, old], [new(phone.Size, 1, phone.Id), new(old.Size, 1, old.Id)]), WidgetDesignRules.JsonContext.WidgetLibraryCatalog);
+        var path = Path.Combine(Private, "catalog.json"); await File.WriteAllBytesAsync(path, bytes);
+        var library = await repo.ReadLibraryAsync(); Assert.Equal(2, library.Designs.Count);
+        var draft = WidgetDesignRules.ForEditing(library.Designs.Single(x => x.Id == old.Id));
+        // Opening/canceling is read-only. A duplicate-name resize cannot overwrite either design.
+        Assert.Equal(bytes, await File.ReadAllBytesAsync(path));
+        await Assert.ThrowsAsync<IOException>(() => repo.SaveAsync(draft, Png));
+        Assert.Equal(bytes, await File.ReadAllBytesAsync(path));
+        Assert.Equal(Png, await File.ReadAllBytesAsync(repo.AssetPath(old.Layers[0].AssetKey)!));
+        Assert.Equal(Png, await File.ReadAllBytesAsync(repo.RenderPath(old.RenderKey)!));
     }
     [Fact]
     public async Task CreateEditAndDeleteSurviveReopeningAndRetainLayerIdentity()
     {
         var repo = Repository(); var draft = await PhotoDraft(); var original = Assert.Single(draft.Layers);
         var saved = await repo.SaveAsync(draft, Png, thumbnail: Png); Assert.NotNull(repo.ThumbnailPath(saved.RenderKey));
-        var edited = await Repository().SaveAsync(saved with { Name = "Edited", Size = WidgetSize.ExtraLarge, Layers = [original with { Visible = false }] }, Png);
+        var edited = await Repository().SaveAsync(saved with { Name = "Edited", Size = WidgetSize.ExtraLargePortrait, Layers = [original with { Visible = false }] }, Png);
         var reopened = Assert.Single(await Repository().ReadAsync());
         Assert.Equal(saved.Id, reopened.Id); Assert.Equal(2, reopened.Revision);
-        Assert.Equal(WidgetSize.ExtraLarge, reopened.Size); Assert.Equal(original with { Visible = false }, Assert.Single(reopened.Layers));
+        Assert.Equal(WidgetSize.ExtraLargePortrait, reopened.Size); Assert.Equal(original with { Visible = false }, Assert.Single(reopened.Layers));
         Assert.NotEqual(saved.RenderKey, edited.RenderKey); Assert.NotNull(repo.RenderPath(edited.RenderKey));
         Assert.Null(repo.ThumbnailPath(saved.RenderKey));
         await Repository().DeleteAsync(saved.Id); Assert.Empty(await Repository().ReadAsync()); Assert.Null(repo.AssetPath(original.AssetKey));

@@ -32,7 +32,9 @@ public sealed class WidgetDesignPublisher(WidgetDesignRepository repository, Fun
                 WidgetSlotRules.Validate(old);
             }
             var library = await repository.ReadLibraryAsync(token);
-            var designs = library.Designs;
+            // Old layouts remain private and recoverable; never advertise them to
+            // the widget extension or reuse their assignments for iPhone XL.
+            var designs = library.Designs.Where(x => WidgetDesignRules.IsSupported(x.Size)).ToArray();
             foreach (var design in designs)
             {
                 var path = repository.RenderPath(design.RenderKey) ?? throw new IOException("A widget preview is missing. Open its editor and save it again.");
@@ -43,7 +45,7 @@ public sealed class WidgetDesignPublisher(WidgetDesignRepository repository, Fun
             }
             var catalog = new WidgetCatalog(1, designs); WidgetDesignRules.Validate(catalog);
             await WidgetDesignRepository.AtomicWriteAsync(manifest, JsonSerializer.SerializeToUtf8Bytes(catalog, WidgetDesignRules.JsonContext.WidgetCatalog), token);
-            var slots = new WidgetSlotCatalog(1, library.Slots); WidgetSlotRules.Validate(slots);
+            var slots = new WidgetSlotCatalog(1, library.Slots.Where(x => WidgetDesignRules.IsSupported(x.Size)).ToArray()); WidgetSlotRules.Validate(slots);
             var slotBytes = JsonSerializer.SerializeToUtf8Bytes(slots, WidgetDesignRules.JsonContext.WidgetSlotCatalog);
             if (slotBytes.Length > WidgetSlotRules.MaximumCatalogBytes) throw new IOException("The shared slot list is too large.");
             // Catalog first: a new assignment cannot be published before its design and image exist.

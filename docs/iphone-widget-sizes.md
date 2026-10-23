@@ -1,0 +1,21 @@
+# iPhone widget sizes
+
+The owner authorized removing the iPad-only extra-large layout while retaining Small, Medium, Large and iPhone Extra Large, then explicitly authorized committing and pushing main. No new version tag or IPA build is authorized for this cleanup. This cleanup does not change app/device-family packaging, the iOS 17 app minimum, Counter widgets, Clipboard, Settings or tag-only IPA generation.
+
+## Removed and retained behavior
+
+The editor's Extra Large layout picker and its event/visibility handling are removed. My Widgets no longer has a Portrait/Landscape selector. Slot assignment offers four sizes and ten slots per size (40 current addresses). XL badges and slot titles say Extra Large; iPhone iOS 27+ availability is explained separately. The native provider no longer resolves or registers `.systemExtraLarge`. Only Small, Medium, Large and availability-gated `.systemExtraLargePortrait` are registered for the ten unchanged static widget kinds. The wide canvas dimensions and active layout descriptions are removed; the representative Extra Large canvas remains 364×594. The existing iPhone XL serialized identity stays unchanged.
+
+## Existing saved designs and slots
+
+A minimal decode-only compatibility value remains for the old `extraLarge` JSON identity. It cannot be created, rendered, assigned or published. Keeping this reader prevents an old entry from making an entire mixed library unreadable. Private schema-1/schema-2 libraries, photos and old assignments are not automatically rewritten or deleted. The old 50-entry slot read bound remains solely so earlier files can still be validated; only 40 addresses are assignable now.
+
+My Widgets includes retired designs under XL, labels them Needs resize and offers the existing edit/delete actions. Their old thumbnails are shown with aspect-fit inside the new XL frame, with explicit guidance that editing is required. Opening one creates an unsaved iPhone XL draft, retaining ID, revision, source photos, layers, normalized positions, crop/zoom and background. The live canvas previews the new proportions. Cancel leaves all saved data byte-identical. Save uses the existing revision check and atomic commit, generates a new render, and clears that design's retired assignments. The user then chooses an available iPhone XL slot; current iPhone assignments are never overwritten or automatically merged. A duplicate name must be changed before saving, and failure leaves the original library/photos unchanged.
+
+Shared publication includes only supported designs/slots. An old missing render cannot block publication of working iPhone designs. Existing shared files containing the retired value remain decodable until replaced, but the native reader filters those entries rather than substituting them for iPhone XL. Unsupported/corrupt schema handling remains strict and does not reset files.
+
+## Review and verification
+
+291 automated tests passed: 65 Core, 56 infrastructure, 141 app and 29 packaging/policy. Core/infrastructure run with reflection-based JSON serialization disabled. Regression coverage includes four supported sizes/40 slots, tall XL geometry, stable serialized identities, old/mixed libraries, explicit resize and revision handling, preserving source photos, unchanged canceled/failed conversions, duplicate-name conflicts, missing retired renders, replacing old shared catalogs and independent iPhone XL assignments. Shared app preview geometry/accent/lifecycle tests pass. Managed iOS C# compilation, source/generated-project checks, workflow lint and whitespace checks pass.
+
+Native tests were updated for the current contract and for filtering old/mixed catalogs/slot files without rewriting or substituting their data. These cannot run on Windows. Native Swift compilation, gallery registration and WidgetKit rendering require macOS/Xcode. On iPhone, verify four filters, no XL layout switch, new XL creation/editing and slots, existing XL assignments after upgrade, retired-design preview/cancel/save/rename/reassign, Light/Dark, large text/VoiceOver, navigation/background/relaunch and Counter Small/Medium regression behavior. Actual Home Screen dimensions and update timing remain controlled by iOS.

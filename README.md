@@ -1,5 +1,7 @@
 # Control Studio
 
+The widget-size cleanup offers **Small, Medium, Large and Extra Large for iPhone**. The former iPad-only XL layout is removed from creation, filters, slots and native registration. A read-only compatibility path keeps older designs/photos recoverable for explicit resize. See [size cleanup and verification](docs/iphone-widget-sizes.md). The owner authorized committing and pushing main; no new version tag or IPA build is authorized for this cleanup.
+
 The Counter appearance enhancement shares Settings' System/Light/Dark choice and saved accent with Small/Medium Counter widgets and matching in-app previews. Custom widget designs retain their own appearance. See [behavior, verification and device checks](docs/counter-widget-appearance.md). The owner authorized committing and pushing main; no new version tag or IPA build is authorized for this update.
 
 Version **0.2.20 (22)** separates **My Widgets** and **Counter Widgets**, retains Clipboard, adds size filters and correctly proportioned full previews, and keeps **Widget slots** directly accessible. See the [UI behavior, review and pending device checks](docs/widget-studio-ui.md). The owner authorized committing, pushing main and pushing the new version tag, and will monitor the IPA build.

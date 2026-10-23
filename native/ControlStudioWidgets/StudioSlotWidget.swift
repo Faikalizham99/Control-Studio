@@ -33,7 +33,6 @@ struct StudioSlotProvider: TimelineProvider {
             case .systemSmall: size = .small
             case .systemMedium: size = .medium
             case .systemLarge: size = .large
-            case .systemExtraLarge: size = .extraLarge
             default: return StudioSlotEntry(date: .now, slot: slot, message: "Choose a supported Home Screen widget size.")
             }
         }
@@ -81,7 +80,7 @@ struct StudioSlotView: View {
 @MainActor
 private enum StudioSlotConfiguration {
     private static var families: [WidgetFamily] {
-        var result: [WidgetFamily] = [.systemSmall, .systemMedium, .systemLarge, .systemExtraLarge]
+        var result: [WidgetFamily] = [.systemSmall, .systemMedium, .systemLarge]
         if #available(iOS 27.0, *) { result.append(.systemExtraLargePortrait) }
         return result
     }

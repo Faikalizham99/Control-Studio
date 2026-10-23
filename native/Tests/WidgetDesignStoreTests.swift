@@ -24,7 +24,7 @@ final class WidgetDesignStoreTests: XCTestCase {
     func testCSharpContractAndImageBounds() throws {
         try fixture.write(to: directory.appendingPathComponent("catalog.json"), options: .atomic)
         let designs = try store.read()
-        XCTAssertEqual(designs.count, 1); XCTAssertEqual(designs[0].size, .extraLarge)
+        XCTAssertEqual(designs.count, 1); XCTAssertEqual(designs[0].size, .extraLargePortrait)
         XCTAssertEqual(designs[0].id, "4f44be38-c517-4a65-9637-23f2e381747a")
         let folder = directory.appendingPathComponent("renders")
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
@@ -40,24 +40,42 @@ final class WidgetDesignStoreTests: XCTestCase {
             XCTAssertThrowsError(try store.read()); XCTAssertEqual(try Data(contentsOf: url), bytes)
         }
     }
-    func testPortraitFamilyDoesNotReplaceLandscapeFamily() throws {
+    func testRetiredCatalogsDecodeWithoutOverwritingOrReplacingPhoneExtraLarge() throws {
         let text = String(data: try fixture, encoding: .utf8)!
         let url = directory.appendingPathComponent("catalog.json")
-        try Data(text.replacingOccurrences(of: "\"extraLarge\"", with: "\"extraLargePortrait\"").utf8).write(to: url)
-        XCTAssertEqual(try store.read().first?.size, .extraLargePortrait)
         try fixture.write(to: url)
-        XCTAssertEqual(try store.read().first?.size, .extraLarge)
+        XCTAssertEqual(try store.read().first?.size, .extraLargePortrait)
+        let retired = Data(text.replacingOccurrences(of: "\"extraLargePortrait\"", with: "\"extraLarge\"").utf8)
+        try retired.write(to: url)
+        XCTAssertTrue(try store.read().isEmpty); XCTAssertEqual(try Data(contentsOf: url), retired)
+        let slots = directory.appendingPathComponent("slots.json")
+        let oldSlots = Data(String(data: try slotFixture, encoding: .utf8)!.replacingOccurrences(of: "\"extraLargePortrait\"", with: "\"extraLarge\"").utf8)
+        try oldSlots.write(to: slots)
+        XCTAssertEqual(try store.readSlots().count, 2)
+        XCTAssertNil(try store.assignedDesign(size: .extraLargePortrait, number: 1))
+        XCTAssertThrowsError(try store.assignedDesign(size: .extraLarge, number: 1))
+        XCTAssertEqual(try Data(contentsOf: slots), oldSlots)
+        var catalog = try JSONSerialization.jsonObject(with: fixture) as! [String: Any]
+        let phone = (catalog["designs"] as! [[String: Any]])[0]
+        var old = phone; old["id"] = "c1f7f5de-73a9-4f4d-b8a7-8c30c9a7a3b8"; old["size"] = "extraLarge"
+        catalog["designs"] = [old, phone]
+        let mixed = try JSONSerialization.data(withJSONObject: catalog)
+        try mixed.write(to: url)
+        try slotFixture.write(to: slots)
+        XCTAssertEqual(try store.read().count, 1)
+        XCTAssertEqual(try store.assignedDesign(size: .extraLargePortrait, number: 1)?.id, phone["id"] as? String)
+        XCTAssertEqual(try Data(contentsOf: url), mixed)
     }
     func testSharedSlotsContractAndEmptySlotsNeverSubstituteADesign() throws {
         try fixture.write(to: directory.appendingPathComponent("catalog.json"))
         XCTAssertTrue(try store.readSlots().isEmpty)
-        XCTAssertNil(try store.assignedDesign(size: .extraLarge, number: 1))
+        XCTAssertNil(try store.assignedDesign(size: .extraLargePortrait, number: 1))
         try slotFixture.write(to: directory.appendingPathComponent("slots.json"))
         XCTAssertEqual(try store.readSlots().count, 4)
-        XCTAssertEqual(try store.assignedDesign(size: .extraLarge, number: 1)?.id, "4f44be38-c517-4a65-9637-23f2e381747a")
-        XCTAssertNil(try store.assignedDesign(size: .extraLarge, number: 2))
+        XCTAssertEqual(try store.assignedDesign(size: .extraLargePortrait, number: 1)?.id, "4f44be38-c517-4a65-9637-23f2e381747a")
+        XCTAssertNil(try store.assignedDesign(size: .extraLargePortrait, number: 2))
         XCTAssertNil(try store.assignedDesign(size: .small, number: 1))
-        XCTAssertNil(try store.assignedDesign(size: .extraLargePortrait, number: 1))
+        XCTAssertNil(try store.assignedDesign(size: .extraLargePortrait, number: 10))
     }
     func testIndependentSlotsSurviveRenameAndReorderButMissingOrWrongSizeIdsStayEmpty() throws {
         var catalog = try JSONSerialization.jsonObject(with: fixture) as! [String: Any]

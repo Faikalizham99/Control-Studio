@@ -9,6 +9,11 @@ public static class WidgetSlotRules
     public const int SlotsPerSize = 10, MaximumAssignments = 50, MaximumCatalogBytes = 16_384;
     public static void ValidateAddress(WidgetSize size, int number)
     {
+        if (!WidgetDesignRules.IsSupported(size)) throw new IOException("Choose a supported iPhone widget size.");
+        ValidateStoredAddress(size, number);
+    }
+    private static void ValidateStoredAddress(WidgetSize size, int number)
+    {
         if (!Enum.IsDefined(size) || number is < 1 or > SlotsPerSize)
             throw new IOException("Choose a supported widget size and a slot from 1 to 10.");
     }
@@ -20,7 +25,8 @@ public static class WidgetSlotRules
         foreach (var slot in catalog.Slots)
         {
             if (slot is null || slot.DesignId == Guid.Empty) throw new IOException("A widget slot is invalid. Data was not changed.");
-            ValidateAddress(slot.Size, slot.Number);
+            // Retired addresses stay readable until their design is resized/deleted.
+            ValidateStoredAddress(slot.Size, slot.Number);
             if (!addresses.Add((slot.Size, slot.Number))) throw new IOException("A widget slot is duplicated. Data was not changed.");
         }
     }
@@ -35,7 +41,6 @@ public static class WidgetSlotRules
     }
     public static string Title(WidgetSize size, int number)
     {
-        var name = size switch { WidgetSize.ExtraLarge => "Extra Large Landscape", WidgetSize.ExtraLargePortrait => "Extra Large Portrait", _ => WidgetDesignRules.SizeName(size) };
-        return $"{name} {number}";
+        return $"{WidgetDesignRules.SizeName(size)} {number}";
     }
 }

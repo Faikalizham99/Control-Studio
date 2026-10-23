@@ -3,6 +3,8 @@ using System.Text.Json.Serialization;
 
 namespace ControlStudio.Core.Widgets;
 
+// ExtraLarge is retained only to decode retired saved libraries. It cannot be
+// created, rendered, assigned or published. Keep serialized IDs stable.
 public enum WidgetSize { Small, Medium, Large, ExtraLarge, ExtraLargePortrait }
 public enum WidgetLayerKind { Photo }
 public sealed record WidgetFrame(double X = 0, double Y = 0, double Width = 1, double Height = 1);
@@ -23,6 +25,14 @@ public partial class WidgetJsonContext : JsonSerializerContext;
 
 public static class WidgetDesignRules
 {
+    public static IReadOnlyList<WidgetSize> SupportedSizes { get; } = Array.AsReadOnly(new[]
+        { WidgetSize.Small, WidgetSize.Medium, WidgetSize.Large, WidgetSize.ExtraLargePortrait });
+    public static bool IsSupported(WidgetSize size) => SupportedSizes.Contains(size);
+    public static WidgetDesign ForEditing(WidgetDesign design)
+    {
+        Validate(design);
+        return design.Size == WidgetSize.ExtraLarge ? design with { Size = WidgetSize.ExtraLargePortrait } : design;
+    }
     public const int MaximumDesigns = 50, MaximumLayers = 8, MaximumImageEdge = 1024;
     public const int MaximumCatalogBytes = 1_000_000, MaximumImageBytes = 4_000_000;
     public static WidgetJsonContext JsonContext { get; } = new(CreateJson());
@@ -38,15 +48,15 @@ public static class WidgetDesignRules
     public static bool ValidKey(string? key) => key is { Length: 32 } && Guid.TryParseExact(key, "N", out _) && key == key.ToLowerInvariant();
     public static string SizeName(WidgetSize size) => size switch
     {
-        WidgetSize.ExtraLarge => "Extra Large Landscape · iPad",
-        WidgetSize.ExtraLargePortrait => "Extra Large Portrait · iOS/iPadOS 27+",
+        WidgetSize.ExtraLarge => "Extra Large · needs resize",
+        WidgetSize.ExtraLargePortrait => "Extra Large",
         _ => size.ToString()
     };
     // Representative canvas proportions. WidgetKit controls exact device dimensions.
     public static (double Width, double Height) Canvas(WidgetSize size) => size switch
     {
         WidgetSize.Small => (170, 170), WidgetSize.Medium => (364, 170),
-        WidgetSize.Large => (364, 382), WidgetSize.ExtraLarge => (746, 382),
+        WidgetSize.Large => (364, 382),
         WidgetSize.ExtraLargePortrait => (364, 594),
         _ => throw new IOException("This widget size requires a newer app.")
     };

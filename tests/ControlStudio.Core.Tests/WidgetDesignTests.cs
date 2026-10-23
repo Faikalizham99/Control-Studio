@@ -13,8 +13,8 @@ public sealed class WidgetDesignTests
         var catalog = JsonSerializer.Deserialize<WidgetCatalog>(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "widget-designs-v1.example.json")), WidgetDesignRules.Json)!;
         WidgetDesignRules.Validate(catalog);
         var design = Assert.Single(catalog.Designs); var layer = Assert.Single(design.Layers);
-        Assert.Equal(WidgetSize.ExtraLarge, design.Size); Assert.Equal(.7, layer.CropY); Assert.Equal(1.5, layer.Zoom);
-        foreach (var size in Enum.GetValues<WidgetSize>())
+        Assert.Equal(WidgetSize.ExtraLargePortrait, design.Size); Assert.Equal(.7, layer.CropY); Assert.Equal(1.5, layer.Zoom);
+        foreach (var size in WidgetDesignRules.SupportedSizes)
         {
             var value = design with { Size = size }; WidgetDesignRules.Validate(value);
             var roundTrip = JsonSerializer.Deserialize<WidgetDesign>(JsonSerializer.Serialize(value, WidgetDesignRules.Json), WidgetDesignRules.Json)!;
@@ -22,7 +22,7 @@ public sealed class WidgetDesignTests
         }
     }
     [Fact]
-    public void ExtraLargePortraitIsDistinctAndLandscapeContractsStayCompatible()
+    public void OnlyFourSizesAreSupportedAndRetiredDesignsOpenWithoutChangingTheOriginal()
     {
         var landscape = WidgetDesignRules.New() with { Size = WidgetSize.ExtraLarge };
         var json = JsonSerializer.Serialize(landscape, WidgetDesignRules.Json);
@@ -31,10 +31,16 @@ public sealed class WidgetDesignTests
         var portraitJson = JsonSerializer.Serialize(portrait, WidgetDesignRules.Json);
         Assert.Contains("\"size\":\"extraLargePortrait\"", portraitJson);
         Assert.Equal(WidgetSize.ExtraLargePortrait, JsonSerializer.Deserialize<WidgetDesign>(portraitJson, WidgetDesignRules.Json)!.Size);
-        var wide = WidgetDesignRules.Canvas(landscape.Size); var tall = WidgetDesignRules.Canvas(portrait.Size);
-        Assert.True(wide.Width > wide.Height); Assert.True(tall.Height > tall.Width);
+        var tall = WidgetDesignRules.Canvas(portrait.Size);
+        Assert.Throws<IOException>(() => WidgetDesignRules.Canvas(landscape.Size));
+        Assert.Equal(4, WidgetDesignRules.SupportedSizes.Count); Assert.False(WidgetDesignRules.IsSupported(landscape.Size));
+        Assert.True(tall.Height > tall.Width);
         Assert.Equal(WidgetDesignRules.Canvas(WidgetSize.Large).Width, tall.Width);
-        Assert.Contains("27+", WidgetDesignRules.SizeName(portrait.Size));
+        Assert.Equal("Extra Large", WidgetDesignRules.SizeName(portrait.Size));
+        var original = landscape with { Layers = [Photo()], Revision = 3 };
+        var editing = WidgetDesignRules.ForEditing(original);
+        Assert.Equal(WidgetSize.ExtraLarge, original.Size); Assert.Equal(WidgetSize.ExtraLargePortrait, editing.Size);
+        Assert.Equal(original with { Size = WidgetSize.ExtraLargePortrait }, editing);
     }
     [Fact]
     public void PhotosAreOptionalAndBoundedAndInvalidLayerKindsAreNotSilentlyDiscarded()
@@ -66,7 +72,7 @@ public sealed class WidgetDesignTests
     public void PhotoFillAndCropStayConsistentAcrossAllCanvasSizes()
     {
         var photo = Photo();
-        foreach (var size in Enum.GetValues<WidgetSize>())
+        foreach (var size in WidgetDesignRules.SupportedSizes)
         {
             var canvas = WidgetDesignRules.Canvas(size);
             foreach (var zoom in new[] { 1d, 2d, 4d })

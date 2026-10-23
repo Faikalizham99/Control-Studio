@@ -25,12 +25,12 @@ The 0.2.19 fix gives each concrete slot widget a literal gallery name (`"Studio 
 ## App and Home Screen flow
 
 1. Open Studio → My Widgets → +. Name the design, choose a size and optionally add photo layers. Save widget. The UI reorganization is described in [Studio widget library interface](widget-studio-ui.md).
-2. Open Widget slots. Choose Small, Medium, Large, Extra Large Portrait or Extra Large Landscape. Each size has slots 1–10.
+2. Open Widget slots. Choose Small, Medium, Large or Extra Large. Each size has slots 1–10. Extra Large requires iOS 27 or later on iPhone.
 3. Tap Assign on a slot, then choose a saved design of that size. The slot displays its name and preview. Change replaces the assignment; Clear asks for confirmation and keeps the saved design and original photos.
-4. Add Control Studio → Studio 1–10 on the Home Screen, choosing the matching size/layout. For example, Studio 2 in Small displays Small 2; Studio 2 in Medium displays Medium 2. Those assignments are independent.
+4. Add Control Studio → Studio 1–10 on the Home Screen, choosing the matching size. For example, Studio 2 in Small displays Small 2; Studio 2 in Medium displays Medium 2. Those assignments are independent.
 5. Remove old custom Home Screen widgets and add the new numbered slots once. Saved designs are retained, with no automatic assignments. The existing Control Studio Counter is kept separately.
 
-Multiple slots may use the same design. Copies of the same slot and size display the same design. Ten different Small designs can be displayed using Small 1–10. Each of the five supported size/layout families has ten addresses (50 assignments total), exposed by ten widget kinds supporting all available families. A slot never substitutes a different photo when empty or unavailable.
+Multiple slots may use the same design. Copies of the same slot and size display the same design. Ten different Small designs can be displayed using Small 1–10. Each of the four supported sizes has ten addresses (40 assignments total), exposed by ten widget kinds supporting all available families. A slot never substitutes a different photo when empty or unavailable.
 
 Assign/Change choices are filtered by size and use stable IDs. The native choice sheet prefixes names with a number so a design named Cancel cannot collide with cancellation. Repository validation rechecks the ID/size at commit time. Renaming/reordering does not change an assignment. Editing a design updates all slots using it. Changing its size clears its old assignments; changing back does not resurrect them. Deleting a design clears its assignments atomically. Home Screen updates are requests, scheduled by iOS; a failed publication keeps the private assignment and offers Refresh.
 
@@ -38,7 +38,7 @@ The size control stays above the scrolling slot list. Card content has a right g
 
 ## Sizes and layered editor
 
-Small, Medium, Large and Extra Large canvases are retained. Extra Large has Portrait on iPhone/iPadOS 27+ and Landscape on iPad. The editor can prepare every size/layout; actual Home Screen availability depends on device/OS. iPhone/iPad device-family declarations, the iOS 17 minimum and Xcode 27 toolchain are unchanged.
+Small, Medium, Large and Extra Large canvases are supported. Extra Large uses the iPhone shape and requires iOS 27 or later; there is no layout switch. See [retired-layout recovery and review](iphone-widget-sizes.md). The iOS 17 app minimum and Xcode 27 toolchain are unchanged. This size cleanup does not alter general device-family packaging declarations.
 
 Photo layers are optional content within a generic design, not a separate widget type. Designs may contain only a background colour. Up to eight layers and fifty saved designs are supported. Photo Library/Files imports retain original source images; imported copies are orientation-normalized, bounded to a 1,024-pixel edge / 4 MB PNG, and rendered locally. Source input remains bounded to 10 MB.
 

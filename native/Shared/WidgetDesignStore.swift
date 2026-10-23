@@ -1,14 +1,17 @@
 import Foundation
 
-enum WidgetDesignSize: String, Codable, CaseIterable {
+enum WidgetDesignSize: String, Codable {
+    // extraLarge is decode-only compatibility for old shared files. It is never
+    // returned to a provider or registered as a supported Home Screen family.
     case small, medium, large, extraLarge, extraLargePortrait
+    var isSupported: Bool { self != .extraLarge }
     var title: String {
         switch self {
         case .small: "Small"
         case .medium: "Medium"
         case .large: "Large"
-        case .extraLarge: "Extra Large Landscape · iPad"
-        case .extraLargePortrait: "Extra Large Portrait · iOS/iPadOS 27+"
+        case .extraLarge: "Saved design needs resize"
+        case .extraLargePortrait: "Extra Large"
         }
     }
 }
@@ -68,10 +71,10 @@ struct WidgetDesignStore {
                 slot.designId != "00000000-0000-0000-0000-000000000000",
                 addresses.insert("\(slot.size.rawValue).\(slot.number)").inserted else { throw WidgetDesignError.invalidCatalog }
         }
-        return catalog.slots
+        return catalog.slots.filter { $0.size.isSupported }
     }
     func assignedDesign(size: WidgetDesignSize, number: Int) throws -> WidgetDesignSummary? {
-        guard (1...Self.slotsPerSize).contains(number) else { throw WidgetDesignError.invalidCatalog }
+        guard size.isSupported, (1...Self.slotsPerSize).contains(number) else { throw WidgetDesignError.invalidCatalog }
         guard let assignment = try readSlots().first(where: { $0.size == size && $0.number == number }) else { return nil }
         // Missing/changed-size IDs leave this slot empty; never substitute another photo.
         return try read().first { $0.id == assignment.designId && $0.size == size }
@@ -89,7 +92,7 @@ struct WidgetDesignStore {
                 !design.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, design.name.utf16.count <= 60
                 else { throw WidgetDesignError.invalidCatalog }
         }
-        return catalog.designs
+        return catalog.designs.filter { $0.size.isSupported }
     }
     func imageData(for design: WidgetDesignSummary) throws -> Data {
         guard Self.validKey(design.renderKey) else { throw WidgetDesignError.imageUnavailable }
