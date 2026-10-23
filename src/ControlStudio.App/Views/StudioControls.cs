@@ -2,7 +2,7 @@ using Microsoft.Maui.Graphics;
 
 namespace ControlStudio.App.Views;
 
-internal enum StudioSymbol { Widgets, Clipboard, Counter, Bars, Calendar, Photo, Text, Link, Chevron, Edit, Delete, Open, Preview, Tag, Expand, Clear, EyeOff, Pin, PinFilled, Check, LayerUp, LayerDown, Plus, Hash, Refresh, RotateLeft, RotateRight, Flip, Opacity, Drag, More }
+internal enum StudioSymbol { Widgets, Clipboard, Counter, Bars, Calendar, Photo, Text, Link, Chevron, Edit, Delete, Open, Preview, Tag, Expand, Clear, EyeOff, Pin, PinFilled, Check, LayerUp, LayerDown, Plus, Hash, Refresh, RotateLeft, RotateRight, Flip, Opacity, Drag, More, Search, Layers }
 
 internal sealed class StudioGlyph : GraphicsView, IDrawable
 {
@@ -151,6 +151,12 @@ internal sealed class StudioGlyph : GraphicsView, IDrawable
             canvas.FillColor = Tint;
             if (symbol == StudioSymbol.More) { canvas.FillCircle(5, 12, 1.5f); canvas.FillCircle(12, 12, 1.5f); canvas.FillCircle(19, 12, 1.5f); }
             else for (var y = 5; y <= 19; y += 7) { canvas.FillCircle(9, y, 1.2f); canvas.FillCircle(15, y, 1.2f); }
+        }
+        else if (symbol == StudioSymbol.Search) { canvas.DrawCircle(10, 10, 6); canvas.DrawLine(14.5f, 14.5f, 21, 21); }
+        else if (symbol == StudioSymbol.Layers)
+        {
+            Lines(canvas, 2, 8, 12, 2, 22, 8, 12, 14, 2, 8);
+            Lines(canvas, 2, 13, 12, 19, 22, 13); Lines(canvas, 2, 18, 12, 24, 22, 18);
         }
         else if (symbol == StudioSymbol.Check) Lines(canvas, 4, 12, 9, 17, 20, 6);
         else if (symbol == StudioSymbol.Chevron) Lines(canvas, 9, 5, 16, 12, 9, 19);

@@ -1,188 +1,144 @@
-using ControlStudio.App.Platforms.iOS;
 using ControlStudio.Core.Widgets;
 using Microsoft.Extensions.Logging;
 
 namespace ControlStudio.App.Views;
 
-internal sealed class WidgetSlotsPage : ContentPage
+internal sealed class WidgetSlotsPage : WidgetSlotPageBase
 {
     private static readonly WidgetSize[] Sizes = WidgetDesignRules.SupportedSizes.ToArray();
-    private readonly WidgetStudioService studio;
-    private readonly ILogger logger;
+    private readonly IWidgetSlotStore store;
+    private readonly Func<string, Task<bool>> confirmClear;
+    private readonly Func<WidgetSize, int, Task> openAssignment;
     private readonly PageActionButton back = new("", "BackFromWidgetSlots", ProfileSymbol.Back);
     private readonly PageActionButton refresh = new("Refresh", "RefreshWidgetSlots");
-    private readonly Picker size = new() { Title = "Widget size", AutomationId = "WidgetSlotsSize" };
-    private readonly VerticalStackLayout slots = new() { Spacing = 14 };
-    private readonly List<SlotCard> cards = [];
-    private WidgetSize? shownSize;
+    private readonly WidgetSegments sizes;
+    private readonly VerticalStackLayout slots = new() { Spacing = 12 };
     private readonly Label status = SettingsControls.Text("", 14, secondary: true);
-    private bool active, busy, reloadPending;
-    private int lifetime;
-    private Window? observedWindow;
-    private WidgetSize SelectedSize => Sizes[Math.Clamp(size.SelectedIndex, 0, Sizes.Length - 1)];
-    private bool Foreground => active && Window?.IsActivated == true;
+    private readonly Label xlHint = SettingsControls.Text("Extra Large requires iOS 27 or later on iPhone.", 12, secondary: true);
+    private readonly WidgetSlotPreviewWindow previews;
+    private string? pendingStatus;
+    private bool loaded;
+    internal WidgetSize SelectedSize => Sizes[sizes.SelectedIndex];
 
-    public WidgetSlotsPage(WidgetStudioService studio, ILogger logger, WidgetSize initialSize = WidgetSize.Small)
+    public WidgetSlotsPage(IWidgetSlotStore store, ILogger logger, WidgetSize initialSize = WidgetSize.Small,
+        Func<string, Task<bool>>? confirmClear = null, Func<WidgetSize, int, Task>? openAssignment = null) : base(logger)
     {
-        this.studio = studio; this.logger = logger;
-        Title = "Widget slots"; AutomationId = "WidgetSlotsPage"; SafeAreaEdges = SafeAreaEdges.All;
-        DashboardStyle.Page(this); NavigationPage.SetHasNavigationBar(this, false);
-        size.ItemsSource = Sizes.Select(WidgetDesignRules.SizeName).ToArray(); size.SelectedIndex = Math.Max(0, Array.IndexOf(Sizes, initialSize));
-        size.SetAppThemeColor(Picker.TextColorProperty, Color.FromArgb("#16171C"), Colors.White);
-        SemanticProperties.SetDescription(size, "Size of the widget slots to assign");
-        size.SelectedIndexChanged += async (_, _) => await RunAsync(LoadAsync);
-        back.Clicked += async (_, _) => await RunAsync(() => Navigation.PopAsync());
-        refresh.Clicked += async (_, _) => await RunAsync(async () =>
-        {
-            var epoch = lifetime;
-            var published = await studio.PublishAsync(); await LoadAsync();
-            if (active && epoch == lifetime) ShowStatus(published ? "Widget refresh requested. iOS decides when it appears." : "Saved assignments are kept. Home Screen publication failed; check App Group access and try Refresh again.");
-        });
-        var header = new VerticalStackLayout { Padding = new Thickness(20, 12, 20, 0), Spacing = 10, Children =
-        {
-            SettingsControls.Text("A place for every design", 25, bold: true),
-            SettingsControls.Text("Each size has 10 slots. Assign a saved design here, then add Studio 1–10 in the matching size on your Home Screen.", 14, secondary: true),
-            ClipboardEditorControls.Card(size)
+        WidgetSlotRules.ValidateAddress(initialSize, 1); this.store = store;
+        this.confirmClear = confirmClear ?? (title => DisplayAlertAsync($"Clear {title}?", "This empties the slot. Your saved design and original photos are kept.", "Clear", "Cancel"));
+        this.openAssignment = openAssignment ?? ((family, number) => Navigation.PushAsync(new WidgetAssignDesignPage(store, Logger, family, number,
+            published => pendingStatus = published ? "Design assigned. Home Screen refresh requested." : "Assignment saved on this iPhone. Tap Refresh to retry the Home Screen update.")));
+        Title = "Widget slots"; AutomationId = "WidgetSlotsPage";
+        sizes = new(["Small", "Medium", "Large", "XL"], "WidgetSlotsSize", async index => await SelectSizeAsync(Sizes[index]));
+        sizes.Update(Array.IndexOf(Sizes, initialSize));
+        back.Clicked += async (_, _) => await RunAsync((_, _) => Navigation.PopAsync());
+        refresh.Clicked += async (_, _) => await RefreshSlotsAsync();
+        status.IsVisible = false; xlHint.IsVisible = initialSize == WidgetSize.ExtraLargePortrait;
+        var icon = ClipboardEditorControls.Icon(StudioSymbol.Layers, size: 36);
+        var well = WidgetStudioStyle.Card(icon, 10, 17); well.WidthRequest = well.HeightRequest = 64;
+        well.SetDynamicResource(BackgroundProperty, "AccentSelectionBrush");
+        var title = SettingsControls.Text("A place for every design", 19, bold: true);
+        SemanticProperties.SetHeadingLevel(title, SemanticHeadingLevel.Level2);
+        var bannerRow = new Grid { ColumnSpacing = 12, ColumnDefinitions = { new(GridLength.Auto), new(GridLength.Star) } };
+        bannerRow.Add(well); bannerRow.Add(new VerticalStackLayout { Spacing = 5, VerticalOptions = LayoutOptions.Center, Children = {
+            title, SettingsControls.Text("Each size has 10 slots. Assign a saved design here, then add Studio 1–10 in the matching size on your Home Screen.", 13, secondary: true)
+        } }, 1);
+        var banner = WidgetStudioStyle.Card(bannerRow); banner.SetDynamicResource(Border.StrokeProperty, "AccentSelectionStroke");
+        var body = new VerticalStackLayout { Padding = new Thickness(16, 8, 24, 24), Spacing = 12, MaximumWidthRequest = 800, Children = {
+            banner, SettingsControls.Text("Widget size", 14, bold: true), sizes, xlHint, status, slots,
+            SettingsControls.Text("Each size has independent assignments. Copies of the same slot and size show the same design.", 12, secondary: true)
         } };
-        var content = new VerticalStackLayout { Padding = new Thickness(20, 12, 24, 24), Spacing = 14, Children =
-        {
-            status, slots,
-            SettingsControls.Text("Studio 1 in Small uses Small 1; Studio 1 in Medium uses Medium 1. Copies of the same slot and size show the same design. Empty slots never substitute another photo. Extra Large requires iOS 27 or later on iPhone.", 13, secondary: true)
-        } };
-        var layout = new Grid { RowDefinitions = { new(GridLength.Auto), new(GridLength.Auto), new(GridLength.Star) } };
-        layout.Add(PageActionBar.Modal(Title, back, refresh)); layout.Add(header, 0, 1);
-        layout.Add(new ScrollView { Content = content }, 0, 2); Content = layout; SetEnabled();
+        var scroll = new ScrollView { Content = body }; previews = new(scroll, body);
+        var layout = new Grid { RowDefinitions = { new(GridLength.Auto), new(GridLength.Star) } };
+        layout.Add(PageActionBar.Modal(Title, back, refresh)); layout.Add(scroll, 0, 1); Content = layout; SetActionsEnabled(false);
     }
-    private async Task LoadAsync()
+    internal Task SelectSizeAsync(WidgetSize family) => RunAsync(async (token, version) =>
     {
-        var epoch = lifetime;
-        var library = await studio.Repository.ReadLibraryAsync();
-        if (!active || epoch != lifetime) return;
-        reloadPending = false;
-        ShowSlots(library); ShowStatus(library.Designs.Any(x => x.Size == SelectedSize)
-            ? "Choose Assign or Change to use a saved design."
-            : "No saved designs in this size yet. Go back to My Widgets and tap + to create one.");
-    }
-    private void ShowSlots(WidgetLibraryCatalog library)
+        WidgetSlotRules.ValidateAddress(family, 1); sizes.Update(Array.IndexOf(Sizes, family));
+        previews.Clear(); slots.Children.Clear(); ShowFailure("");
+        xlHint.IsVisible = family == WidgetSize.ExtraLargePortrait; await LoadAsync(token, version);
+    });
+    protected override async Task LoadAsync(CancellationToken token, int version)
     {
-        var family = SelectedSize;
-        if (shownSize != family)
+        loaded = false;
+        var library = await store.ReadAsync(token); if (!Current(version)) return;
+        loaded = true;
+        previews.Clear(); slots.Children.Clear(); var family = SelectedSize;
+        for (var number = 1; number <= WidgetSlotRules.SlotsPerSize; number++)
         {
-            slots.Children.Clear(); cards.Clear(); shownSize = family;
-            for (var number = 1; number <= WidgetSlotRules.SlotsPerSize; number++)
-            {
-                var slot = number;
-                var card = new SlotCard(family, slot, () => RunAsync(() => AssignAsync(family, slot)), () => RunAsync(() => ClearAsync(family, slot)));
-                cards.Add(card); slots.Children.Add(card);
-            }
+            var slot = number;
+            var assignment = library.Slots.FirstOrDefault(x => x.Size == family && x.Number == slot);
+            var design = library.Designs.FirstOrDefault(x => x.Size == family && x.Id == assignment?.DesignId);
+            var path = design is null ? null : store.RenderPath(design.RenderKey);
+            var frame = WidgetSlotCards.Preview(family, design, path, previews, 112);
+            slots.Children.Add(new WidgetSlotCard(family, slot, design, frame, () => OpenAssignAsync(family, slot), () => ClearAsync(family, slot), path is not null));
         }
-        for (var index = 0; index < cards.Count; index++)
-        {
-            var assignment = library.Slots.FirstOrDefault(x => x.Size == family && x.Number == index + 1);
-            var design = library.Designs.FirstOrDefault(x => x.Id == assignment?.DesignId && x.Size == family);
-            cards[index].Update(design, design is null ? null : studio.Repository.ThumbnailPath(design.RenderKey));
-        }
+        previews.Activate(Foreground);
+        ShowFailure(pendingStatus ?? ""); if (pendingStatus is not null) { Announce(pendingStatus); pendingStatus = null; }
     }
-    private async Task AssignAsync(WidgetSize family, int number)
+    internal Task OpenAssignAsync(WidgetSize family, int number) => RunAsync(async (_, _) =>
     {
-        var epoch = lifetime;
-        var library = await studio.Repository.ReadLibraryAsync();
-        if (!Foreground || epoch != lifetime) return;
-        var choices = library.Designs.Where(x => x.Size == family).OrderBy(x => x.Name, StringComparer.CurrentCultureIgnoreCase).ToArray();
-        if (choices.Length == 0) { ShowStatus("Create a saved design in this size first. Go back to My Widgets and tap +."); return; }
-        // Prefixes keep user names such as "Cancel" distinct from the native sheet's cancel action.
-        var labels = choices.Select((design, index) => $"{index + 1}. {design.Name}").ToArray();
-        var chosen = await DisplayActionSheetAsync($"Assign {WidgetSlotRules.Title(family, number)}", "Cancel", null, labels);
-        if (!Foreground || epoch != lifetime) return;
-        var index = Array.IndexOf(labels, chosen); if (index < 0) return;
-        var published = await studio.AssignSlotAsync(family, number, choices[index].Id);
-        await LoadAsync();
-        if (active && epoch == lifetime) ShowStatus(published ? "Design assigned. Home Screen refresh requested." : "Assignment saved on this iPhone. Tap Refresh to retry the Home Screen update.", announce: true);
-    }
-    private async Task ClearAsync(WidgetSize family, int number)
+        WidgetSlotRules.ValidateAddress(family, number); if (!loaded || family != SelectedSize) return;
+        await openAssignment(family, number);
+    });
+    internal Task ClearAsync(WidgetSize family, int number) => RunAsync(async (token, version) =>
     {
-        var epoch = lifetime;
-        if (!Foreground || !await DisplayAlertAsync($"Clear {WidgetSlotRules.Title(family, number)}?", "This empties the slot. Your saved design and original photos are kept.", "Clear", "Cancel")
-            || !Foreground || epoch != lifetime) return;
-        var published = await studio.AssignSlotAsync(family, number, null); await LoadAsync();
-        if (active && epoch == lifetime) ShowStatus(published ? "Slot cleared. Home Screen refresh requested." : "Slot cleared on this iPhone. Tap Refresh to retry the Home Screen update.", announce: true);
-    }
-    private void ShowStatus(string message, bool announce = false)
+        WidgetSlotRules.ValidateAddress(family, number); if (!loaded || family != SelectedSize) return;
+        if (!await confirmClear(WidgetSlotRules.Title(family, number)) || !Current(version) || !Foreground) return;
+        var published = await store.AssignAsync(family, number, null, token); if (!Current(version)) return;
+        await LoadAsync(token, version); if (!Current(version)) return;
+        var message = published ? "Slot cleared. Home Screen refresh requested." : "Slot cleared on this iPhone. Tap Refresh to retry the Home Screen update.";
+        ShowFailure(message); Announce(message);
+    });
+    internal Task RefreshSlotsAsync() => RunAsync(async (token, version) =>
     {
-        status.Text = message; status.IsVisible = message.Length > 0;
-        if (announce && Foreground)
-            try { SemanticScreenReader.Default.Announce(message); }
-            catch (Exception ex) { logger.LogDebug("Widget slot announcement unavailable. ErrorType={ErrorType}", ex.GetType().Name); }
-    }
-    private void SetEnabled() => back.IsEnabled = refresh.IsEnabled = size.IsEnabled = slots.IsEnabled = active && !busy;
-    private async Task RunAsync(Func<Task> operation)
+        var published = await store.PublishAsync(); if (!Current(version)) return;
+        await LoadAsync(token, version); if (Current(version)) ShowFailure(published ? "Widget refresh requested. iOS decides when it appears."
+            : "Saved assignments are kept. Home Screen publication failed; check App Group access and try Refresh again.");
+    });
+    protected override void ReleasePreviews() { previews.Activate(false); previews.Clear(); }
+    protected override void SetActionsEnabled(bool enabled)
     {
-        if (!active) return;
-        if (busy) { return; }
-        var epoch = lifetime;
-        busy = true; SetEnabled();
-        try { await operation(); }
-        catch (Exception ex) { logger.LogWarning("Widget slot action failed. ErrorType={ErrorType}", ex.GetType().Name); if (active && epoch == lifetime) ShowStatus(ex is IOException ? ex.Message : "The widget slots could not be updated. Try Refresh."); }
-        finally { busy = false; SetEnabled(); if (active && reloadPending) { reloadPending = false; await RunAsync(LoadAsync); } }
+        back.IsEnabled = refresh.IsEnabled = sizes.IsEnabled = enabled; slots.IsEnabled = enabled && loaded;
     }
-    private async void WindowActivated(object? sender, EventArgs args)
-    {
-        if (busy) { reloadPending = true; return; }
-        await RunAsync(LoadAsync);
-    }
-    protected override async void OnAppearing()
-    {
-        base.OnAppearing(); active = true; lifetime++;
-        if (observedWindow is not null) observedWindow.Activated -= WindowActivated;
-        observedWindow = Window; if (observedWindow is not null) observedWindow.Activated += WindowActivated;
-        if (busy) { reloadPending = true; SetEnabled(); return; }
-        await RunAsync(LoadAsync);
-    }
-    protected override void OnDisappearing()
-    {
-        active = false; lifetime++;
-        if (observedWindow is not null) { observedWindow.Activated -= WindowActivated; observedWindow = null; }
-        SetEnabled(); base.OnDisappearing();
-    }
-    protected override bool OnBackButtonPressed() => busy || base.OnBackButtonPressed();
+    protected override void ShowFailure(string message) { status.Text = message; status.IsVisible = message.Length > 0; }
+}
 
-    private sealed class SlotCard : ContentView
+internal sealed class WidgetSlotCard : ContentView
+{
+    public WidgetSlotCard(WidgetSize family, int number, WidgetDesign? design, View preview, Func<Task> assign, Func<Task> clear, bool hasPreview = true)
     {
-        private readonly Label name = SettingsControls.Text("", 17, bold: true);
-        private readonly Label empty = SettingsControls.Text("", 14, secondary: true);
-        private readonly Image preview = new() { Aspect = Aspect.AspectFit, HeightRequest = 130, InputTransparent = true };
-        private readonly Border emptyPreview;
-        private readonly WidgetCheckerboard checker = new() { HeightRequest = 130 };
-        private readonly ClipboardEditorActionButton assign, change, clear;
-        private readonly string title;
-        private string? imagePath;
-        public SlotCard(WidgetSize family, int number, Func<Task> assignAction, Func<Task> clearAction)
+        var title = WidgetSlotRules.Title(family, number);
+        var heading = SettingsControls.Text(title, 16, bold: true); SemanticProperties.SetHeadingLevel(heading, SemanticHeadingLevel.Level3);
+        var name = SettingsControls.Text(design?.Name ?? "Empty slot", 16, bold: design is not null);
+        name.MaxLines = 3; name.LineBreakMode = LineBreakMode.TailTruncation;
+        var change = new ClipboardEditorActionButton(design is null ? "Assign" : "Change", null, (design is null ? "Assign" : "Change") + family + "Slot" + number, primary: true, compact: true);
+        change.Describe((design is null ? "Assign a design to " : "Change the design in ") + title);
+        change.Clicked += async (_, _) => await assign();
+        var actions = new Grid { ColumnSpacing = 7, ColumnDefinitions = { new(GridLength.Star) } }; actions.Add(change);
+        if (design is not null)
         {
-            title = WidgetSlotRules.Title(family, number);
-            name.MaxLines = 2; name.LineBreakMode = LineBreakMode.TailTruncation;
-            emptyPreview = ClipboardEditorControls.Field(empty, 18); emptyPreview.HeightRequest = 130;
-            var image = new Grid { Children = { checker, emptyPreview, preview } };
-            assign = new("Assign", null, $"Assign{family}Slot{number}", primary: true);
-            change = new("Change", null, $"Change{family}Slot{number}", primary: true);
-            clear = new("Clear", null, $"Clear{family}Slot{number}");
-            assign.Describe($"Assign a design to {title}"); change.Describe($"Change the design in {title}");
-            clear.Describe($"Clear {title}. The saved design is kept.");
-            assign.Clicked += async (_, _) => await assignAction(); change.Clicked += async (_, _) => await assignAction();
-            clear.Clicked += async (_, _) => await clearAction();
-            var actions = new Grid { ColumnSpacing = 10, ColumnDefinitions = { new(GridLength.Star), new(GridLength.Auto) } };
-            actions.Add(new Grid { Children = { assign, change } }); actions.Add(clear, 1);
-            Content = new GlassCard(new VerticalStackLayout { Spacing = 10, Children = { SettingsControls.Text(title, 19, bold: true), name, image, actions } });
+            var remove = new PageActionButton("Clear", "Clear" + family + "Slot" + number);
+            remove.Clicked += async (_, _) => await clear(); actions.ColumnDefinitions.Add(new(GridLength.Star)); actions.Add(remove, 1);
         }
-        public void Update(WidgetDesign? design, string? path)
+        var details = new VerticalStackLayout { Spacing = 8, VerticalOptions = LayoutOptions.Center, Children = { name } };
+        if (design is null) details.Children.Add(SettingsControls.Text("Not assigned", 12, secondary: true));
+        else if (!hasPreview) details.Children.Add(SettingsControls.Text("Preview unavailable. Open Edit and save again.", 12, secondary: true));
+        details.Children.Add(actions);
+        var tap = SettingsControls.TapTarget((design is null ? "Assign " : "Change ") + title, "Open" + family + "Slot" + number);
+        tap.Clicked += async (_, _) => await assign();
+        var art = new Grid { WidthRequest = 112, Children = { tap, preview } };
+        var row = new Grid { ColumnSpacing = 12, RowSpacing = 10, ColumnDefinitions = { new(112), new(GridLength.Star) } };
+        row.Add(art); row.Add(details, 1);
+        var stacked = false;
+        row.SizeChanged += (_, _) =>
         {
-            name.Text = design?.Name ?? "Empty slot";
-            empty.Text = design is null ? "Not assigned" : "Preview missing";
-            if (imagePath != path) { imagePath = path; preview.Source = path; }
-            preview.IsVisible = path is not null; emptyPreview.IsVisible = path is null;
-            checker.IsVisible = path is not null && design?.TransparentBackground == true;
-            assign.IsVisible = design is null; change.IsVisible = clear.IsVisible = design is not null;
-            SemanticProperties.SetDescription(preview, $"{title} preview: {design?.Name}");
-            SemanticProperties.SetDescription(emptyPreview, design is null ? $"{title} is empty" : $"{title} preview unavailable. Open the design and save it again.");
-        }
+            var next = row.Width is > 0 and < 280; if (next == stacked) return; stacked = next;
+            row.ColumnDefinitions.Clear(); row.RowDefinitions.Clear();
+            row.ColumnDefinitions.Add(new(stacked ? GridLength.Star : new GridLength(112)));
+            if (stacked) { row.RowDefinitions.Add(new(GridLength.Auto)); row.RowDefinitions.Add(new(GridLength.Auto)); }
+            else row.ColumnDefinitions.Add(new(GridLength.Star));
+            Grid.SetColumn(details, stacked ? 0 : 1); Grid.SetRow(details, stacked ? 1 : 0);
+        };
+        Content = WidgetStudioStyle.Card(new VerticalStackLayout { Spacing = 8, Children = { heading, row } }, 12, 20);
     }
 }

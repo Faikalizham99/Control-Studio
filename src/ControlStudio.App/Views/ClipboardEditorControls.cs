@@ -64,22 +64,22 @@ internal sealed class ClipboardEditorActionButton : ContentView
     private readonly Border surface;
     public event EventHandler? Clicked;
 
-    public ClipboardEditorActionButton(string text, View? icon, string automationId, bool primary = false, bool accentCaption = false)
+    public ClipboardEditorActionButton(string text, View? icon, string automationId, bool primary = false, bool accentCaption = false, bool readableDisabled = false, bool compact = false)
     {
-        var height = primary ? 52 : 44;
+        var height = primary && !compact ? 52 : 44;
         MinimumHeightRequest = height;
         Label? label = null;
         if (text.Length > 0)
         {
-            label = new Label { Text = text, FontSize = primary ? 19 : 12, FontAttributes = primary || accentCaption ? FontAttributes.Bold : FontAttributes.None };
+            label = new Label { Text = text, FontSize = primary ? compact ? 14 : 19 : 12, FontAttributes = primary || accentCaption ? FontAttributes.Bold : FontAttributes.None };
             if (accentCaption && !primary) label.SetDynamicResource(Label.TextColorProperty, "AccentText");
             else if (!primary) label.SetAppThemeColor(Label.TextColorProperty, Color.FromArgb("#252A34"), Color.FromArgb("#F5F5F7"));
         }
         var caption = ActionCaption.Create(label, icon, 8);
-        var padding = new Thickness(text.Length == 0 ? 10 : 12, 0);
+        var padding = new Thickness(text.Length == 0 ? 10 : compact ? 8 : 12, 0);
         if (primary)
         {
-            var accent = new AccentSurface(caption, 25, padding, captionSize: 16);
+            var accent = new AccentSurface(caption, compact ? 20 : 25, padding, captionSize: compact ? 14 : 16, readableDisabled: readableDisabled);
             if (label is not null) accent.BindForeground(label, Label.TextColorProperty);
             if (icon is ProfileGlyph profile) accent.BindForeground(profile, ProfileGlyph.TintProperty);
             if (icon is StudioGlyph studio) accent.BindForeground(studio, StudioGlyph.TintProperty);

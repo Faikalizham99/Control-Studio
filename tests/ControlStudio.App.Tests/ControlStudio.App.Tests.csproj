@@ -24,6 +24,12 @@
     <Compile Include="../../src/ControlStudio.App/Views/WidgetStudioControls.cs" Link="Views/WidgetStudioControls.cs" />
     <Compile Include="../../src/ControlStudio.App/Views/DashboardStyle.cs" Link="Views/DashboardStyle.cs" />
     <Compile Include="../../src/ControlStudio.App/Views/WidgetStudioPage.cs" Link="Views/WidgetStudioPage.cs" />
+    <Compile Include="../../src/ControlStudio.App/IWidgetSlotStore.cs" Link="IWidgetSlotStore.cs" />
+    <Compile Include="../../src/ControlStudio.App/WidgetSlotSelection.cs" Link="WidgetSlotSelection.cs" />
+    <Compile Include="../../src/ControlStudio.App/Views/WidgetSlotPageBase.cs" Link="Views/WidgetSlotPageBase.cs" />
+    <Compile Include="../../src/ControlStudio.App/Views/WidgetSlotCards.cs" Link="Views/WidgetSlotCards.cs" />
+    <Compile Include="../../src/ControlStudio.App/Views/WidgetSlotsPage.cs" Link="Views/WidgetSlotsPage.cs" />
+    <Compile Include="../../src/ControlStudio.App/Views/WidgetAssignDesignPage.cs" Link="Views/WidgetAssignDesignPage.cs" />
     <Compile Include="../../src/ControlStudio.App/Views/HomePage.cs" Link="Views/HomePage.cs" />
     <Compile Include="../../src/ControlStudio.App/PhotoImportInput.cs" Link="PhotoImportInput.cs" />
     <Compile Include="../../src/ControlStudio.App/RetiredWidgetReportsCleanup.cs" Link="RetiredWidgetReportsCleanup.cs" />

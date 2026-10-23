@@ -93,12 +93,12 @@ public sealed class WidgetStudioService
         await gate.WaitAsync();
         try { return await PublishCoreAsync(); } finally { gate.Release(); }
     }
-    public async Task<bool> AssignSlotAsync(WidgetSize size, int number, Guid? designId)
+    public async Task<bool> AssignSlotAsync(WidgetSize size, int number, Guid? designId, CancellationToken token = default)
     {
-        await gate.WaitAsync();
+        await gate.WaitAsync(token);
         try
         {
-            await Repository.AssignSlotAsync(size, number, designId);
+            await Repository.AssignSlotAsync(size, number, designId, token);
             return await PublishCoreAsync(number);
         }
         finally { gate.Release(); }

@@ -103,7 +103,7 @@ internal sealed class WidgetPreviewFrame : ContentView
 {
     private readonly WidgetSize size;
     private readonly Border frame;
-    public WidgetPreviewFrame(WidgetSize size, View content, Color? background = null)
+    public WidgetPreviewFrame(WidgetSize size, View content, Color? background = null, double initialWidth = 320)
     {
         this.size = size;
         frame = new Border { Content = content, StrokeShape = new RoundRectangle { CornerRadius = 24 },
@@ -111,7 +111,7 @@ internal sealed class WidgetPreviewFrame : ContentView
         SettingsControls.SurfaceStroke(frame);
         if (background is not null) frame.BackgroundColor = background;
         else frame.SetAppThemeColor(BackgroundColorProperty, Colors.White, Color.FromArgb("#1C1C1E"));
-        Content = frame; ApplyWidth(320);
+        Content = frame; ApplyWidth(initialWidth);
         SizeChanged += (_, _) => ApplyWidth(Width);
     }
     internal static Size Fit(WidgetSize size, double availableWidth)

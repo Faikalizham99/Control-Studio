@@ -33,7 +33,7 @@ internal sealed class WidgetsPage : WidgetStudioPage
         add.Clicked += async (_, _) => await RunAsync((_, _) => Navigation.PushAsync(new WidgetEditorPage(studio, colourPicker, Logger, initialSize: SelectedSize)));
         back.Clicked += async (_, _) => await RunAsync((_, _) => Navigation.PopAsync());
         refresh.Clicked += async (_, _) => await ReloadAsync();
-        widgetSlots.Clicked += async (_, _) => await RunAsync((_, _) => Navigation.PushAsync(new WidgetSlotsPage(studio, Logger, SelectedSize)));
+        widgetSlots.Clicked += async (_, _) => await RunAsync((_, _) => Navigation.PushAsync(new WidgetSlotsPage(new AppleWidgetSlotStore(studio), Logger, SelectedSize)));
         var heading = SettingsControls.Text("Your widget designs", 22, bold: true);
         SemanticProperties.SetHeadingLevel(heading, SemanticHeadingLevel.Level2);
         var headingBlock = new VerticalStackLayout { Spacing = 10, Children =

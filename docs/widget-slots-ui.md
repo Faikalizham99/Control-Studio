@@ -1,0 +1,33 @@
+# Widget slots and Assign design (unreleased)
+
+The owner authorized the supplied two-page design with existing widget proportions, a size-locked assignment page, and support for Small, Medium, Large and iPhone XL, then explicitly authorized committing and pushing main. This changes the host UI and assignment flow. The ten static widget kinds, signed transparency fix, native image rendering, App Group configuration and tag-only IPA workflow are unchanged. No version bump, new tag or IPA build is requested.
+
+## Widget slots
+
+The page uses the shared Light/Dark glass cards, app accent, a local vector layers icon and the reference's introductory banner. The fixed header provides Back and Refresh. The banner, four size segments and ten numbered slot cards scroll together with a right gutter, so larger text can scroll rather than crowd the header. XL retains its iOS 27 availability hint.
+
+Each card shows its address, a correctly proportioned preview, the assigned design name and Change/Clear actions. Empty slots show a dashed preview with a plus and an Assign action. The compact preview is 112 layout units wide; its height follows the same 170×170, 364×170, 364×382 or 364×594 representative canvases as My Widgets. These are proportions, not a claim of exact physical Home Screen dimensions. Cards keep previews beside details at ordinary widths, stacking them at narrow widths. Compact action captions retain native 44-unit minimum targets. Clear still asks for confirmation and removes only that address's assignment; saved designs and photos remain.
+
+Changing the size changes only which independent set of ten addresses is visible. Assign/Change opens the visual assignment page at that exact size and slot. Refresh republishes existing assignments and requests the native reload; its message distinguishes requested refresh from local-only publication failure. A failed size-switch read cannot leave cards from the previous family beneath the new selected segment.
+
+## Assign design
+
+The page has Back, a search toggle, a read-only size label and a grid of matching saved designs. There is no All sizes control, editable size picker or redundant source switch. Small and Medium use two columns when the available grid width is at least 280 units, with a one-column fallback on narrower layouts. Large and XL use one column. Grid previews reuse the same representative geometry and scale down to fit; they do not crop designs into square thumbnails or enlarge beyond the representative canvas.
+
+The current assignment is initially selected. Tapping another card changes only the draft choice and its accent outline/checkmark. The footer names the selected design and offers a separate **Assign to Small 2**-style confirmation action. This footer is a separate auto-sized grid row outside the scrolling viewport, above the existing tab navigation. Searching filters only the locked size and does not discard a valid choice hidden by the query; the footer still names that choice. Closing search clears its query. Empty-library, no-search-result, missing-preview and read-error states offer appropriate guidance; read failures have a Try again action.
+
+Before saving, the page rereads the library to reject a design that was deleted or resized. Missing full renders require opening Edit and saving again rather than assigning a broken preview. A library reload keeps a valid draft selection but drops an unavailable one. Retired iPad XL designs are excluded until explicitly resized and saved; they are not silently treated as iPhone XL.
+
+## Review
+
+Both pages use the existing full saved PNGs, including checkerboards drawn separately for transparent designs. Compact missing-preview placeholders have their own readable Light/Dark paint and guidance outside the image. A page-wide viewport helper loads at most six full-render sources near the visible area, releases them before loading replacements and disposes old controls on rebuild, departure or backgrounding. This extends the full-render clarity approach to slots and assignment cards; it does not alter PNGs, thumbnails or native widget delivery.
+
+Actions serialize across awaits and carry cancellation/appearance guards. Backgrounding or navigation cancels pending reads and queued assignment writes. The host service now passes the token through its existing write gate and repository transaction. A Clear confirmation completed after backgrounding cannot mutate a slot. After an assignment has committed, publication may finish; local success is retained even if publication fails. The page marks the assignment committed before navigating, prevents duplicate writes and provides a Back route if navigation fails. On return, pages reload current data rather than displaying an old read.
+
+The Assign button opts into a readable neutral disabled fill and restores the latest accent when enabled. This behavior stays in the shared `AccentSurface`, with contrast calculated from the actual fill. Existing controls retain their defaults. The shared editor-action control also supports compact captions for the slot actions. Selection/checkmark semantics, full design names and slot addresses describe native hit targets; decorative previews/icons remain outside the accessibility tree. Existing feedback announcements and native Clear confirmation remain. No new timed animation is introduced.
+
+## Verification
+
+Windows checks pass: **178 app tests**, **57 infrastructure/persistence tests**, **32 packaging/policy tests**, managed iOS C# compilation, source/generated-project and whitespace checks. Twenty-three new app cases cover all four size locks, ten addresses/proportions, explicit selection and confirmation, separate size assignments, search with a retained choice, deleted/resized/missing designs, stale reads, background cancellation, Clear confirmation, duplicate taps, publication/navigation failures, footer layout, retry and disabled/reenabled contrast in both themes. Existing persistence tests exercise the repository's atomic assignments and data preservation. No native widget source or workflow is modified.
+
+An iPhone is still required for visual matching against the reference, actual UIKit image clarity/loading/memory, fast scrolling through a large library, narrow/landscape widths, large Dynamic Type, keyboard/search footer placement, VoiceOver focus/order, selected accent changes, background/return and interactive Back gestures, repeated Assign/Change/Clear, local-only publication recovery, and confirming that Home Screen widgets and Counter still work. No native/device screenshots or pixel measurements were produced on Windows. These checks are pending rather than claimed complete.
