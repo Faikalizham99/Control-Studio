@@ -18,6 +18,7 @@
     <Compile Include="../../src/ControlStudio.App/ClipboardCopyFeedback.cs" Link="ClipboardCopyFeedback.cs" />
     <Compile Include="../../src/ControlStudio.App/Views/ClipboardCopyFeedbackViews.cs" Link="Views/ClipboardCopyFeedbackViews.cs" />
     <Compile Include="../../src/ControlStudio.App/Views/WidgetCanvasView.cs" Link="Views/WidgetCanvasView.cs" />
+    <Compile Include="../../src/ControlStudio.App/Views/WidgetRenderPreview.cs" Link="Views/WidgetRenderPreview.cs" />
     <Compile Include="../../src/ControlStudio.App/Views/WidgetStudioControls.cs" Link="Views/WidgetStudioControls.cs" />
     <Compile Include="../../src/ControlStudio.App/Views/DashboardStyle.cs" Link="Views/DashboardStyle.cs" />
     <Compile Include="../../src/ControlStudio.App/Views/WidgetStudioPage.cs" Link="Views/WidgetStudioPage.cs" />

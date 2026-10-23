@@ -10,6 +10,10 @@ internal sealed class WidgetsPage : WidgetStudioPage
     private readonly WidgetStudioService studio;
     private readonly AppleColorPicker colourPicker;
     private readonly VerticalStackLayout designs = new() { Spacing = 16 };
+    private readonly ScrollView scroll = new();
+    private readonly VerticalStackLayout body;
+    private readonly List<(WidgetPreviewFrame Frame, WidgetRenderPreview Image)> previews = [];
+    private bool previewsActive, updatingPreviews;
     private readonly WidgetAddButton add = new();
     private readonly PageActionButton back = new("", "BackFromWidgets", ProfileSymbol.Back);
     private readonly ClipboardEditorActionButton refresh = new("Refresh widgets", ClipboardEditorControls.Icon(StudioSymbol.Refresh), "RefreshWidgetDesigns");
@@ -37,11 +41,15 @@ internal sealed class WidgetsPage : WidgetStudioPage
             heading, SettingsControls.Text("Create, edit and manage your custom widgets.", 14, secondary: true), sizes, xlHint, widgetSlots
         } };
         status.IsVisible = false;
-        var body = new VerticalStackLayout { Padding = new Thickness(20, 14, 28, 24), Spacing = 16, MaximumWidthRequest = 800,
+        body = new VerticalStackLayout { Padding = new Thickness(20, 14, 28, 24), Spacing = 16, MaximumWidthRequest = 800,
             HorizontalOptions = LayoutOptions.Fill, Children = { headingBlock, designs, status, refresh } };
+        scroll.Content = body;
+        scroll.Scrolled += (_, _) => UpdateVisiblePreviews();
+        scroll.SizeChanged += (_, _) => UpdateVisiblePreviews();
+        body.SizeChanged += (_, _) => UpdateVisiblePreviews();
         var layout = new Grid { RowDefinitions = { new(GridLength.Auto), new(GridLength.Star) } };
         layout.Add(WidgetStudioStyle.Header(Title, back, add));
-        layout.Add(new ScrollView { Content = body }, 0, 1); Content = layout;
+        layout.Add(scroll, 0, 1); Content = layout;
     }
     private void FilterChanged() { xlHint.IsVisible = SelectedSize == WidgetSize.ExtraLargePortrait; ShowDesigns(); }
     protected override async Task LoadAsync(CancellationToken token, int version)
@@ -58,6 +66,8 @@ internal sealed class WidgetsPage : WidgetStudioPage
     }
     private void ShowDesigns()
     {
+        foreach (var preview in previews) preview.Image.Dispose();
+        previews.Clear();
         designs.Children.Clear(); var matching = saved.Where(x => WidgetDesignRules.ForEditing(x).Size == SelectedSize).ToArray();
         if (matching.Length == 0)
         {
@@ -100,19 +110,47 @@ internal sealed class WidgetsPage : WidgetStudioPage
             var actions = new HorizontalStackLayout { Spacing = 2, VerticalOptions = LayoutOptions.Center, Children = { edit, delete, next } };
             var header = new Grid { ColumnSpacing = 8, ColumnDefinitions = { new(GridLength.Star), new(GridLength.Auto) } };
             header.Add(labels); header.Add(actions, 1);
-            // Small composites preserve the complete canvas while bounding decoded memory for a full library.
-            var path = studio.Repository.ThumbnailPath(design.RenderKey);
-            View image = path is not null ? new Image { Source = path, Aspect = Aspect.AspectFit, InputTransparent = true }
-                : new Label { Text = "Preview unavailable\nOpen Edit and save again.", TextColor = AppearanceColors.ButtonForeground(Color.FromArgb(design.BackgroundHex)),
-                    FontSize = 13, HorizontalTextAlignment = TextAlignment.Center, VerticalTextAlignment = TextAlignment.Center, Margin = 12, InputTransparent = true };
+            // Full-size cards need the full saved composite, not the 256px slot thumbnail.
+            var image = new WidgetRenderPreview(studio.Repository.RenderPath(design.RenderKey), Color.FromArgb(design.BackgroundHex));
             var tap = SettingsControls.TapTarget("Open " + design.Name + " widget", "OpenWidget" + design.Id.ToString("N"));
             tap.Clicked += async (_, _) => await Edit();
             SemanticProperties.SetHint(tap, "Opens the widget editor.");
             AutomationProperties.SetIsInAccessibleTree(image, false);
             var preview = new WidgetPreviewFrame(WidgetDesignRules.ForEditing(design).Size, new Grid { Children = { tap, image } }, Color.FromArgb(design.BackgroundHex));
+            previews.Add((preview, image));
+            preview.SizeChanged += (_, _) => UpdateVisiblePreviews();
             SemanticProperties.SetDescription(tap, $"{design.Name}. {WidgetSizeLabel(design.Size)} widget preview. Open editor.");
             designs.Children.Add(WidgetStudioStyle.Card(new VerticalStackLayout { Spacing = 14, Children = { header, preview } }));
         }
+        UpdateVisiblePreviews();
+    }
+    private Rect PreviewBounds(WidgetPreviewFrame frame)
+    {
+        double top = 0; VisualElement? current = frame;
+        while (current is not null && current != body) { top += current.Y; current = current.Parent as VisualElement; }
+        return current == body ? new Rect(0, top, frame.Width, frame.Height) : Rect.Zero;
+    }
+    private void UpdateVisiblePreviews()
+    {
+        if (updatingPreviews) return;
+        updatingPreviews = true;
+        try
+        {
+            var visible = previewsActive ? WidgetPreviewWindow.Select(previews.Select(x => PreviewBounds(x.Frame)).ToArray(), scroll.ScrollY, scroll.Height) : new HashSet<int>();
+            // Release first so a jump or size switch never temporarily doubles live sources.
+            for (var i = 0; i < previews.Count; i++) if (!visible.Contains(i)) previews[i].Image.SetVisible(false);
+            foreach (var index in visible) previews[index].Image.SetVisible(true);
+        }
+        finally { updatingPreviews = false; }
+    }
+    protected override void OnAppearing() { previewsActive = true; base.OnAppearing(); UpdateVisiblePreviews(); }
+    protected override void OnDisappearing()
+    {
+        previewsActive = false;
+        // The next appearance reloads the library and builds fresh controls.
+        // A render replaced/deleted in the editor must never be requested again.
+        foreach (var preview in previews) preview.Image.Dispose();
+        base.OnDisappearing();
     }
     private static string WidgetSizeLabel(WidgetSize size) => size switch
     {

@@ -1,6 +1,6 @@
 # Counter widget appearance
 
-The owner authorized implementation of Settings theme/accent sharing for Small/Medium Counter widgets and their in-app previews, then explicitly authorized committing and pushing main. No version bump or tag is authorized for this enhancement; the branch push does not generate an IPA.
+The owner authorized implementation of Settings theme/accent sharing for Small/Medium Counter widgets and their in-app previews, then explicitly authorized committing and pushing main. The subsequent **0.2.21 (23)** release/tag authorization includes this enhancement. Its earlier branch push did not generate an IPA.
 
 Settings retains the existing System/Light/Dark choice and exact six-digit accent. The app publishes only those two committed values and schema version 1 into `counter-appearance.json` in the existing app-specific App Group directory. No profile information, Counter database values, custom designs or slot assignments are copied or changed. Publication runs on app attachment, saved theme/accent changes and window activation. Local slider previews update the app immediately; they publish when committed rather than for every drag movement. A failed publication is logged without sensitive values and retried on activation; local Settings remain usable.
 

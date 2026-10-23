@@ -1,6 +1,6 @@
 # iPhone widget sizes
 
-The owner authorized removing the iPad-only extra-large layout while retaining Small, Medium, Large and iPhone Extra Large, then explicitly authorized committing and pushing main. No new version tag or IPA build is authorized for this cleanup. This cleanup does not change app/device-family packaging, the iOS 17 app minimum, Counter widgets, Clipboard, Settings or tag-only IPA generation.
+The owner authorized removing the iPad-only extra-large layout while retaining Small, Medium, Large and iPhone Extra Large, then explicitly authorized committing and pushing main. The subsequent **0.2.21 (23)** release/tag authorization includes this cleanup. This cleanup does not change app/device-family packaging, the iOS 17 app minimum, Counter widgets, Clipboard, Settings or tag-only IPA generation.
 
 ## Removed and retained behavior
 
