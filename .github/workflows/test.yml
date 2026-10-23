@@ -6,6 +6,21 @@ on:
 permissions:
   contents: read
 jobs:
+  native:
+    runs-on: xcode-27
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - name: Select and verify pinned Xcode
+        run: |
+          sudo xcode-select -s /Applications/Xcode_27.0.app/Contents/Developer
+          test "$(xcodebuild -version | head -1)" = 'Xcode 27.0'
+          test "$(xcrun --sdk iphoneos --show-sdk-version)" = '27.0'
+          xcodebuild -version
+      - name: Run native SQLite persistence and concurrency tests
+        run: swift test --package-path native
+      - name: Compile Swift bridge, WidgetKit and App Intents extensions
+        run: bash scripts/build-native.sh
   managed:
     runs-on: windows-2025
     steps:

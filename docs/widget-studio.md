@@ -1,8 +1,16 @@
 # Widget Studio and static slots
 
-Version **0.2.17 (19)**. The owner authorized ten static slots per size and removal of the old configurable custom widgets and loading experiment on 23 October 2026, then explicitly authorized committing, pushing main and pushing a new version tag. The owner will monitor the tag-triggered IPA build and test on iPhone; no manual dispatch or build monitoring is part of this release task.
+Version **0.2.18 (20)** corrects the native widget registration failure in 0.2.17 (19). The owner authorized the fix, then explicitly authorized committing, pushing main and pushing a new version tag. The owner will monitor the tag-triggered IPA build and test on iPhone; no manual dispatch or build monitoring is part of this release task.
 
 The owner confirmed that the earlier static widget displays their saved image while the configurable path stays on placeholders. The new slots reuse that static timeline/image approach. This is evidence for the approach, not device verification of the ten-slot implementation.
+
+## Native compilation correction
+
+The [v0.2.17 build](https://github.com/Faikalizham99/Control-Studio/actions/runs/39889463370) passed managed tests and all 17 native storage tests, then failed to compile the widget extension: `StudioSlotWidget` had a required slot argument and did not satisfy the `Widget` protocol's `init()` requirement. No IPA was produced.
+
+The 0.2.18 correction gives slots 1–10 distinct, stateless widget types with synthesized empty initializers. Each forwards its fixed number to one shared configuration helper, retaining the existing kinds, supported families, timeline provider, photo rendering and accessibility labels. Bundle registration includes each concrete type once. Storage, assignments and reload identifiers are unchanged. Review covered registration, per-size resolution, persistence, lifecycle reconstruction, empty/error states and Counter isolation; gallery appearance and on-device lifecycle remain pending.
+
+Branch and pull-request checks now run the native storage tests and compile the Swift bridge/extensions using the same pinned Xcode and build script as releases. These checks do not package, sign or upload an IPA; IPA generation remains exclusive to new version tags. The correction passed 51 infrastructure tests, 25 packaging tests, source/project checks and workflow lint on Windows. Corrected Swift/Xcode compilation and iPhone verification remain pending; the previous run's passing native storage tests do not establish that the correction compiles.
 
 ## App and Home Screen flow
 

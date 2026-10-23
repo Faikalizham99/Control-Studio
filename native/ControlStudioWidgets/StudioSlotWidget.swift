@@ -78,14 +78,14 @@ struct StudioSlotView: View {
     }
 }
 
-struct StudioSlotWidget: Widget {
-    let slot: Int
-    private var families: [WidgetFamily] {
+@MainActor
+private enum StudioSlotConfiguration {
+    private static var families: [WidgetFamily] {
         var result: [WidgetFamily] = [.systemSmall, .systemMedium, .systemLarge, .systemExtraLarge]
         if #available(iOS 27.0, *) { result.append(.systemExtraLargePortrait) }
         return result
     }
-    var body: some WidgetConfiguration {
+    static func make(slot: Int) -> some WidgetConfiguration {
         StaticConfiguration(kind: WidgetDesignStore.slotKind(slot), provider: StudioSlotProvider(slot: slot)) { entry in
             StudioSlotView(entry: entry)
         }
@@ -96,22 +96,55 @@ struct StudioSlotWidget: Widget {
     }
 }
 
+// WidgetKit requires init(). Each concrete type keeps its slot fixed even when
+// the system reconstructs it, while sharing the configuration and rendering.
+struct StudioSlotOneWidget: Widget {
+    var body: some WidgetConfiguration { StudioSlotConfiguration.make(slot: 1) }
+}
+struct StudioSlotTwoWidget: Widget {
+    var body: some WidgetConfiguration { StudioSlotConfiguration.make(slot: 2) }
+}
+struct StudioSlotThreeWidget: Widget {
+    var body: some WidgetConfiguration { StudioSlotConfiguration.make(slot: 3) }
+}
+struct StudioSlotFourWidget: Widget {
+    var body: some WidgetConfiguration { StudioSlotConfiguration.make(slot: 4) }
+}
+struct StudioSlotFiveWidget: Widget {
+    var body: some WidgetConfiguration { StudioSlotConfiguration.make(slot: 5) }
+}
+struct StudioSlotSixWidget: Widget {
+    var body: some WidgetConfiguration { StudioSlotConfiguration.make(slot: 6) }
+}
+struct StudioSlotSevenWidget: Widget {
+    var body: some WidgetConfiguration { StudioSlotConfiguration.make(slot: 7) }
+}
+struct StudioSlotEightWidget: Widget {
+    var body: some WidgetConfiguration { StudioSlotConfiguration.make(slot: 8) }
+}
+struct StudioSlotNineWidget: Widget {
+    var body: some WidgetConfiguration { StudioSlotConfiguration.make(slot: 9) }
+}
+struct StudioSlotTenWidget: Widget {
+    var body: some WidgetConfiguration { StudioSlotConfiguration.make(slot: 10) }
+}
+
 // Small groups also work with older WidgetBundleBuilder overload limits.
 struct StudioSlotsOneToFive: WidgetBundle {
     var body: some Widget {
-        StudioSlotWidget(slot: 1)
-        StudioSlotWidget(slot: 2)
-        StudioSlotWidget(slot: 3)
-        StudioSlotWidget(slot: 4)
-        StudioSlotWidget(slot: 5)
+        StudioSlotOneWidget()
+        StudioSlotTwoWidget()
+        StudioSlotThreeWidget()
+        StudioSlotFourWidget()
+        StudioSlotFiveWidget()
     }
 }
 struct StudioSlotsSixToTen: WidgetBundle {
     var body: some Widget {
-        StudioSlotWidget(slot: 6)
-        StudioSlotWidget(slot: 7)
-        StudioSlotWidget(slot: 8)
-        StudioSlotWidget(slot: 9)
-        StudioSlotWidget(slot: 10)
+        StudioSlotSixWidget()
+        StudioSlotSevenWidget()
+        StudioSlotEightWidget()
+        StudioSlotNineWidget()
+        StudioSlotTenWidget()
     }
 }

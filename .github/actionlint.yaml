@@ -4,3 +4,6 @@ paths:
   .github/workflows/build-ios.yml:
     ignore:
       - '^label "xcode-27" is unknown\.'
+  .github/workflows/test.yml:
+    ignore:
+      - '^label "xcode-27" is unknown\.'
