@@ -89,8 +89,9 @@ private enum StudioSlotConfiguration {
         StaticConfiguration(kind: WidgetDesignStore.slotKind(slot), provider: StudioSlotProvider(slot: slot)) { entry in
             StudioSlotView(entry: entry)
         }
-        .configurationDisplayName("Studio \(slot)")
-        .description("Assign a design to slot \(slot) for each size inside Control Studio. Different slots can show different designs.")
+        // WidgetKit processes gallery metadata during extension registration.
+        // Interpolated LocalizedStringKey values assert here on iOS 27.
+        .description("Assign a saved design to this slot for each size in Control Studio. Different slots can show different designs.")
         .supportedFamilies(families)
         .contentMarginsDisabled()
     }
@@ -99,34 +100,54 @@ private enum StudioSlotConfiguration {
 // WidgetKit requires init(). Each concrete type keeps its slot fixed even when
 // the system reconstructs it, while sharing the configuration and rendering.
 struct StudioSlotOneWidget: Widget {
-    var body: some WidgetConfiguration { StudioSlotConfiguration.make(slot: 1) }
+    var body: some WidgetConfiguration {
+        StudioSlotConfiguration.make(slot: 1).configurationDisplayName("Studio 1")
+    }
 }
 struct StudioSlotTwoWidget: Widget {
-    var body: some WidgetConfiguration { StudioSlotConfiguration.make(slot: 2) }
+    var body: some WidgetConfiguration {
+        StudioSlotConfiguration.make(slot: 2).configurationDisplayName("Studio 2")
+    }
 }
 struct StudioSlotThreeWidget: Widget {
-    var body: some WidgetConfiguration { StudioSlotConfiguration.make(slot: 3) }
+    var body: some WidgetConfiguration {
+        StudioSlotConfiguration.make(slot: 3).configurationDisplayName("Studio 3")
+    }
 }
 struct StudioSlotFourWidget: Widget {
-    var body: some WidgetConfiguration { StudioSlotConfiguration.make(slot: 4) }
+    var body: some WidgetConfiguration {
+        StudioSlotConfiguration.make(slot: 4).configurationDisplayName("Studio 4")
+    }
 }
 struct StudioSlotFiveWidget: Widget {
-    var body: some WidgetConfiguration { StudioSlotConfiguration.make(slot: 5) }
+    var body: some WidgetConfiguration {
+        StudioSlotConfiguration.make(slot: 5).configurationDisplayName("Studio 5")
+    }
 }
 struct StudioSlotSixWidget: Widget {
-    var body: some WidgetConfiguration { StudioSlotConfiguration.make(slot: 6) }
+    var body: some WidgetConfiguration {
+        StudioSlotConfiguration.make(slot: 6).configurationDisplayName("Studio 6")
+    }
 }
 struct StudioSlotSevenWidget: Widget {
-    var body: some WidgetConfiguration { StudioSlotConfiguration.make(slot: 7) }
+    var body: some WidgetConfiguration {
+        StudioSlotConfiguration.make(slot: 7).configurationDisplayName("Studio 7")
+    }
 }
 struct StudioSlotEightWidget: Widget {
-    var body: some WidgetConfiguration { StudioSlotConfiguration.make(slot: 8) }
+    var body: some WidgetConfiguration {
+        StudioSlotConfiguration.make(slot: 8).configurationDisplayName("Studio 8")
+    }
 }
 struct StudioSlotNineWidget: Widget {
-    var body: some WidgetConfiguration { StudioSlotConfiguration.make(slot: 9) }
+    var body: some WidgetConfiguration {
+        StudioSlotConfiguration.make(slot: 9).configurationDisplayName("Studio 9")
+    }
 }
 struct StudioSlotTenWidget: Widget {
-    var body: some WidgetConfiguration { StudioSlotConfiguration.make(slot: 10) }
+    var body: some WidgetConfiguration {
+        StudioSlotConfiguration.make(slot: 10).configurationDisplayName("Studio 10")
+    }
 }
 
 // Small groups also work with older WidgetBundleBuilder overload limits.

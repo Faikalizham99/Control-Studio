@@ -10,9 +10,11 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 from app_group_config import synchronize
 from validate_ipa import validate_scene_manifest
+from check_widget_metadata import validate_widget_metadata
 
 
 def main():
+    validate_widget_metadata()
     for path in [*ROOT.rglob("*.csproj"), ROOT / "Directory.Build.props"]:
         if not {".tools", "obj", "bin"}.intersection(path.parts):
             ET.parse(path)
@@ -34,7 +36,7 @@ def main():
     original = path.read_bytes()
     generator.generate()
     assert path.read_bytes() == original, "Generated Xcode project is out of date; regenerate and commit it"
-    print("Source XML/plists, entitlements, pins and native project generation passed.")
+    print("Source XML/plists, entitlements, pins, widget metadata and native project generation passed.")
 
 
 if __name__ == "__main__":
