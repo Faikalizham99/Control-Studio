@@ -1,4 +1,6 @@
 import Foundation
+import Darwin
+import ObjectiveC
 import XCTest
 import ControlStudioWidgetRuntime
 
@@ -8,20 +10,21 @@ class BackgroundTestDescriptor: NSObject, NSSecureCoding, NSMutableCopying {
     @objc dynamic var kind = ""
     @objc dynamic var backgroundRemovable = false
     @objc dynamic var transparent = false
-    @objc dynamic var preferredBackgroundStyle: UInt = 0
+    // Match the signed q setter captured from iOS 27, rather than the old Q assumption.
+    @objc dynamic var preferredBackgroundStyle: Int = 0
     required override init() { super.init() }
     required init?(coder: NSCoder) {
         kind = coder.decodeObject(of: NSString.self, forKey: "kind") as String? ?? ""
         backgroundRemovable = coder.decodeBool(forKey: "removable")
         transparent = coder.decodeBool(forKey: "transparent")
-        preferredBackgroundStyle = UInt(coder.decodeInteger(forKey: "style"))
+        preferredBackgroundStyle = coder.decodeInteger(forKey: "style")
         super.init()
     }
     func encode(with coder: NSCoder) {
         coder.encode(kind as NSString, forKey: "kind")
         coder.encode(backgroundRemovable, forKey: "removable")
         coder.encode(transparent, forKey: "transparent")
-        coder.encode(Int(preferredBackgroundStyle), forKey: "style")
+        coder.encode(preferredBackgroundStyle, forKey: "style")
     }
     func mutableCopy(with zone: NSZone? = nil) -> Any {
         let copy = type(of: self).init()
@@ -57,6 +60,21 @@ final class BackgroundWrongABI: NSObject, NSSecureCoding, NSMutableCopying {
     func mutableCopy(with zone: NSZone? = nil) -> Any { BackgroundWrongABI() }
 }
 
+// Keep the former unsigned assumption as a negative fixture. The fix must
+// change both the declared call signature and the guard, not bypass validation.
+@objc(CSBackgroundUnsignedStyle)
+final class BackgroundUnsignedStyle: NSObject, NSSecureCoding, NSMutableCopying {
+    static var supportsSecureCoding: Bool { true }
+    @objc dynamic var kind = "ControlStudio.Slot.1"
+    @objc dynamic var backgroundRemovable = false
+    @objc dynamic var transparent = false
+    @objc dynamic var preferredBackgroundStyle: UInt = 0
+    override init() { super.init() }
+    required init?(coder: NSCoder) { super.init() }
+    func encode(with coder: NSCoder) { }
+    func mutableCopy(with zone: NSZone? = nil) -> Any { BackgroundUnsignedStyle() }
+}
+
 @objc(CSBackgroundTestResult)
 final class BackgroundTestResult: NSObject, NSSecureCoding {
     static var supportsSecureCoding: Bool { true }
@@ -75,7 +93,7 @@ final class BackgroundTestResult: NSObject, NSSecureCoding {
         if coder.decodeBool(forKey: "rejectDecode") {
             coder.failWithError(NSError(domain: "BackgroundFixture", code: 1)); return nil
         }
-        widgets = coder.decodeObject(of: [NSArray.self, BackgroundTestDescriptor.self, BackgroundWrongABI.self], forKey: "widgets") as? [NSObject] ?? []
+        widgets = coder.decodeObject(of: [NSArray.self, BackgroundTestDescriptor.self, BackgroundWrongABI.self, BackgroundUnsignedStyle.self], forKey: "widgets") as? [NSObject] ?? []
         controls = coder.decodeObject(of: [NSArray.self, NSString.self], forKey: "controls") as? [String] ?? []
         activities = coder.decodeObject(of: [NSArray.self, NSString.self], forKey: "activities") as? [String] ?? []
         futureMetadata = coder.decodeObject(of: [NSDictionary.self, NSString.self], forKey: "futureMetadata") as? [String: String] ?? [:]
@@ -91,6 +109,27 @@ final class BackgroundTestResult: NSObject, NSSecureCoding {
 final class WidgetBackgroundAdapterTests: XCTestCase {
     private func descriptor(_ kind: String) -> BackgroundTestDescriptor {
         let value = BackgroundTestDescriptor(); value.kind = kind; return value
+    }
+    func testSignedStyleSetterMatchesCapturedIOS27Encoding() throws {
+        let method = try XCTUnwrap(class_getInstanceMethod(BackgroundTestDescriptor.self, NSSelectorFromString("setPreferredBackgroundStyle:")))
+        let argument = try XCTUnwrap(method_copyArgumentType(method, 2))
+        defer { free(argument) }
+        XCTAssertEqual(String(cString: argument), "q")
+        let original = BackgroundTestResult(widgets: [descriptor("ControlStudio.Slot.1")])
+        let rewritten = try XCTUnwrap(CSWidgetBackgroundRewriteResult(original, descriptorClass: BackgroundTestDescriptor.self) as? BackgroundTestResult)
+        XCTAssertFalse(rewritten === original)
+        let slot = try XCTUnwrap(rewritten.widgets.first as? BackgroundTestDescriptor)
+        XCTAssertEqual(slot.preferredBackgroundStyle, 1); XCTAssertTrue(slot.transparent)
+    }
+    func testUnsignedStyleEncodingIsStillRejectedWithoutMutatingTheOriginal() throws {
+        let method = try XCTUnwrap(class_getInstanceMethod(BackgroundUnsignedStyle.self, NSSelectorFromString("setPreferredBackgroundStyle:")))
+        let argument = try XCTUnwrap(method_copyArgumentType(method, 2))
+        defer { free(argument) }
+        XCTAssertEqual(String(cString: argument), "Q")
+        let value = BackgroundUnsignedStyle(); let original = BackgroundTestResult(widgets: [value])
+        XCTAssertTrue(CSWidgetBackgroundRewriteResult(original, descriptorClass: BackgroundUnsignedStyle.self) as? NSObject === original)
+        XCTAssertFalse(value.transparent); XCTAssertFalse(value.backgroundRemovable)
+        XCTAssertEqual(value.preferredBackgroundStyle, 0)
     }
     func testOnlyExactNumberedStudioKindsAreAllowed() {
         for number in 1...10 { XCTAssertTrue(CSIsStudioSlotKind("ControlStudio.Slot.\(number)")) }

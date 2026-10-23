@@ -17,7 +17,8 @@
 - (NSString *)kind;
 - (void)setBackgroundRemovable:(BOOL)value;
 - (void)setTransparent:(BOOL)value;
-- (void)setPreferredBackgroundStyle:(NSUInteger)value;
+// iOS 27 device diagnostics report the signed integer encoding q, not Q.
+- (void)setPreferredBackgroundStyle:(NSInteger)value;
 @end
 
 static NSString *CSSafeErrorCode(NSError *error) {
@@ -91,7 +92,7 @@ static BOOL CSMethodMatches(id object, SEL selector, const char *returnType,
     }
     for (NSString *name in @[@"setBackgroundRemovable:", @"setTransparent:", @"setPreferredBackgroundStyle:"]) {
         SEL setter = NSSelectorFromString(name);
-        const char *type = setter == @selector(setPreferredBackgroundStyle:) ? @encode(NSUInteger) : @encode(BOOL);
+        const char *type = setter == @selector(setPreferredBackgroundStyle:) ? @encode(NSInteger) : @encode(BOOL);
         if (!CSMethodMatches(copy, setter, @encode(void), type)) {
             self.failed = YES; self.failureReason = [@"setter-unavailable-or-incompatible:" stringByAppendingString:name]; return object;
         }
