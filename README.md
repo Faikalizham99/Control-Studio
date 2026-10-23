@@ -1,5 +1,7 @@
 # Control Studio
 
+Version **0.2.23 (25)** requests native clear backgrounds for the ten Studio widget slots on iOS 27 through a guarded private descriptor adapter. It also includes the Rotate/Flip menu follow-up. The owner authorized committing, pushing main and pushing the new tag, and will monitor the IPA build. All 32 local packaging checks and source checks pass; native tests, Xcode compilation and iPhone transparency remain pending. See [implementation and verification limits](docs/widget-native-transparency.md).
+
 Version **0.2.22 (24)** redesigns the photo-layer widget editor with size-aware live previews, drag/pinch/corner resizing, rotation, flips, opacity, layer visibility/reordering and optional solid or transparent backgrounds. It also includes the shared button-caption alignment fix. The owner authorized committing, pushing main and pushing the new version tag, and will monitor the IPA build. All 310 local automated tests and managed iOS C# compilation pass; native/device UI, gestures and actual wallpaper-through transparency still require verification. See [editor behavior and verification limits](docs/widget-editor.md).
 
 The button alignment fix shares vertical centring of text and icons across widget, Clipboard editor, profile and common page actions, and corrects the Counter preview header. See [affected controls and verification](docs/ui-components.md). This is included in the authorized 0.2.22 release.

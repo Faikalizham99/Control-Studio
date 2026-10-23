@@ -68,6 +68,8 @@ struct StudioSlotView: View {
                     Text("Studio \(entry.slot)").font(.headline)
                     Text(entry.message).font(.caption).foregroundStyle(.secondary).minimumScaleFactor(0.7)
                 }.padding(16).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+                    // This content background remains readable even when the slot descriptor is clear.
+                    .background(Color(uiColor: .systemBackground))
             }
         }
         .containerBackground(for: .widget) {

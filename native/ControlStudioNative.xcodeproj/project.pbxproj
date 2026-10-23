@@ -79,6 +79,16 @@
 			"isa" = "PBXBuildFile";
 			"fileRef" = "A8F19B76FEAA4F360CE14AAA";
 		};
+		"DCDD2E72E39BA36561DF5F3D" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "sourcecode.c.objc";
+			"path" = "WidgetRuntime/CSWidgetBackgroundAdapter.m";
+			"sourceTree" = "<group>";
+		};
+		"1F63B78E88C531B0B1F6B54C" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "DCDD2E72E39BA36561DF5F3D";
+		};
 		"281240187B75A46D30C238C0" = {
 			"isa" = "PBXSourcesBuildPhase";
 			"buildActionMask" = 2147483647;
@@ -89,6 +99,7 @@
 				"79CC07C72413E552BC034B32",
 				"D54E84724757C35B2EAEA303",
 				"7052DB8C589EB931B19128DD",
+				"1F63B78E88C531B0B1F6B54C",
 			);
 			"runOnlyForDeploymentPostprocessing" = 0;
 		};
@@ -129,8 +140,8 @@
 				"SWIFT_OPTIMIZATION_LEVEL" = "-O";
 				"SWIFT_EMIT_LOC_STRINGS" = "YES";
 				"TARGETED_DEVICE_FAMILY" = "1,2";
-				"CURRENT_PROJECT_VERSION" = "24";
-				"MARKETING_VERSION" = "0.2.22";
+				"CURRENT_PROJECT_VERSION" = "25";
+				"MARKETING_VERSION" = "0.2.23";
 				"LD_RUNPATH_SEARCH_PATHS" = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -140,6 +151,7 @@
 					"$(inherited)",
 					"-lsqlite3",
 				);
+				"SWIFT_OBJC_BRIDGING_HEADER" = "ControlStudioWidgets/ControlStudioWidgets-Bridging-Header.h";
 			};
 		};
 		"C59938A20DF02E111EDB2881" = {
@@ -246,8 +258,8 @@
 				"SWIFT_OPTIMIZATION_LEVEL" = "-O";
 				"SWIFT_EMIT_LOC_STRINGS" = "YES";
 				"TARGETED_DEVICE_FAMILY" = "1,2";
-				"CURRENT_PROJECT_VERSION" = "24";
-				"MARKETING_VERSION" = "0.2.22";
+				"CURRENT_PROJECT_VERSION" = "25";
+				"MARKETING_VERSION" = "0.2.23";
 				"LD_RUNPATH_SEARCH_PATHS" = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -305,6 +317,7 @@
 				"3647715DBD47B59F9F21A188",
 				"C9FF7C42709595CD3EDE50C0",
 				"A8F19B76FEAA4F360CE14AAA",
+				"DCDD2E72E39BA36561DF5F3D",
 				"0F641DB0626D777B6F91FE44",
 				"0A3E27B8CA818264D75C8D81",
 			);

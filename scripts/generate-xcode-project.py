@@ -45,6 +45,10 @@ def generate():
                               path="ControlStudioWidgets/StudioSlotWidget.swift", sourceTree="<group>")
             children.append(design_view)
             build_files.append(add("widget-slots-view-build", "PBXBuildFile", fileRef=design_view))
+            runtime = add("widget-background-adapter", "PBXFileReference", lastKnownFileType="sourcecode.c.objc",
+                          path="WidgetRuntime/CSWidgetBackgroundAdapter.m", sourceTree="<group>")
+            children.append(runtime)
+            build_files.append(add("widget-background-adapter-build", "PBXBuildFile", fileRef=runtime))
         sources = add(name + "-sources", "PBXSourcesBuildPhase", buildActionMask=2147483647,
                       files=build_files, runOnlyForDeploymentPostprocessing=0)
         frameworks = add(name + "-frameworks", "PBXFrameworksBuildPhase", buildActionMask=2147483647,
@@ -60,10 +64,12 @@ def generate():
             "APPLICATION_EXTENSION_API_ONLY": "YES", "IPHONEOS_DEPLOYMENT_TARGET": "17.0",
             "SWIFT_VERSION": "5.0", "SWIFT_OPTIMIZATION_LEVEL": "-O",
             "SWIFT_EMIT_LOC_STRINGS": "YES", "TARGETED_DEVICE_FAMILY": "1,2",
-            "CURRENT_PROJECT_VERSION": "24", "MARKETING_VERSION": "0.2.22",
+            "CURRENT_PROJECT_VERSION": "25", "MARKETING_VERSION": "0.2.23",
             "LD_RUNPATH_SEARCH_PATHS": ["$(inherited)", "@executable_path/Frameworks", "@executable_path/../../Frameworks"],
             "OTHER_LDFLAGS": ["$(inherited)", "-lsqlite3"],
         }
+        if name == "ControlStudioWidgets":
+            settings["SWIFT_OBJC_BRIDGING_HEADER"] = "ControlStudioWidgets/ControlStudioWidgets-Bridging-Header.h"
         config = add(name + "-release", "XCBuildConfiguration", name="Release", buildSettings=settings)
         configs = add(name + "-configs", "XCConfigurationList", buildConfigurations=[config],
                       defaultConfigurationIsVisible=0, defaultConfigurationName="Release")
@@ -95,11 +101,12 @@ def generate():
             return str(item)
         return json.dumps(item)
 
-    contents = "// !$*UTF8*$!\n" + value({"archiveVersion": 1, "classes": {}, "objectVersion": 56,
-                                            "objects": objects, "rootObject": project}) + "\n"
+    model = {"archiveVersion": 1, "classes": {}, "objectVersion": 56, "objects": objects, "rootObject": project}
+    contents = "// !$*UTF8*$!\n" + value(model) + "\n"
     output = ROOT / "native/ControlStudioNative.xcodeproj/project.pbxproj"
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(contents, encoding="utf-8", newline="\n")
+    return model
 
 
 if __name__ == "__main__":

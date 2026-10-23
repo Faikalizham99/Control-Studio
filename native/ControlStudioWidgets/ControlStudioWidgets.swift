@@ -103,6 +103,7 @@ struct CounterWidget: Widget {
 
 @main
 struct ControlStudioWidgets: WidgetBundle {
+    init() { CSInstallWidgetBackgroundAdapter() }
     var body: some Widget {
         CounterWidget()
         StudioSlotsOneToFive().body
