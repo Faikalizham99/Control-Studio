@@ -36,6 +36,21 @@ public func counterIncrement() -> UnsafeMutablePointer<CChar>? { response(operat
 @_cdecl("cs_counter_reset")
 public func counterReset() -> UnsafeMutablePointer<CChar>? { response(operation: .reset) }
 
+@_cdecl("cs_counter_set_appearance")
+public func counterSetAppearance(_ theme: Int32, _ hex: UnsafePointer<CChar>?) -> Int32 {
+    guard let hex else { return 0 }
+    do {
+        let appearance = CounterAppearance(schemaVersion: 1, themeIndex: Int(theme), accentHex: String(cString: hex))
+        if try CounterAppearanceStore.shared().save(appearance) {
+            WidgetCenter.shared.reloadTimelines(ofKind: StudioConstants.widgetKind)
+        }
+        return 1
+    } catch {
+        bridgeLog.error("Counter appearance publication failed; local app preferences are retained.")
+        return 0
+    }
+}
+
 @_cdecl("cs_counter_free")
 public func counterFree(_ pointer: UnsafeMutablePointer<CChar>?) { free(pointer) }
 

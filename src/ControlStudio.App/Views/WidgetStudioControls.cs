@@ -141,16 +141,16 @@ internal sealed class CounterWidgetPreview : ContentView
         this.medium = medium; AutomationId = medium ? "MediumCounterPreview" : "SmallCounterPreview";
         var header = SettingsControls.Text("Control Studio", 11, secondary: true, bold: true);
         header.MaxLines = 1; header.FontAutoScalingEnabled = false;
-        var mark = new StudioGlyph(StudioSymbol.Counter, false) { WidthRequest = 12, HeightRequest = 12, VerticalOptions = LayoutOptions.Center };
-        mark.SetAppThemeColor(StudioGlyph.TintProperty, Color.FromArgb("#6C6C70"), Color.FromArgb("#AEAEBA"));
+        var mark = CounterIcon(12);
         var brand = new Grid { ColumnSpacing = 4, ColumnDefinitions = { new(GridLength.Auto), new(GridLength.Star) } };
         brand.Add(mark); brand.Add(header, 1);
         value.SetAppThemeColor(Label.TextColorProperty, Color.FromArgb("#16171C"), Colors.White);
-        foreach (var label in new[] { updated, caption }) label.SetAppThemeColor(Label.TextColorProperty, Color.FromArgb("#6C6C70"), Color.FromArgb("#AEAEBA"));
+        header.SetAppThemeColor(Label.TextColorProperty, Color.FromArgb("#6C6C70"), Color.FromArgb("#AEAEB2"));
+        foreach (var label in new[] { updated, caption }) label.SetAppThemeColor(Label.TextColorProperty, Color.FromArgb("#6C6C70"), Color.FromArgb("#AEAEB2"));
         var labels = new VerticalStackLayout { Spacing = 4, VerticalOptions = LayoutOptions.Center, Children = { brand, value, caption, updated } };
         var content = new Grid { Padding = 16, ColumnSpacing = 18, ColumnDefinitions = { new(GridLength.Star), new(GridLength.Auto) } };
         content.Add(labels);
-        if (medium) content.Add(new StudioGlyph(StudioSymbol.Counter, false) { Tint = Color.FromArgb("#007AFF"), WidthRequest = 44, HeightRequest = 44, VerticalOptions = LayoutOptions.Center }, 1);
+        if (medium) content.Add(CounterIcon(42), 1);
         Content = new WidgetPreviewFrame(medium ? WidgetSize.Medium : WidgetSize.Small, content);
         // The canvas is a fixed-scale rendering preview; the enclosing view has
         // the complete VoiceOver description even when large numbers shrink.
@@ -158,6 +158,17 @@ internal sealed class CounterWidgetPreview : ContentView
         foreach (var label in new[] { header, value, updated, caption }) AutomationProperties.SetIsInAccessibleTree(label, false);
         value.SizeChanged += (_, _) => FitValue();
         Update(null, loading: true);
+    }
+    private static Border CounterIcon(double size)
+    {
+        var glyph = new StudioGlyph(StudioSymbol.Counter, false) { WidthRequest = size, HeightRequest = size };
+        glyph.SetDynamicResource(StudioGlyph.TintProperty, "Accent");
+        var well = new Border { Content = glyph, Padding = 4, StrokeThickness = 0, VerticalOptions = LayoutOptions.Center,
+            StrokeShape = new RoundRectangle { CornerRadius = size > 20 ? 12 : 6 } };
+        well.SetDynamicResource(BackgroundColorProperty, "CounterIconBackground");
+        AutomationProperties.SetIsInAccessibleTree(well, false);
+        AutomationProperties.SetIsInAccessibleTree(glyph, false);
+        return well;
     }
     public void Update(CounterSnapshot? snapshot, bool loading = false)
     {

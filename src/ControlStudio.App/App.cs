@@ -7,12 +7,14 @@ public sealed class App : Application
     private readonly HomePage home;
     private readonly SettingsPage settings;
     private readonly StudioPage studio;
+    private readonly AppearancePreferences preferences;
 
     public App(HomePage home, StudioPage studio, SettingsPage settings, AppearancePreferences preferences)
     {
         this.home = home;
         this.studio = studio;
         this.settings = settings;
+        this.preferences = preferences;
         preferences.Attach(this);
     }
 
@@ -24,6 +26,7 @@ public sealed class App : Application
         tabs.Children.Add(new NavigationPage(studio) { Title = "Studio", IconImageSource = "tab_studio.png" });
         tabs.Children.Add(new NavigationPage(settings) { Title = "Settings", IconImageSource = "tab_settings.png", AutomationId = "SettingsTab" });
         var window = new Window(tabs);
+        window.Activated += (_, _) => preferences.SynchronizeCounterAppearance();
         window.Resumed += async (_, _) => await home.RefreshAsync();
         return window;
     }

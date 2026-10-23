@@ -1,5 +1,7 @@
 # Control Studio
 
+The Counter appearance enhancement shares Settings' System/Light/Dark choice and saved accent with Small/Medium Counter widgets and matching in-app previews. Custom widget designs retain their own appearance. See [behavior, verification and device checks](docs/counter-widget-appearance.md). The owner authorized committing and pushing main; no new version tag or IPA build is authorized for this update.
+
 Version **0.2.20 (22)** separates **My Widgets** and **Counter Widgets**, retains Clipboard, adds size filters and correctly proportioned full previews, and keeps **Widget slots** directly accessible. See the [UI behavior, review and pending device checks](docs/widget-studio-ui.md). The owner authorized committing, pushing main and pushing the new version tag, and will monitor the IPA build.
 
 Home also adds a confirmed **red Reset counter** action below **Increment (+1)**, backed by the shared native counter transaction. See [reset behavior and verification](docs/home-counter-reset.md). The combined changes pass 280 automated tests and managed iOS C# compilation; native/device verification remains pending.

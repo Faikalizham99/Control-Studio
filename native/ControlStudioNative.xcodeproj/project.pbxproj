@@ -18,6 +18,12 @@
 			"path" = "Shared/AppGroupConfiguration.swift";
 			"sourceTree" = "<group>";
 		};
+		"A8D587F46C49440FA441A653" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "sourcecode.swift";
+			"path" = "Shared/CounterAppearance.swift";
+			"sourceTree" = "<group>";
+		};
 		"2EAE80D65C910A9C1E47FE9F" = {
 			"isa" = "PBXFileReference";
 			"lastKnownFileType" = "sourcecode.swift";
@@ -59,6 +65,10 @@
 			"isa" = "PBXBuildFile";
 			"fileRef" = "C9FF7C42709595CD3EDE50C0";
 		};
+		"D54E84724757C35B2EAEA303" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "A8D587F46C49440FA441A653";
+		};
 		"A8F19B76FEAA4F360CE14AAA" = {
 			"isa" = "PBXFileReference";
 			"lastKnownFileType" = "sourcecode.swift";
@@ -77,6 +87,7 @@
 				"6B6C4C4DD3FCEE1032DC64CE",
 				"DD3FF1AF259ABD55EF7DF8C2",
 				"79CC07C72413E552BC034B32",
+				"D54E84724757C35B2EAEA303",
 				"7052DB8C589EB931B19128DD",
 			);
 			"runOnlyForDeploymentPostprocessing" = 0;
@@ -289,6 +300,7 @@
 			"children" = (
 				"12E8AECD5B05A5139654507F",
 				"04786B615021C841DE4B25D5",
+				"A8D587F46C49440FA441A653",
 				"2EAE80D65C910A9C1E47FE9F",
 				"3647715DBD47B59F9F21A188",
 				"C9FF7C42709595CD3EDE50C0",

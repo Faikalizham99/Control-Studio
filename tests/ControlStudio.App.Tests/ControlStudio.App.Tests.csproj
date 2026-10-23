@@ -8,6 +8,8 @@
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5"><PrivateAssets>all</PrivateAssets></PackageReference>
     <ProjectReference Include="../../src/ControlStudio.Core/ControlStudio.Core.csproj" />
     <Compile Include="../../src/ControlStudio.App/AppearanceColors.cs" Link="AppearanceColors.cs" />
+    <Compile Include="../../src/ControlStudio.App/AppearancePreferences.cs" Link="AppearancePreferences.cs" />
+    <Compile Include="../../src/ControlStudio.App/ICounterAppearancePublisher.cs" Link="ICounterAppearancePublisher.cs" />
     <Compile Include="../../src/ControlStudio.App/PhotoCropGeometry.cs" Link="PhotoCropGeometry.cs" />
     <Compile Include="../../src/ControlStudio.App/StudioContent.cs" Link="StudioContent.cs" />
     <Compile Include="../../src/ControlStudio.App/ClipboardArrangement.cs" Link="ClipboardArrangement.cs" />

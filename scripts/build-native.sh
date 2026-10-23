@@ -7,7 +7,7 @@ python3 scripts/generate-xcode-project.py
 sdk="$(xcrun --sdk iphoneos --show-sdk-path)"
 xcrun --sdk iphoneos swiftc -emit-library -static -parse-as-library -O \
   -module-name ControlStudioBridge -target arm64-apple-ios17.0 -sdk "$sdk" \
-  native/Shared/AppGroupConfiguration.swift native/Shared/CounterStore.swift native/Shared/WidgetDesignStore.swift native/ControlStudioBridge/CounterBridge.swift \
+  native/Shared/AppGroupConfiguration.swift native/Shared/CounterStore.swift native/Shared/CounterAppearance.swift native/Shared/WidgetDesignStore.swift native/ControlStudioBridge/CounterBridge.swift \
   -o artifacts/native/libControlStudioBridge.a
 # The aggregate build runs Xcode's normal App Intents metadata extraction phase.
 xcodebuild -project native/ControlStudioNative.xcodeproj -alltargets \
