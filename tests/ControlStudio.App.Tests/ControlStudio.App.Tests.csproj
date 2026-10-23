@@ -25,6 +25,15 @@
     <Compile Include="../../src/ControlStudio.App/Views/DashboardStyle.cs" Link="Views/DashboardStyle.cs" />
     <Compile Include="../../src/ControlStudio.App/Views/WidgetStudioPage.cs" Link="Views/WidgetStudioPage.cs" />
     <Compile Include="../../src/ControlStudio.App/IWidgetSlotStore.cs" Link="IWidgetSlotStore.cs" />
+    <Compile Include="../../src/ControlStudio.App/IWidgetEditorStore.cs" Link="IWidgetEditorStore.cs" />
+    <Compile Include="../../src/ControlStudio.App/IColourPicker.cs" Link="IColourPicker.cs" />
+    <Compile Include="../../src/ControlStudio.App/IProfilePhotoStore.cs" Link="IProfilePhotoStore.cs" />
+    <Compile Include="../../src/ControlStudio.App/Views/ProfileEditorPage.cs" Link="Views/ProfileEditorPage.cs" />
+    <Compile Include="../../src/ControlStudio.App/Views/GlassCard.cs" Link="Views/GlassCard.cs" />
+    <Compile Include="../../src/ControlStudio.App/Views/EditorPageActivity.cs" Link="Views/EditorPageActivity.cs" />
+    <Compile Include="../../src/ControlStudio.App/Views/WidgetEditorPage.cs" Link="Views/WidgetEditorPage.cs" />
+    <Compile Include="../../src/ControlStudio.App/Views/ColourPickerView.cs" Link="Views/ColourPickerView.cs" />
+    <Compile Include="../../src/ControlStudio.App/Views/HexColorEntry.cs" Link="Views/HexColorEntry.cs" />
     <Compile Include="../../src/ControlStudio.App/WidgetSlotSelection.cs" Link="WidgetSlotSelection.cs" />
     <Compile Include="../../src/ControlStudio.App/Views/WidgetSlotPageBase.cs" Link="Views/WidgetSlotPageBase.cs" />
     <Compile Include="../../src/ControlStudio.App/Views/WidgetSlotCards.cs" Link="Views/WidgetSlotCards.cs" />

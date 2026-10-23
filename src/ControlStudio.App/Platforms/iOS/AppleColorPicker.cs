@@ -3,7 +3,7 @@ using UIKit;
 
 namespace ControlStudio.App.Platforms.iOS;
 
-public sealed class AppleColorPicker
+public sealed class AppleColorPicker : IColourPicker
 {
     private Session? active;
 

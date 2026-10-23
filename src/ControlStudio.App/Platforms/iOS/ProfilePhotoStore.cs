@@ -4,7 +4,7 @@ using UIKit;
 
 namespace ControlStudio.App.Platforms.iOS;
 
-public sealed class ProfilePhotoStore(AppearancePreferences preferences)
+public sealed class ProfilePhotoStore(AppearancePreferences preferences) : IProfilePhotoStore
 {
     private static string Folder => Path.Combine(FileSystem.Current.AppDataDirectory, "Profile");
     public string? GetPath(string key) => Guid.TryParseExact(key, "N", out _) && File.Exists(Path.Combine(Folder, key + ".jpg")) ? Path.Combine(Folder, key + ".jpg") : null;

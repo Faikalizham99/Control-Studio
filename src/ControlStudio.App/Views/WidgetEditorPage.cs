@@ -1,12 +1,13 @@
-using ControlStudio.App.Platforms.iOS;
 using ControlStudio.Core.Widgets;
 using Microsoft.Extensions.Logging;
+using Microsoft.Maui.Accessibility;
 
 namespace ControlStudio.App.Views;
 
 internal sealed class WidgetEditorPage : ContentPage
 {
-    private readonly WidgetStudioService studio;
+    private readonly IWidgetEditorStore studio;
+    private readonly Func<Task<string?>> choosePhotoSource;
     private readonly ILogger logger;
     private WidgetDesign draft;
     private Guid? selected;
@@ -40,19 +41,20 @@ internal sealed class WidgetEditorPage : ContentPage
     private readonly VerticalStackLayout opacityMenu = new() { Spacing = 4, IsVisible = false };
     private readonly ColourPickerView background;
     private readonly List<(string Title, Slider Slider, Label Label)> sliders = [];
-    private bool updating, busy, saved, departed, active, closing;
+    private bool updating, busy, saved, departed, closing;
     private Window? observedWindow;
-    private bool Foreground => active && UIKit.UIApplication.SharedApplication.ApplicationState == UIKit.UIApplicationState.Active;
+    private bool Foreground => EditorPageActivity.IsForeground(this);
     private bool CanEdit => Foreground && !busy && !saved && !departed && !background.IsBusy && !canvas.IsInteracting;
 
-    public WidgetEditorPage(WidgetStudioService studio, AppleColorPicker colourPicker, ILogger logger, WidgetDesign? original = null, WidgetSize initialSize = WidgetSize.Small)
+    public WidgetEditorPage(IWidgetEditorStore studio, IColourPicker colourPicker, ILogger logger, WidgetDesign? original = null, WidgetSize initialSize = WidgetSize.Small, Func<Task<string?>>? choosePhotoSource = null)
     {
         this.studio = studio; this.logger = logger;
+        this.choosePhotoSource = choosePhotoSource ?? (() => DisplayActionSheetAsync("Add photo layer", "Cancel", null, "Photo Library", "Files"));
         draft = WidgetDesignRules.ForEditing(original ?? (WidgetDesignRules.New() with { Size = initialSize, TransparentBackground = OperatingSystem.IsIOSVersionAtLeast(26) }));
         Title = original is null ? "New widget" : "Edit widget"; AutomationId = "WidgetEditorPage"; WidgetStudioStyle.Page(this);
         name.Text = draft.Name; name.SetAppThemeColor(Entry.TextColorProperty, Color.FromArgb("#16171C"), Colors.White);
         SemanticProperties.SetDescription(name, "Widget name");
-        canvas = new WidgetCanvasView(studio.Repository.AssetPath, SelectLayer, layer =>
+        canvas = new WidgetCanvasView(studio.AssetPath, SelectLayer, layer =>
         {
             if (saved || departed || busy) return;
             ReplaceLayer(layer); RefreshControls(); UpdateCanvas();
@@ -193,7 +195,7 @@ internal sealed class WidgetEditorPage : ContentPage
         {
             if (!rows.TryGetValue(layer.Id, out var row))
             {
-                row = new WidgetLayerRow(layer, studio.Repository.AssetPath(layer.AssetKey), dragScope, SelectLayer,
+                row = new WidgetLayerRow(layer, studio.AssetPath(layer.AssetKey), dragScope, SelectLayer,
                     (id, visible) =>
                     {
                         if (!CanEdit) return;
@@ -247,7 +249,11 @@ internal sealed class WidgetEditorPage : ContentPage
                 WidgetDesignRules.Validate(next); draft = next; break;
             case "Size, position & crop":
                 precise.IsVisible = true;
-                await scroll.ScrollToAsync(precisionCard, ScrollToPosition.Start, !UIKit.UIAccessibility.IsReduceMotionEnabled);
+                var animate = false;
+#if IOS
+                animate = !UIKit.UIAccessibility.IsReduceMotionEnabled;
+#endif
+                await scroll.ScrollToAsync(precisionCard, ScrollToPosition.Start, animate);
                 break;
             case "Move forward": MoveLayer(1); break;
             case "Move backward": MoveLayer(-1); break;
@@ -260,10 +266,12 @@ internal sealed class WidgetEditorPage : ContentPage
         var layers = draft.Layers.ToList(); var index = layers.FindIndex(x => x.Id == selected); var target = index + delta;
         if (index >= 0 && target >= 0 && target < layers.Count) draft = draft with { Layers = WidgetLayerEdits.Reorder(layers, layers[index].Id, layers[target].Id) };
     }
+    internal Task AddPhotoAsync() => RunAsync(PickPhotoAsync);
     private async Task PickPhotoAsync()
     {
         if (draft.Layers.Count >= WidgetDesignRules.MaximumLayers) return;
-        var choice = await DisplayActionSheetAsync("Add photo layer", "Cancel", null, "Photo Library", "Files");
+        name.Unfocus();
+        var choice = await choosePhotoSource();
         if (!Foreground || departed || choice is not ("Photo Library" or "Files")) return;
         var layer = await studio.PickPhotoAsync(choice == "Photo Library"); if (layer is null) return;
         ownedPhotos.Add(layer.AssetKey); if (departed) { await CleanupAsync(); return; }
@@ -278,7 +286,7 @@ internal sealed class WidgetEditorPage : ContentPage
         CloseTools(); draft = draft with { Layers = draft.Layers.Where(x => x.Id != layer.Id).ToArray() }; selected = draft.Layers.LastOrDefault()?.Id; RefreshLayers();
         if (ownedPhotos.Contains(layer.AssetKey) && !draft.Layers.Any(x => x.AssetKey == layer.AssetKey))
         {
-            try { await studio.Repository.RemoveDraftPhotosAsync([layer.AssetKey]); ownedPhotos.Remove(layer.AssetKey); }
+            try { await studio.RemoveDraftPhotosAsync([layer.AssetKey]); ownedPhotos.Remove(layer.AssetKey); }
             catch (Exception ex) { logger.LogWarning("Removed widget draft photo cleanup failed. ErrorType={ErrorType}", ex.GetType().Name); }
         }
     }
@@ -315,8 +323,11 @@ internal sealed class WidgetEditorPage : ContentPage
     private void RefreshActions()
     {
         // Keep the canvas enabled during a gesture; disabling its parent would cancel native recognition.
-        var canNavigate = Foreground && !busy && !departed && !background.IsBusy && !canvas.IsInteracting;
-        form.IsEnabled = Foreground && !busy && !saved && !departed && !background.IsBusy;
+        // Availability follows operation state. Native picker dismissal can briefly report an
+        // inactive application; persisting that snapshot in IsEnabled can lock the whole editor.
+        // Execution still checks the current navigation owner and MAUI window activation.
+        var canNavigate = !busy && !departed && !background.IsBusy && !canvas.IsInteracting;
+        form.IsEnabled = !busy && !saved && !departed && !background.IsBusy;
         save.IsEnabled = sizes.IsEnabled = layerList.IsEnabled = canNavigate && !saved;
         back.IsEnabled = cancel.IsEnabled = canNavigate;
         addPhoto.IsEnabled = canNavigate && !saved && draft.Layers.Count < WidgetDesignRules.MaximumLayers;
@@ -325,7 +336,7 @@ internal sealed class WidgetEditorPage : ContentPage
     }
     private async Task RunAsync(Func<Task> operation)
     {
-        if (!CanEdit || !Foreground) return;
+        if (!CanEdit) return;
         CloseTools(); busy = true; RefreshActions();
         try { await operation(); }
         catch (Exception ex)
@@ -340,7 +351,7 @@ internal sealed class WidgetEditorPage : ContentPage
     }
     private async Task CleanupAsync()
     {
-        try { await studio.Repository.RemoveDraftPhotosAsync(ownedPhotos); ownedPhotos.Clear(); }
+        try { await studio.RemoveDraftPhotosAsync(ownedPhotos); ownedPhotos.Clear(); }
         catch (Exception ex) { logger.LogWarning("Widget draft cleanup failed. ErrorType={ErrorType}", ex.GetType().Name); }
     }
     private async Task CloseSavedAsync()
@@ -362,7 +373,7 @@ internal sealed class WidgetEditorPage : ContentPage
     private void WindowDeactivated(object? sender, EventArgs args) { canvas.EndInteraction(true); CloseTools(); RefreshActions(); }
     protected override async void OnAppearing()
     {
-        base.OnAppearing(); active = true;
+        base.OnAppearing();
         if (observedWindow != Window)
         {
             StopObservingWindow(); observedWindow = Window;
@@ -376,14 +387,20 @@ internal sealed class WidgetEditorPage : ContentPage
         observedWindow = null;
     }
     protected override void OnDisappearing()
-    { canvas.EndInteraction(true); CloseTools(); active = false; RefreshActions(); StopObservingWindow(); base.OnDisappearing(); }
+    {
+        canvas.EndInteraction(true); CloseTools(); RefreshActions();
+        // A native picker can cover this page without removing it from MAUI navigation.
+        // Keep activation recovery subscribed until this editor actually leaves the stack.
+        base.OnDisappearing();
+    }
     protected override bool OnBackButtonPressed() => busy || background.IsBusy || canvas.IsInteracting || base.OnBackButtonPressed();
     protected override void OnNavigatedFrom(NavigatedFromEventArgs args)
     {
         base.OnNavigatedFrom(args);
         if (!Navigation.NavigationStack.Contains(this))
         {
-            departed = true; canvas.ReleaseSources(); foreach (var row in rows.Values) row.ReleaseSource(); if (!busy) _ = CleanupAsync();
+            departed = true; StopObservingWindow(); RefreshActions();
+            canvas.ReleaseSources(); foreach (var row in rows.Values) row.ReleaseSource(); if (!busy) _ = CleanupAsync();
         }
     }
 }

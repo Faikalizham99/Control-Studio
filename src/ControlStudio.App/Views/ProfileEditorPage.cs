@@ -1,4 +1,3 @@
-using ControlStudio.App.Platforms.iOS;
 using Microsoft.Maui.Controls.Shapes;
 
 namespace ControlStudio.App.Views;
@@ -6,7 +5,8 @@ namespace ControlStudio.App.Views;
 public sealed class ProfileEditorPage : ContentPage
 {
     private readonly AppearancePreferences preferences;
-    private readonly ProfilePhotoStore photos;
+    private readonly IProfilePhotoStore photos;
+    private readonly Func<string[], Task<string?>> choosePhotoSource;
     private readonly ProfileNameEntry name = new()
     {
         MaxLength = 40, Placeholder = "Your name", FontSize = 15, BackgroundColor = Colors.Transparent,
@@ -28,9 +28,13 @@ public sealed class ProfileEditorPage : ContentPage
     private bool departed;
     private bool closing;
 
-    public ProfileEditorPage(AppearancePreferences preferences, ProfilePhotoStore photos)
+    public ProfileEditorPage(AppearancePreferences preferences, IProfilePhotoStore photos)
+        : this(preferences, photos, null) { }
+
+    internal ProfileEditorPage(AppearancePreferences preferences, IProfilePhotoStore photos, Func<string[], Task<string?>>? choosePhotoSource)
     {
         this.preferences = preferences; this.photos = photos; photoKey = preferences.PhotoKey;
+        this.choosePhotoSource = choosePhotoSource ?? (options => DisplayActionSheetAsync("Choose profile photo", "Cancel", null, options));
         Title = "Edit profile"; AutomationId = "ProfileEditorPage"; SafeAreaEdges = SafeAreaEdges.All;
         NavigationPage.SetHasNavigationBar(this, false);
         DashboardStyle.NavigationAccent(this);
@@ -151,7 +155,7 @@ public sealed class ProfileEditorPage : ContentPage
         finally { closing = false; RefreshActions(); }
     }
 
-    private async Task ChoosePhotoAsync(bool adjustExisting = false)
+    internal async Task ChoosePhotoAsync(bool adjustExisting = false)
     {
         if (busy || departed || saved || closing) return;
         name.Unfocus(); busy = true; RefreshActions();
@@ -162,7 +166,7 @@ public sealed class ProfileEditorPage : ContentPage
             else
             {
                 var options = photos.GetPath(photoKey) is null ? new[] { "Photo Library", "Files" } : new[] { "Photo Library", "Files", "Adjust current photo" };
-                var source = await DisplayActionSheetAsync("Choose profile photo", "Cancel", null, options);
+                var source = await choosePhotoSource(options);
                 if (departed || source is null or "Cancel") return;
                 if (source == "Adjust current photo") picked = await photos.AdjustAsync(photoKey);
                 else if (source is "Photo Library" or "Files") picked = await photos.PickAsync(fromLibrary: source == "Photo Library");
@@ -180,7 +184,7 @@ public sealed class ProfileEditorPage : ContentPage
     {
         var display = name.Text?.Trim();
         initial.Text = System.Globalization.StringInfo.GetNextTextElement(string.IsNullOrEmpty(display) ? preferences.DisplayName : display);
-        clear.IsEnabled = !busy && !saved && !closing && !string.IsNullOrEmpty(name.Text);
+        clear.IsEnabled = !busy && !saved && !departed && !closing && !string.IsNullOrEmpty(name.Text);
     }
 
     private void RefreshPhoto()
@@ -192,8 +196,8 @@ public sealed class ProfileEditorPage : ContentPage
 
     private void RefreshActions()
     {
-        choose.IsEnabled = save.IsEnabled = name.IsEnabled = back.IsEnabled = cancel.IsEnabled = !busy && !saved && !closing;
-        remove.IsEnabled = !busy && !saved && !closing && photos.GetPath(photoKey) is not null;
+        choose.IsEnabled = save.IsEnabled = name.IsEnabled = back.IsEnabled = cancel.IsEnabled = !busy && !saved && !departed && !closing;
+        remove.IsEnabled = !busy && !saved && !departed && !closing && photos.GetPath(photoKey) is not null;
         activity.IsVisible = activity.IsRunning = busy;
         RefreshName();
     }
@@ -212,6 +216,7 @@ public sealed class ProfileEditorPage : ContentPage
         if (!Navigation.NavigationStack.Contains(this))
         {
             departed = true;
+            RefreshActions();
             if (!saved) DiscardDraftPhoto();
         }
     }

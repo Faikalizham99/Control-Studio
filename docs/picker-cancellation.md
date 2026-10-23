@@ -1,0 +1,26 @@
+# Picker cancellation recovery (0.2.26)
+
+The owner reported that adding a second widget photo, then cancelling Photo Library, left the editor's buttons disabled. The editor already handled an empty picker result and released `busy` in `finally`. The weak point was the independent `Foreground` gate: it combined a cached page-appearance flag with a snapshot of `UIApplication.ApplicationState`, then stored that result in the entire form's `IsEnabled`. Recovery depended on another appearance or activation callback. Static review identified this failure path; the exact native callback order on the owner's phone has not been captured.
+
+Idle availability now follows operation state, saved/departed state, the colour picker's busy state and canvas interaction. Executing an action separately checks the current MAUI navigation owner and `Window.IsActivated`. Native picker coverage does not change the app's navigation owner. A dismissed picker can therefore restore controls without another `OnAppearing` or `Activated` callback, while actions on background or other-tab pages remain blocked. Window recovery subscriptions remain attached while the editor belongs to its navigation stack and are released on actual departure. Draft photo ownership and saved data are unchanged.
+
+The related component audit found:
+
+- **Widget editor:** corrected the lifecycle gate for photo/file selection, source sheets, background selection, layer dialogs and shared native colour selection. Cancelling preserves existing layers; errors restore actions; duplicate requests remain blocked. Returning an imported photo to an editor that was removed from navigation cleans up that new photo.
+- **Profile editor:** its picker and crop cancellation already release `busy`. Corrected late completion so controls on a departed editor stay disabled. Existing profile photos remain selected on cancellation; a new photo returned after departure is discarded without replacing the saved profile.
+- **Shared colour picker:** moved the initial busy notification inside its protected operation and guaranteed busy release even if the final persistence notification throws. A failed save displays an inline error. This component is used by Settings accent, Clipboard header colour and widget background colour.
+- **Clipboard editor/photo store:** reviewed Photo Library, Files, paste-photo, expanded text and colour-picker return paths. Its photo/file cancellation already restores actions in `finally`, preserves the existing photo, and does not use the widget editor's foreground-snapshot gate. No additional photo-picker change was needed there. Native profile crop and colour-picker dismissal delegates were reviewed; their normal completion/dismissal paths are retained.
+
+Small interfaces separate the editors from native image import and colour presentation so the actual MAUI editor controls can be tested on Windows. Production still uses the same native adapters, library/file choices, photo storage and renderer. No new permissions, packages, persistence schemas, release version, diagnostics UI or workflow changes were introduced.
+
+## Automated verification
+
+On 23 October 2026, all **192 app tests** passed, including **14 new picker/editor regressions**. These exercise the real managed widget/profile editors with deferred picker results, not UIKit: second-photo cancellation through Library and Files, cancellation without a subsequent appearance callback, source-sheet cancellation and retry, failed import, duplicate requests, tab switches, inactive-window completion and resume, import completion after navigation departure, profile Library/Files/crop cancellation, colour-picker completion/failure and persistence callback failure. The navigation tests select MAUI 10.0.110's legacy navigation implementation, matching its iOS implementation, without requiring a native handler.
+
+All **32 packaging/policy tests**, source/project checks and whitespace checks passed. Managed iOS C# compilation passed with zero warnings/errors using the pinned local SDK and the `Compile` target with `DesignTimeBuild=true`; this does not package, link or run an iOS app. Core/Infrastructure behavior was not changed and their suites were not rerun for this correction.
+
+## Required iPhone verification
+
+Repeat Library and Files cancellation before the first photo and after existing layers, including repeated cancellation followed by selection, saving and reopening. Confirm layer contents/transforms remain unchanged on Cancel and that Back, Cancel, Save, size selection, canvas gestures, layer tools and Add photo all work afterward. Repeat with a partially dragged-down picker, app background/resume and a tab switch. Check profile Library/Files/crop cancellation, Clipboard photo replacement cancellation, and the system colour picker in all three hosts. Verify Light/Dark contrast, VoiceOver enabled states/focus, large text and Reduce Motion. Native dismissal timing, UIKit rendering and touch/animation behavior remain pending device checks.
+
+The owner authorized committing, pushing main and pushing the new v0.2.26 tag for build 28, and will monitor the IPA build. This release also includes the previously committed Widget slots redesign and diagnostics removal. Device verification remains pending.

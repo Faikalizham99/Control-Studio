@@ -1,4 +1,3 @@
-using ControlStudio.App.Platforms.iOS;
 using ControlStudio.Core;
 using Microsoft.Maui.Controls.Shapes;
 
@@ -13,7 +12,7 @@ internal sealed class ColourChangedEventArgs(string hex, bool persist) : EventAr
 /// <summary>Shared palette, hue, HEX and native picker. Its host owns persistence.</summary>
 internal sealed class ColourPickerView : ContentView
 {
-    private readonly AppleColorPicker picker;
+    private readonly IColourPicker picker;
     private readonly List<ColourChoice> choices = [];
     private readonly Switch custom = new() { HorizontalOptions = LayoutOptions.End };
     private readonly Slider hue = new() { Minimum = 0, Maximum = 360, MinimumTrackColor = Colors.Transparent, MaximumTrackColor = Colors.Transparent, ThumbColor = Colors.White, HeightRequest = 30 };
@@ -35,7 +34,7 @@ internal sealed class ColourPickerView : ContentView
     public event EventHandler<ToggledEventArgs>? CustomEditingChanged;
     public event EventHandler? BusyChanged;
 
-    public ColourPickerView(AppleColorPicker picker, string prefix = "Accent", string colourName = "Accent")
+    public ColourPickerView(IColourPicker picker, string prefix = "Accent", string colourName = "Accent")
     {
         this.picker = picker;
         string Id(string original, string suffix) => prefix == "Accent" ? original : prefix + suffix;
@@ -132,19 +131,25 @@ internal sealed class ColourPickerView : ContentView
     private void Publish(string value, bool persist) => ColourChanged?.Invoke(this, new ColourChangedEventArgs(value, persist));
     private void ClearError() { error.Text = ""; error.IsVisible = false; }
 
-    private async Task PickAsync()
+    internal async Task PickAsync()
     {
         if (IsBusy || !IsEnabled) return;
-        IsBusy = true; BusyChanged?.Invoke(this, EventArgs.Empty);
+        IsBusy = true;
         try
         {
+            BusyChanged?.Invoke(this, EventArgs.Empty);
             hex.Unfocus(); dirtyHex = invalidHex = false; ClearError();
             CustomEditingEnabled = true; Refresh(forceHex: true); CustomEditingChanged?.Invoke(this, new ToggledEventArgs(true));
             var value = await picker.PickAsync(SelectedHex, preview => Select(preview, false));
             Select(value);
         }
         catch { error.Text = "The colour picker is unavailable. Enter a hex colour instead."; error.IsVisible = true; }
-        finally { Publish(SelectedHex, true); IsBusy = false; BusyChanged?.Invoke(this, EventArgs.Empty); }
+        finally
+        {
+            try { Publish(SelectedHex, true); }
+            catch { error.Text = "The colour could not be saved. Try again."; error.IsVisible = true; }
+            finally { IsBusy = false; BusyChanged?.Invoke(this, EventArgs.Empty); }
+        }
     }
 
     private void Refresh(bool forceHex = false)

@@ -11,11 +11,11 @@ using UIKit;
 
 namespace ControlStudio.App.Platforms.iOS;
 
-public sealed record WidgetSaveResult(WidgetDesign Design, bool Published);
-
-public sealed class WidgetStudioService
+public sealed class WidgetStudioService : IWidgetEditorStore
 {
     public WidgetDesignRepository Repository { get; }
+    string? IWidgetEditorStore.AssetPath(string key) => Repository.AssetPath(key);
+    Task IWidgetEditorStore.RemoveDraftPhotosAsync(IEnumerable<string> keys) => Repository.RemoveDraftPhotosAsync(keys);
     private readonly WidgetDesignPublisher publisher;
     private readonly ILogger<WidgetStudioService> logger;
     private readonly SemaphoreSlim gate = new(1, 1);
