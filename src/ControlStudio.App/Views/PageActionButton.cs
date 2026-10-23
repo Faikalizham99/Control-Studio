@@ -15,14 +15,13 @@ internal sealed class PageActionButton : ContentView
     {
         this.destructive = destructive;
         MinimumHeightRequest = MinimumWidthRequest = 44;
-        var caption = new HorizontalStackLayout { Spacing = 6, HorizontalOptions = LayoutOptions.Center, VerticalOptions = LayoutOptions.Center, InputTransparent = true };
         Label? label = null; ProfileGlyph? icon = null;
-        if (symbol is { } value) { icon = new ProfileGlyph(value); caption.Children.Add(icon); }
+        if (symbol is { } value) icon = new ProfileGlyph(value);
         if (text.Length > 0)
         {
             label = new Label { Text = text, FontSize = 14, FontAttributes = FontAttributes.Bold, VerticalOptions = LayoutOptions.Center };
-            AutomationProperties.SetIsInAccessibleTree(label, false); caption.Children.Add(label);
         }
+        var caption = ActionCaption.Create(label, icon, 6);
         surface = new SecondaryActionSurface(caption, 22, text.Length > 0 ? new Thickness(14, 8) : 10, destructive: destructive);
         if (label is not null) surface.BindForeground(label, Label.TextColorProperty);
         if (icon is not null) surface.BindForeground(icon, ProfileGlyph.TintProperty);

@@ -141,6 +141,7 @@ internal sealed class CounterWidgetPreview : ContentView
         this.medium = medium; AutomationId = medium ? "MediumCounterPreview" : "SmallCounterPreview";
         var header = SettingsControls.Text("Control Studio", 11, secondary: true, bold: true);
         header.MaxLines = 1; header.FontAutoScalingEnabled = false;
+        header.VerticalOptions = LayoutOptions.Center; header.VerticalTextAlignment = TextAlignment.Center;
         var mark = CounterIcon(12);
         var brand = new Grid { ColumnSpacing = 4, ColumnDefinitions = { new(GridLength.Auto), new(GridLength.Star) } };
         brand.Add(mark); brand.Add(header, 1);

@@ -63,8 +63,7 @@ internal sealed class ProfileActionButton : ContentView
         MinimumHeightRequest = 48;
         var glyph = new ProfileGlyph(symbol, primary ? "AccentActionText" : "AccentText");
         var label = new Label { Text = text, FontSize = primary ? 19 : 14, FontAttributes = primary ? FontAttributes.Bold : FontAttributes.None };
-        AutomationProperties.SetIsInAccessibleTree(label, false);
-        var caption = new HorizontalStackLayout { Spacing = 10, HorizontalOptions = LayoutOptions.Center, VerticalOptions = LayoutOptions.Center, InputTransparent = true, Children = { glyph, label } };
+        var caption = ActionCaption.Create(label, glyph, 10);
         var hit = new Button { Text = "", Padding = 0, CornerRadius = (int)radius, BackgroundColor = Colors.Transparent, BorderWidth = 0, MinimumHeightRequest = 48, AutomationId = automationId };
         SemanticProperties.SetDescription(hit, text);
         hit.Clicked += (_, args) => { if (IsEnabled) Clicked?.Invoke(this, args); };

@@ -68,16 +68,14 @@ internal sealed class ClipboardEditorActionButton : ContentView
     {
         var height = primary ? 52 : 44;
         MinimumHeightRequest = height;
-        var caption = new HorizontalStackLayout { Spacing = 8, HorizontalOptions = LayoutOptions.Center, VerticalOptions = LayoutOptions.Center, InputTransparent = true };
-        if (icon is not null) { icon.InputTransparent = true; caption.Children.Add(icon); }
         Label? label = null;
         if (text.Length > 0)
         {
             label = new Label { Text = text, FontSize = primary ? 19 : 12, FontAttributes = primary || accentCaption ? FontAttributes.Bold : FontAttributes.None };
             if (accentCaption && !primary) label.SetDynamicResource(Label.TextColorProperty, "AccentText");
             else if (!primary) label.SetAppThemeColor(Label.TextColorProperty, Color.FromArgb("#252A34"), Color.FromArgb("#F5F5F7"));
-            AutomationProperties.SetIsInAccessibleTree(label, false); caption.Children.Add(label);
         }
+        var caption = ActionCaption.Create(label, icon, 8);
         var padding = new Thickness(text.Length == 0 ? 10 : 12, 0);
         if (primary)
         {

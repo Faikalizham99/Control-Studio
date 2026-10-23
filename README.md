@@ -1,5 +1,7 @@
 # Control Studio
 
+The button alignment fix shares vertical centring of text and icons across widget, Clipboard editor, profile and common page actions, and corrects the Counter preview header. See [affected controls and verification](docs/ui-components.md). The owner authorized committing and pushing main; no new version tag or IPA build is authorized for this fix.
+
 Version **0.2.21 (23)** includes the My Widgets clarity fix, Counter theme/accent sharing, Studio icon accents and iPhone widget-size cleanup. My Widgets loads the saved full render in large preview cards instead of enlarging the 256-pixel thumbnail. Images load around the visible scroll area with at most six active sources, and release on departure/rebuild. Existing saved designs need no recreation. See [root cause and validation](docs/widget-preview-clarity.md). The owner authorized committing, pushing main and pushing the new version tag, and will monitor the IPA build. Native/device verification remains pending.
 
 The widget-size cleanup offers **Small, Medium, Large and Extra Large for iPhone**. The former iPad-only XL layout is removed from creation, filters, slots and native registration. A read-only compatibility path keeps older designs/photos recoverable for explicit resize. See [size cleanup and verification](docs/iphone-widget-sizes.md). This is included in the authorized 0.2.21 release.
