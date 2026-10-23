@@ -14,6 +14,10 @@ Layer rows retain their thumbnail and native visibility switch across geometry u
 
 Save renders and atomically persists the design through the existing repository, republishes assigned static slots, and marks the draft saved before attempting navigation. Cancel/navigation does not rewrite existing designs. Backgrounding cancels an active gesture and closes tool panels. Foreground checks reject late sheet actions; an already committed save can finish navigation after activation. Cleanup retains sources referenced by saved designs. Repeated live edits reuse image views instead of decoding each source for every gesture update.
 
+### Rotate and Flip menu follow-up (unreleased)
+
+Rotate Left/Right and horizontal/vertical Flip now keep their menu open after applying an action, so repeated adjustments do not require reopening it. Tapping the active tool again closes it; choosing another tool or another layer also closes it. Gesture start, size changes, asynchronous actions, backgrounding and page departure retain their existing dismissal behavior. The change reuses the same draft transforms and Save/Cancel flow, with no persistence/schema or accessibility-control changes. Managed iOS C# compilation and the 148 app tests pass; repeated taps, VoiceOver focus and dismissal behavior still require an iPhone check. The owner authorized committing and pushing this follow-up to main. No new release tag or IPA build is authorized.
+
 ## Transparency and compatibility
 
 New designs start with no background fill on iOS 26+. Older systems start with a solid background. The reusable Settings/Clipboard colour picker supplies the optional solid colour. Existing designs without the new field keep their solid background. Switching modes retains the last valid solid colour.
