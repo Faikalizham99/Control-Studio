@@ -4,42 +4,32 @@ import WidgetKit
 import UIKit
 import OSLog
 
-struct StudioDesignEntity: AppEntity {
-    static var typeDisplayRepresentation: TypeDisplayRepresentation = "Widget design"
-    static var defaultQuery = StudioDesignQuery()
-    var id: String
-    var name: String
-    var size: String
-    var displayRepresentation: DisplayRepresentation { DisplayRepresentation(title: "\(name)", subtitle: "\(size)") }
-}
-
-struct StudioDesignQuery: EntityQuery {
-    func entities(for identifiers: [String]) async throws -> [StudioDesignEntity] {
+struct StudioDesignOptionsProvider: DynamicOptionsProvider {
+    func results() async throws -> IntentItemCollection<String> {
         let trace = StudioWidgetTrace(source: "query")
-        trace.record("resolve.begin", "requested=\(identifiers.count)")
+        trace.record("options.begin", "selector=string")
         do {
             let designs = try WidgetDesignStore.shared().read()
-            let result = designs.filter { identifiers.contains($0.id) }
-                .map { StudioDesignEntity(id: $0.id, name: $0.name, size: $0.size.title) }
-            trace.record("resolve.ready", "matched=\(result.count)")
-            return result
+            let items = [IntentItem(WidgetDesignSelection.automaticID, title: "Automatic",
+                subtitle: "First saved design matching this widget's size")] + designs.map {
+                IntentItem($0.id, title: "\($0.name)", subtitle: "\($0.size.title)")
+            }
+            trace.record("options.ready", "selector=string;count=\(designs.count)")
+            return IntentItemCollection(promptLabel: "Choose a design", usesIndexedCollation: false,
+                sections: [IntentItemSection(items: items)])
         } catch { trace.failure(error); throw error }
     }
-    func suggestedEntities() async throws -> [StudioDesignEntity] {
-        let trace = StudioWidgetTrace(source: "query")
-        trace.record("suggest.begin")
-        do {
-            let result = try WidgetDesignStore.shared().read().map { StudioDesignEntity(id: $0.id, name: $0.name, size: $0.size.title) }
-            trace.record("suggest.ready", "count=\(result.count)")
-            return result
-        } catch { trace.failure(error); throw error }
-    }
+    func defaultResult() async -> String? { WidgetDesignSelection.automaticID }
 }
 
-struct StudioDesignIntent: WidgetConfigurationIntent {
+// A new intent identity avoids changing the stored value type of the old entity parameter.
+// Existing configurable instances must be removed/re-added once; saved designs are unchanged.
+struct StudioDesignSelectionIntent: WidgetConfigurationIntent {
     static var title: LocalizedStringResource = "Choose a widget design"
     static var description = IntentDescription("Display a design saved in Control Studio. Choose a design that matches this widget's size.")
-    @Parameter(title: "Design") var design: StudioDesignEntity?
+    @Parameter(title: "Design", optionsProvider: StudioDesignOptionsProvider()) var designID: String?
+    static var parameterSummary: some ParameterSummary { Summary { \.$designID } }
+    var selectedID: String? { designID == WidgetDesignSelection.automaticID ? nil : designID }
 }
 
 struct StudioDesignEntry: TimelineEntry {
@@ -52,17 +42,17 @@ struct StudioDesignEntry: TimelineEntry {
 
 struct StudioDesignProvider: AppIntentTimelineProvider {
     func placeholder(in context: Context) -> StudioDesignEntry { StudioDesignEntry(date: .now) }
-    func snapshot(for configuration: StudioDesignIntent, in context: Context) async -> StudioDesignEntry {
+    func snapshot(for configuration: StudioDesignSelectionIntent, in context: Context) async -> StudioDesignEntry {
         let trace = StudioWidgetTrace(source: "snapshot")
-        trace.record("provider.begin", "path=configurable;family=\(context.family.rawValue);selected=\(configuration.design != nil ? 1 : 0)")
-        let entry = StudioDesignLoader.current(configuration.design?.id, context.family, trace)
+        trace.record("provider.begin", "path=configurable;selector=string;family=\(context.family.rawValue);selected=\(configuration.selectedID != nil ? 1 : 0)")
+        let entry = StudioDesignLoader.current(configuration.selectedID, context.family, trace)
         trace.record("entry.ready", entry.image == nil ? "image=0" : "image=1")
         return entry
     }
-    func timeline(for configuration: StudioDesignIntent, in context: Context) async -> Timeline<StudioDesignEntry> {
+    func timeline(for configuration: StudioDesignSelectionIntent, in context: Context) async -> Timeline<StudioDesignEntry> {
         let trace = StudioWidgetTrace(source: "timeline")
-        trace.record("provider.begin", "path=configurable;family=\(context.family.rawValue);selected=\(configuration.design != nil ? 1 : 0)")
-        let entry = StudioDesignLoader.current(configuration.design?.id, context.family, trace)
+        trace.record("provider.begin", "path=configurable;selector=string;family=\(context.family.rawValue);selected=\(configuration.selectedID != nil ? 1 : 0)")
+        let entry = StudioDesignLoader.current(configuration.selectedID, context.family, trace)
         trace.record("entry.ready", entry.image == nil ? "image=0" : "image=1")
         return Timeline(entries: [entry], policy: .after(Date().addingTimeInterval(900)))
     }
@@ -91,21 +81,18 @@ private enum StudioDesignLoader {
             trace.record("catalog.read-start")
             let designs = try store.read()
             trace.record("catalog.read-ok", "count=\(designs.count)")
-            let design: WidgetDesignSummary?
-            if let selectedID {
-                design = designs.first { $0.id == selectedID }
-                if design == nil {
-                    trace.record("selection.deleted")
-                    return StudioDesignEntry(date: .now, message: "This design was deleted. Edit Widget to choose another design.")
-                }
-            } else { design = designs.first { $0.size == size } }
-            guard let design else {
+            let design: WidgetDesignSummary
+            switch WidgetDesignSelection.resolve(designs, size: size, selectedID: selectedID) {
+            case .design(let found): design = found
+            case .unavailable:
+                trace.record("selection.deleted")
+                return StudioDesignEntry(date: .now, message: "This design is no longer available. Edit Widget to choose another design.")
+            case .empty:
                 trace.record("selection.empty")
                 return StudioDesignEntry(date: .now, message: "Create and save a \(size.title) design in Control Studio, then tap Refresh in Widgets.")
-            }
-            guard design.size == size else {
-                trace.record("selection.wrong-size", "saved=\(design.size.rawValue);widget=\(size.rawValue)")
-                return StudioDesignEntry(date: .now, message: "Choose a \(size.title) design in Edit Widget, or add this design in its \(design.size.title) size.")
+            case .wrongSize(let savedSize):
+                trace.record("selection.wrong-size", "saved=\(savedSize.rawValue);widget=\(size.rawValue)")
+                return StudioDesignEntry(date: .now, message: "Choose a \(size.title) design in Edit Widget, or add this design in its \(savedSize.title) size.")
             }
             trace.record("selection.matched", "size=\(size.rawValue)")
             if trace.textOnly {
@@ -236,7 +223,7 @@ private enum StudioDesignFamilies {
 
 struct StudioDesignWidget: Widget {
     var body: some WidgetConfiguration {
-        AppIntentConfiguration(kind: WidgetDesignStore.widgetKind, intent: StudioDesignIntent.self, provider: StudioDesignProvider()) { entry in
+        AppIntentConfiguration(kind: WidgetDesignStore.widgetKind, intent: StudioDesignSelectionIntent.self, provider: StudioDesignProvider()) { entry in
             StudioDesignView(entry: entry)
         }
         .configurationDisplayName("Studio Widget")

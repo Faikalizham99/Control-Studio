@@ -42,7 +42,7 @@ public sealed class WidgetsPage : ContentPage
             SettingsControls.Text("Your widgets", 28, bold: true),
             SettingsControls.Text("Build a widget with optional photo layers. Choose Small, Medium, Large or Extra Large. Portrait Extra Large works on iPhone and iPad with iOS/iPadOS 27+.", 15, secondary: true),
             designs, status, refresh, diagnostics,
-            SettingsControls.Text("Add Control Studio → Studio Widget on your Home Screen. Touch and hold → Edit Widget → choose a design in the matching size.", 13, secondary: true),
+            SettingsControls.Text("Add Control Studio → Studio Widget on your Home Screen. Touch and hold → Edit Widget → choose a design in the matching size. Each widget can show a different design, even in the same size. Automatic uses the first matching design.", 13, secondary: true),
             SettingsControls.Text("Counter widgets", 28, bold: true),
             SettingsControls.Text("Preview your counter in the two available sizes.", 15, secondary: true),
             SettingsControls.Text("Small", 14, bold: true), small,

@@ -43,7 +43,7 @@ class PackagingTests(unittest.TestCase):
         (metadata / "extract.actionsdata").write_text(json.dumps({"id": "IncrementControlStudioCounter", "title": "Increment Control Studio Counter"}))
         widget_metadata = self.app / "PlugIns/ControlStudioWidgets.appex/Metadata.appintents"
         widget_metadata.mkdir()
-        (widget_metadata / "extract.actionsdata").write_text(json.dumps({"intent": "StudioDesignIntent", "entity": "StudioDesignEntity"}))
+        (widget_metadata / "extract.actionsdata").write_text(json.dumps({"intent": "StudioDesignSelectionIntent", "parameter": "designID"}))
 
     def mutate(self, relative, key, value):
         path = self.app / relative / "Info.plist"
@@ -121,6 +121,14 @@ class PackagingTests(unittest.TestCase):
         path = self.app / "PlugIns/ControlStudioWidgets.appex/Metadata.appintents/extract.actionsdata"
         path.write_text('{"intent":"OtherIntent"}')
         with self.assertRaisesRegex(ValueError, "Widget design selector"): validate_metadata(self.app)
+
+    def test_rejects_old_entity_selector_and_missing_string_parameter(self):
+        path = self.app / "PlugIns/ControlStudioWidgets.appex/Metadata.appintents/extract.actionsdata"
+        for data in [{"intent": "StudioDesignIntent", "entity": "StudioDesignEntity"},
+                     {"intent": "StudioDesignSelectionIntent"}, {"parameter": "designID"}]:
+            with self.subTest(data=data):
+                path.write_text(json.dumps(data))
+                with self.assertRaisesRegex(ValueError, "string-ID configuration"): validate_metadata(self.app)
 
     def test_rejects_missing_ipad_support(self):
         for relative in BUNDLES:

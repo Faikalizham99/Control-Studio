@@ -52,6 +52,13 @@ def validate_scene_manifest(info):
                 for scene in scenes), "Required MAUI scene configuration missing")
 
 
+def validate_widget_selector(data):
+    # Extraction format is private; assert our new intent/parameter identifiers, not its internal layout.
+    text = json.dumps(data)
+    require("StudioDesignSelectionIntent" in text and "designID" in text,
+            "Widget design selector missing from extracted metadata (expected string-ID configuration)")
+
+
 def validate_metadata(app):
     app = Path(app)
     host = read_plist(app / "Info.plist")
@@ -93,8 +100,7 @@ def validate_metadata(app):
             "Increment action missing from extracted metadata")
     widget_metadata = app / "PlugIns/ControlStudioWidgets.appex/Metadata.appintents/extract.actionsdata"
     require(widget_metadata.is_file() and widget_metadata.stat().st_size > 0, "Widget configuration metadata missing")
-    widget_data = json.dumps(json.loads(widget_metadata.read_bytes()))
-    require("StudioDesignIntent" in widget_data and "StudioDesignEntity" in widget_data, "Widget design selector missing from extracted metadata")
+    validate_widget_selector(json.loads(widget_metadata.read_bytes()))
     return bundles
 
 

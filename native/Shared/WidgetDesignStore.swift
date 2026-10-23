@@ -28,6 +28,21 @@ struct WidgetDesignCatalog: Decodable {
 
 enum WidgetDesignError: Error { case invalidCatalog, unsupportedSchema, imageUnavailable }
 
+enum WidgetDesignSelection: Equatable {
+    static let automaticID = "automatic"
+    case design(WidgetDesignSummary), empty, unavailable, wrongSize(WidgetDesignSize)
+
+    static func resolve(_ designs: [WidgetDesignSummary], size: WidgetDesignSize, selectedID: String?) -> Self {
+        if let selectedID, selectedID != automaticID {
+            guard let design = designs.first(where: { $0.id == selectedID }) else { return .unavailable }
+            guard design.size == size else { return .wrongSize(design.size) }
+            return .design(design)
+        }
+        guard let design = designs.first(where: { $0.size == size }) else { return .empty }
+        return .design(design)
+    }
+}
+
 struct WidgetDesignStore {
     static let widgetKind = "ControlStudio.Design"
     static let diagnosticWidgetKind = "ControlStudio.DesignDiagnostic"

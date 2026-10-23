@@ -44,9 +44,9 @@ internal sealed class WidgetDiagnosticsPage : ContentPage
             ClipboardEditorControls.Card(new VerticalStackLayout { Spacing = 12, Children =
             {
                 state,
-                SettingsControls.Text("1. Save a Small design in Widgets, then start the text test here.\n2. On the Home Screen, add Control Studio's Studio Widget Test in Small. It chooses a matching design automatically; there is no design selector.\n3. Return here, tap Read results, then Copy report. Tell us whether text, a photo, an error or grey bars appeared.\n4. Start the photo test, check the same test widget, then read and copy that report too.", 14),
+                SettingsControls.Text("1. After this selector update, remove and re-add the selectable Studio Widget once. Your saved designs stay in the app. Keep Studio Widget Test for comparison.\n2. Save two Small designs, add two Small Studio Widgets, and start the photo test here. Edit each widget's Design to choose a different Small design.\n3. Check both widgets, then return here, tap Read results and Copy report. Tell us what appeared.\n4. If either shows grey bars, start the text test, reselect the designs, then read and copy that report separately.", 14),
                 text, photo, stop,
-                SettingsControls.Text("Studio Widget Test uses the first saved design matching its size. For a clear comparison, use a size with one saved design. Both widget types follow this test mode, so the original Studio Widget can be compared alongside it.", 13, secondary: true),
+                SettingsControls.Text("Studio Widget lets each instance choose its own design. Automatic uses the first matching design. Studio Widget Test has no selector and always uses the first matching design. Both types follow this shared test mode.", 13, secondary: true),
                 SettingsControls.Text("Text test skips photo loading and uses a simple text view. Photo test uses the existing image path. Each start creates a fresh report; copy results before starting the next test. iOS decides when to refresh.", 13, secondary: true)
             } }),
             status,
@@ -87,6 +87,7 @@ internal sealed class WidgetDiagnosticsPage : ContentPage
         var result = new StringBuilder();
         result.AppendLine($"Control Studio {AppInfo.Current.VersionString} ({AppInfo.Current.BuildString})");
         result.AppendLine($"iOS {DeviceInfo.Current.VersionString}");
+        result.AppendLine("Selector implementation: string-ID options");
         if (value.Settings is not { } settings) { result.AppendLine("Diagnostics have not been started."); return result.ToString(); }
         result.AppendLine($"Mode: {(settings.Enabled ? settings.TextOnly ? "text" : "photo" : "off")}");
         result.AppendLine($"Session: {settings.Session}");
