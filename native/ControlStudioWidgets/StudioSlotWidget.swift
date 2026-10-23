@@ -7,7 +7,7 @@ struct StudioSlotEntry: TimelineEntry {
     let slot: Int
     var image: UIImage? = nil
     var name = ""
-    var message = "Assign a saved design to this slot in Control Studio, under Studio → Widgets → Widget slots."
+    var message = "Assign a saved design to this slot in Control Studio, under Studio → My Widgets → Widget slots."
 }
 
 struct StudioSlotProvider: TimelineProvider {
@@ -41,7 +41,7 @@ struct StudioSlotProvider: TimelineProvider {
             let store = try WidgetDesignStore.shared()
             guard let design = try store.assignedDesign(size: size, number: slot) else {
                 return StudioSlotEntry(date: .now, slot: slot,
-                    message: "Assign a \(size.title) design to slot \(slot) in Control Studio → Studio → Widgets → Widget slots.")
+                    message: "Assign a \(size.title) design to slot \(slot) in Control Studio → Studio → My Widgets → Widget slots.")
             }
             guard let image = UIImage(data: try store.imageData(for: design)) else { throw WidgetDesignError.imageUnavailable }
             return StudioSlotEntry(date: .now, slot: slot, image: image, name: design.name)

@@ -1,189 +1,129 @@
-using ControlStudio.Core;
 using ControlStudio.Core.Widgets;
 using ControlStudio.App.Platforms.iOS;
 using Microsoft.Extensions.Logging;
-using Microsoft.Maui.Controls.Shapes;
 
 namespace ControlStudio.App.Views;
 
-public sealed class WidgetsPage : ContentPage
+internal sealed class WidgetsPage : WidgetStudioPage
 {
-    private readonly ICounterRepository repository;
+    private static readonly WidgetSize[] MainSizes = [WidgetSize.Small, WidgetSize.Medium, WidgetSize.Large, WidgetSize.ExtraLargePortrait];
     private readonly WidgetStudioService studio;
     private readonly AppleColorPicker colourPicker;
-    private readonly ILogger logger;
-    private readonly VerticalStackLayout designs = new() { Spacing = 12 };
-    private readonly Label counterStatus = SettingsControls.Text("", 13, secondary: true);
-    private readonly PageActionButton add = new("Add", "AddWidgetDesign");
+    private readonly VerticalStackLayout designs = new() { Spacing = 16 };
+    private readonly WidgetAddButton add = new();
     private readonly PageActionButton back = new("", "BackFromWidgets", ProfileSymbol.Back);
-    private readonly ClipboardEditorActionButton refresh = new("Refresh widgets", ClipboardEditorControls.Icon(StudioSymbol.Widgets), "RefreshWidgetDesigns");
+    private readonly ClipboardEditorActionButton refresh = new("Refresh widgets", ClipboardEditorControls.Icon(StudioSymbol.Refresh), "RefreshWidgetDesigns");
     private readonly ClipboardEditorActionButton widgetSlots = new("Widget slots", ClipboardEditorControls.Icon(StudioSymbol.Widgets), "OpenWidgetSlots", primary: true);
-    private readonly CounterWidgetPreview small = new(false);
-    private readonly CounterWidgetPreview medium = new(true);
     private readonly Label status = SettingsControls.Text("", 13, secondary: true);
-    private CancellationTokenSource lifetime = new();
-    private bool busy;
-    private bool active;
-    private bool reloadPending;
+    private readonly WidgetSegments sizes, xlLayouts;
+    private readonly VerticalStackLayout xlOptions;
+    private IReadOnlyList<WidgetDesign> saved = [];
+    private WidgetSize SelectedSize => sizes.SelectedIndex == 3
+        ? (xlLayouts.SelectedIndex == 0 ? WidgetSize.ExtraLargePortrait : WidgetSize.ExtraLarge)
+        : MainSizes[sizes.SelectedIndex];
 
-    public WidgetsPage(ICounterRepository repository, WidgetStudioService studio, AppleColorPicker colourPicker, ILogger logger)
+    public WidgetsPage(WidgetStudioService studio, AppleColorPicker colourPicker, ILogger logger) : base(logger)
     {
-        this.repository = repository; this.studio = studio; this.colourPicker = colourPicker; this.logger = logger;
-        Title = "Widgets"; AutomationId = "WidgetsPage"; SafeAreaEdges = SafeAreaEdges.All; DashboardStyle.Page(this);
-        NavigationPage.SetHasNavigationBar(this, false);
-        add.Clicked += async (_, _) => await GuardAsync(() => Navigation.PushAsync(new WidgetEditorPage(studio, colourPicker, logger)));
-        back.Clicked += async (_, _) => await GuardAsync(() => Navigation.PopAsync());
-        refresh.Clicked += async (_, _) => await ReloadAsync(publish: true);
-        var setup = DashboardStyle.Button("How to add a widget");
-        setup.Clicked += async (_, _) => await GuardAsync(() => Navigation.PushAsync(new AboutPage()));
-        widgetSlots.Clicked += async (_, _) => await GuardAsync(() => Navigation.PushAsync(new WidgetSlotsPage(studio, logger)));
-        var content = new ScrollView { Content = new VerticalStackLayout { Padding = 20, Spacing = 16, Children =
+        this.studio = studio; this.colourPicker = colourPicker;
+        Title = "My Widgets"; AutomationId = "WidgetsPage";
+        sizes = new(["Small", "Medium", "Large", "XL"], "WidgetSizeFilter", _ => FilterChanged());
+        xlLayouts = new(["Portrait", "Landscape"], "WidgetXLLayout", _ => ShowDesigns());
+        xlOptions = new() { Spacing = 6, IsVisible = false, Children =
         {
-            SettingsControls.Text("Your widgets", 28, bold: true),
-            SettingsControls.Text("Build a widget with optional photo layers. Choose Small, Medium, Large or Extra Large. Portrait Extra Large works on iPhone and iPad with iOS/iPadOS 27+.", 15, secondary: true),
-            widgetSlots, designs, status, refresh,
-            SettingsControls.Text("Save a design, then assign it in Widget slots. Add Control Studio → Studio 1–10 on your Home Screen and choose the matching size. Remove old custom widgets once and add the new slots; your saved designs stay here.", 13, secondary: true),
-            SettingsControls.Text("Counter widgets", 28, bold: true),
-            SettingsControls.Text("Preview your counter in the two available sizes.", 15, secondary: true),
-            SettingsControls.Text("Small", 14, bold: true), small,
-            SettingsControls.Text("Medium", 14, bold: true), medium,
-            counterStatus,
-            SettingsControls.Text("These are in-app previews. iOS renders the Home Screen widget and schedules its updates.", 13, secondary: true), setup
-        } } };
+            xlLayouts, SettingsControls.Text("Portrait: iOS/iPadOS 27+. Landscape: iPad.", 12, secondary: true)
+        } };
+        add.Clicked += async (_, _) => await RunAsync((_, _) => Navigation.PushAsync(new WidgetEditorPage(studio, colourPicker, Logger, initialSize: SelectedSize)));
+        back.Clicked += async (_, _) => await RunAsync((_, _) => Navigation.PopAsync());
+        refresh.Clicked += async (_, _) => await ReloadAsync();
+        widgetSlots.Clicked += async (_, _) => await RunAsync((_, _) => Navigation.PushAsync(new WidgetSlotsPage(studio, Logger, SelectedSize)));
+        var heading = SettingsControls.Text("Your widget designs", 22, bold: true);
+        SemanticProperties.SetHeadingLevel(heading, SemanticHeadingLevel.Level2);
+        var headingBlock = new VerticalStackLayout { Spacing = 10, Children =
+        {
+            heading, SettingsControls.Text("Create, edit and manage your custom widgets.", 14, secondary: true), sizes, xlOptions, widgetSlots
+        } };
+        status.IsVisible = false;
+        var body = new VerticalStackLayout { Padding = new Thickness(20, 14, 28, 24), Spacing = 16, MaximumWidthRequest = 800,
+            HorizontalOptions = LayoutOptions.Fill, Children = { headingBlock, designs, status, refresh } };
         var layout = new Grid { RowDefinitions = { new(GridLength.Auto), new(GridLength.Star) } };
-        layout.Add(PageActionBar.Modal("Widgets", back, add)); layout.Add(content, 0, 1); Content = layout;
+        layout.Add(WidgetStudioStyle.Header(Title, back, add));
+        layout.Add(new ScrollView { Content = body }, 0, 1); Content = layout;
     }
-
-    protected override async void OnAppearing()
+    private void FilterChanged() { xlOptions.IsVisible = sizes.SelectedIndex == 3; ShowDesigns(); }
+    protected override async Task LoadAsync(CancellationToken token, int version)
     {
-        base.OnAppearing(); active = true; lifetime.Dispose(); lifetime = new(); await ReloadAsync();
+        var loaded = await studio.Repository.ReadAsync(token); if (!IsCurrent(version)) return;
+        saved = loaded; ShowDesigns();
+        if (studio.Repository.HasSavedLibrary)
+        {
+            var published = await studio.PublishAsync(); if (!IsCurrent(version)) return;
+            if (published) { status.Text = ""; status.IsVisible = false; }
+            else ShowFailure("Saved on this device. Tap Refresh to retry the Home Screen update; check App Group access in Settings.");
+        }
+        else { status.Text = ""; status.IsVisible = false; }
     }
-    protected override void OnDisappearing() { active = false; lifetime.Cancel(); base.OnDisappearing(); }
-
-    private async Task ReloadAsync(bool publish = false)
+    private void ShowDesigns()
     {
-        if (!active) return;
-        if (busy) { reloadPending = true; return; }
-        busy = true; SetEnabled(false);
-        var token = lifetime.Token;
-        try
+        designs.Children.Clear(); var matching = saved.Where(x => x.Size == SelectedSize).ToArray();
+        if (matching.Length == 0)
         {
-            reloadPending = false;
-            var saved = await studio.Repository.ReadAsync(token); token.ThrowIfCancellationRequested();
-            ShowDesigns(saved);
-            if (publish || studio.Repository.HasSavedLibrary)
+            designs.Children.Add(WidgetStudioStyle.Card(new VerticalStackLayout { Spacing = 8, Padding = 10, Children =
             {
-                var published = await studio.PublishAsync(); token.ThrowIfCancellationRequested();
-                status.Text = published ? "Widget update requested. iOS controls when it appears." : "Saved on this device. Home Screen update unavailable. Check App Group signing, then tap Refresh.";
-            }
-            else status.Text = "Tap Add to create your first widget. Photos are optional.";
-            try
-            {
-                var snapshot = StudioContent.WidgetSnapshot(await repository.ReadAsync(token));
-                token.ThrowIfCancellationRequested(); small.Update(snapshot); medium.Update(snapshot);
-                counterStatus.Text = snapshot is null ? "Shared counter unavailable. Review App Group signing in widget setup." : "";
-            }
-            catch (OperationCanceledException) { throw; }
-            catch (Exception ex)
-            {
-                logger.LogWarning("Counter preview failed. ErrorType={ErrorType}", ex.GetType().Name);
-                small.Update(null); medium.Update(null); counterStatus.Text = "Counter preview unavailable. Try Refresh.";
-            }
+                SettingsControls.Text("A space for your next idea", 19, bold: true),
+                SettingsControls.Text($"No {WidgetSizeLabel(SelectedSize)} designs yet. Tap + to create one, then assign it in Widget slots.", 14, secondary: true)
+            } }));
+            return;
         }
-        catch (OperationCanceledException) { }
-        catch (Exception ex)
-        {
-            logger.LogWarning("Widget list failed. ErrorType={ErrorType}", ex.GetType().Name);
-            status.Text = ex is IOException ? ex.Message : "Saved widget designs are unavailable. Try Refresh.";
-        }
-        finally
-        {
-            status.IsVisible = !string.IsNullOrEmpty(status.Text); counterStatus.IsVisible = !string.IsNullOrEmpty(counterStatus.Text); busy = false; SetEnabled(true);
-            if (active && reloadPending) { reloadPending = false; await ReloadAsync(); }
-        }
-    }
-
-    private void ShowDesigns(IReadOnlyList<WidgetDesign> saved)
-    {
-        designs.Children.Clear();
-        foreach (var design in saved)
+        foreach (var design in matching)
         {
             var edit = new ClipboardIconButton(StudioSymbol.Edit, "Edit"); edit.Describe("Edit widget", design.Name);
             var delete = new ClipboardIconButton(StudioSymbol.Delete, "Delete", destructive: true); delete.Describe("Delete widget", design.Name);
-            edit.Clicked += async (_, _) => await GuardAsync(() => Navigation.PushAsync(new WidgetEditorPage(studio, colourPicker, logger, design)));
-            delete.Clicked += async (_, _) => await GuardAsync(async () =>
+            Task Edit() => RunAsync((_, _) => Navigation.PushAsync(new WidgetEditorPage(studio, colourPicker, Logger, design)));
+            edit.Clicked += async (_, _) => await Edit();
+            delete.Clicked += async (_, _) => await RunAsync(async (token, version) =>
             {
-                if (!await DisplayAlertAsync("Delete widget design?", "Remove this saved design? Its assigned slots will become empty. Your original photos are kept.", "Delete", "Cancel") || !active) return;
-                var published = await studio.DeleteAsync(design.Id);
-                if (!active) return;
-                ShowDesigns(await studio.Repository.ReadAsync());
-                status.Text = published ? "Widget design deleted." : "Deleted on this device. Tap Refresh to update Home Screen widgets."; status.IsVisible = true;
+                if (!await DisplayAlertAsync("Delete widget design?", "Remove this saved design? Its assigned slots will become empty. Your original photos are kept.", "Delete", "Cancel") || !IsForeground(version)) return;
+                var published = await studio.DeleteAsync(design.Id); if (!IsCurrent(version)) return;
+                saved = await studio.Repository.ReadAsync(token); if (!IsCurrent(version)) return;
+                ShowDesigns(); ShowFailure(published ? "Widget design deleted." : "Deleted on this device. Tap Refresh to update Home Screen widgets.");
+                Announce("Widget design deleted.");
             });
-            var previewPath = studio.Repository.ThumbnailPath(design.RenderKey);
-            View preview = previewPath is not null
-                ? new Image { Source = previewPath, Aspect = Aspect.AspectFit, HeightRequest = 150, InputTransparent = true }
-                : SettingsControls.Text("Preview missing. Open Edit and save again.", 13, secondary: true);
-            SemanticProperties.SetDescription(preview, $"{WidgetDesignRules.SizeName(design.Size)} design preview: {design.Name}");
-            var title = SettingsControls.Text(design.Name, 19, bold: true); title.MaxLines = 2; title.LineBreakMode = LineBreakMode.TailTruncation;
-            var actions = new HorizontalStackLayout { Spacing = 8, HorizontalOptions = LayoutOptions.End, Children = { edit, delete } };
-            designs.Children.Add(new GlassCard(new VerticalStackLayout { Spacing = 10, Children =
-            {
-                title, SettingsControls.Text(WidgetDesignRules.SizeName(design.Size), 13, secondary: true), preview, actions
-            } }));
+            var title = SettingsControls.Text(design.Name, 18, bold: true); title.MaxLines = 2; title.LineBreakMode = LineBreakMode.TailTruncation;
+            SemanticProperties.SetHeadingLevel(title, SemanticHeadingLevel.Level3);
+            var badgeLabel = SettingsControls.Text(WidgetSizeLabel(design.Size), 11);
+            var badge = new AccentSurface(badgeLabel, 10, new Thickness(8, 3), captionSize: 11, captionBold: false) { HorizontalOptions = LayoutOptions.Start };
+            badge.BindForeground(badgeLabel, Label.TextColorProperty);
+            var labels = new VerticalStackLayout { Spacing = 5, VerticalOptions = LayoutOptions.Center, Children = { title, badge } };
+            var stamp = studio.Repository.RenderUpdatedAt(design.RenderKey);
+            if (stamp is { } updated) labels.Children.Add(SettingsControls.Text("Updated\n" + updated.ToLocalTime().ToString("dd MMM yyyy, h:mm tt"), 11, secondary: true));
+            var open = SettingsControls.TapTarget("Open " + design.Name + " widget editor", "OpenWidgetDetails" + design.Id.ToString("N"));
+            open.Clicked += async (_, _) => await Edit();
+            var chevron = new StudioGlyph(StudioSymbol.Chevron, false) { WidthRequest = 15, HeightRequest = 15,
+                HorizontalOptions = LayoutOptions.Center, VerticalOptions = LayoutOptions.Center };
+            chevron.SetAppThemeColor(StudioGlyph.TintProperty, Color.FromArgb("#53617A"), Color.FromArgb("#CAD4E8"));
+            var next = new Grid { WidthRequest = 44, MinimumHeightRequest = 48, Children = { open, chevron } };
+            var actions = new HorizontalStackLayout { Spacing = 2, VerticalOptions = LayoutOptions.Center, Children = { edit, delete, next } };
+            var header = new Grid { ColumnSpacing = 8, ColumnDefinitions = { new(GridLength.Star), new(GridLength.Auto) } };
+            header.Add(labels); header.Add(actions, 1);
+            // Small composites preserve the complete canvas while bounding decoded memory for a full library.
+            var path = studio.Repository.ThumbnailPath(design.RenderKey);
+            View image = path is not null ? new Image { Source = path, Aspect = Aspect.AspectFit, InputTransparent = true }
+                : new Label { Text = "Preview unavailable\nOpen Edit and save again.", TextColor = AppearanceColors.ButtonForeground(Color.FromArgb(design.BackgroundHex)),
+                    FontSize = 13, HorizontalTextAlignment = TextAlignment.Center, VerticalTextAlignment = TextAlignment.Center, Margin = 12, InputTransparent = true };
+            var tap = SettingsControls.TapTarget("Open " + design.Name + " widget", "OpenWidget" + design.Id.ToString("N"));
+            tap.Clicked += async (_, _) => await Edit();
+            SemanticProperties.SetHint(tap, "Opens the widget editor.");
+            AutomationProperties.SetIsInAccessibleTree(image, false);
+            var preview = new WidgetPreviewFrame(design.Size, new Grid { Children = { tap, image } }, Color.FromArgb(design.BackgroundHex));
+            SemanticProperties.SetDescription(tap, $"{design.Name}. {WidgetSizeLabel(design.Size)} widget preview. Open editor.");
+            designs.Children.Add(WidgetStudioStyle.Card(new VerticalStackLayout { Spacing = 14, Children = { header, preview } }));
         }
     }
-    private void SetEnabled(bool enabled) => add.IsEnabled = back.IsEnabled = refresh.IsEnabled = widgetSlots.IsEnabled = designs.IsEnabled = enabled;
-    private async Task GuardAsync(Func<Task> operation)
+    private static string WidgetSizeLabel(WidgetSize size) => size switch
     {
-        if (busy || !active) return; busy = true; SetEnabled(false);
-        try { await operation(); }
-        catch (Exception ex) { logger.LogWarning("Widget action failed. ErrorType={ErrorType}", ex.GetType().Name); if (active) { status.Text = ex is IOException ? ex.Message : "The widget action could not finish. Try again."; status.IsVisible = true; } }
-        finally { busy = false; SetEnabled(true); if (active && reloadPending) { reloadPending = false; await ReloadAsync(); } }
-    }
-
-    private sealed class CounterWidgetPreview : ContentView
-    {
-        private readonly Label value = new() { Text = "—", FontAttributes = FontAttributes.Bold, MaxLines = 1, FontAutoScalingEnabled = false };
-        private readonly Label updated = new() { FontSize = 11, MaxLines = 1 };
-        private readonly Label caption = new() { Text = "Last Updated", FontSize = 10 };
-        private readonly bool medium;
-
-        public CounterWidgetPreview(bool medium)
-        {
-            this.medium = medium;
-            AutomationId = medium ? "MediumCounterPreview" : "SmallCounterPreview";
-            HeightRequest = 164;
-            if (!medium) { WidthRequest = 164; HorizontalOptions = LayoutOptions.Center; }
-            var header = SettingsControls.Text("Control Studio", 11, secondary: true, bold: true); header.MaxLines = 1; header.FontAutoScalingEnabled = false;
-            var headerMark = new StudioGlyph(StudioSymbol.Counter, useAccent: false) { WidthRequest = 12, HeightRequest = 12, VerticalOptions = LayoutOptions.Center };
-            headerMark.SetAppThemeColor(StudioGlyph.TintProperty, Color.FromArgb("#6C6C70"), Color.FromArgb("#AEAEBA"));
-            var brand = new Grid { ColumnSpacing = 4, ColumnDefinitions = { new(GridLength.Auto), new(GridLength.Star) } };
-            brand.Add(headerMark); brand.Add(header, 1);
-            value.SetAppThemeColor(Label.TextColorProperty, Color.FromArgb("#16171C"), Colors.White);
-            updated.SetAppThemeColor(Label.TextColorProperty, Color.FromArgb("#6C6C70"), Color.FromArgb("#AEAEBA"));
-            caption.SetAppThemeColor(Label.TextColorProperty, Color.FromArgb("#6C6C70"), Color.FromArgb("#AEAEBA"));
-            var labels = new VerticalStackLayout { Spacing = 4, VerticalOptions = LayoutOptions.Center, Children = { brand, value, caption, updated } };
-            var content = new Grid { ColumnSpacing = 18, ColumnDefinitions = { new(GridLength.Star), new(GridLength.Auto) } };
-            content.Add(labels);
-            if (medium)
-            {
-                var mark = new StudioGlyph(StudioSymbol.Counter, useAccent: false) { Tint = Color.FromArgb("#007AFF"), WidthRequest = 44, HeightRequest = 44, VerticalOptions = LayoutOptions.Center };
-                // The existing WidgetKit medium design uses a fixed blue mark.
-                content.Add(mark, 1);
-            }
-            var border = new Border { Content = content, Padding = 16, StrokeShape = new RoundRectangle { CornerRadius = 24 }, StrokeThickness = 1 };
-            SettingsControls.SurfaceStroke(border); border.SetAppThemeColor(BackgroundColorProperty, Colors.White, Color.FromArgb("#1C1C1E"));
-            Content = border; Update(null, loading: true);
-        }
-
-        public void Update(CounterSnapshot? snapshot, bool loading = false)
-        {
-            value.Text = snapshot?.Value.ToString(System.Globalization.CultureInfo.CurrentCulture) ?? (loading ? "—" : "Open Control Studio");
-            value.MaxLines = snapshot is null && !loading ? 2 : 1;
-            value.FontSize = snapshot is null ? (loading ? 46 : 17) : Math.Min(46, (medium ? 180 : 132) / (value.Text.Length * .62));
-            caption.IsVisible = snapshot is not null;
-            updated.Text = snapshot is not null ? snapshot.UpdatedAt?.ToLocalTime().ToString("t") ?? "Not yet" : loading ? "Loading counter…" : "Shared counter unavailable";
-            SemanticProperties.SetDescription(this, snapshot is not null ? $"{(medium ? "Medium" : "Small")} widget preview. Counter {value.Text}. Last updated {updated.Text}." : updated.Text);
-        }
-    }
+        WidgetSize.ExtraLargePortrait => "XL Portrait", WidgetSize.ExtraLarge => "XL Landscape", _ => size.ToString()
+    };
+    protected override void SetActionsEnabled(bool enabled) => add.IsEnabled = back.IsEnabled = refresh.IsEnabled = widgetSlots.IsEnabled
+        = sizes.IsEnabled = xlLayouts.IsEnabled = designs.IsEnabled = enabled;
+    protected override void ShowFailure(string message) { status.Text = message; status.IsVisible = !string.IsNullOrEmpty(message); }
 }

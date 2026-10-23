@@ -4,6 +4,7 @@ public interface ICounterRepository
 {
     Task<CounterSnapshot> ReadAsync(CancellationToken cancellationToken = default);
     Task<CounterSnapshot> IncrementAsync(CancellationToken cancellationToken = default);
+    Task<CounterSnapshot> ResetAsync(CancellationToken cancellationToken = default);
 }
 
 public sealed class CounterStorageException(string code)

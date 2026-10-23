@@ -24,7 +24,7 @@ The 0.2.19 fix gives each concrete slot widget a literal gallery name (`"Studio 
 
 ## App and Home Screen flow
 
-1. Open Studio → Widgets → Add. Name the design, choose a size and optionally add photo layers. Save widget.
+1. Open Studio → My Widgets → +. Name the design, choose a size and optionally add photo layers. Save widget. The UI reorganization is described in [Studio widget library interface](widget-studio-ui.md).
 2. Open Widget slots. Choose Small, Medium, Large, Extra Large Portrait or Extra Large Landscape. Each size has slots 1–10.
 3. Tap Assign on a slot, then choose a saved design of that size. The slot displays its name and preview. Change replaces the assignment; Clear asks for confirmation and keeps the saved design and original photos.
 4. Add Control Studio → Studio 1–10 on the Home Screen, choosing the matching size/layout. For example, Studio 2 in Small displays Small 2; Studio 2 in Medium displays Medium 2. Those assignments are independent.

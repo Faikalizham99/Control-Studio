@@ -22,12 +22,12 @@ internal sealed class WidgetSlotsPage : ContentPage
     private WidgetSize SelectedSize => Sizes[Math.Clamp(size.SelectedIndex, 0, Sizes.Length - 1)];
     private bool Foreground => active && Window?.IsActivated == true;
 
-    public WidgetSlotsPage(WidgetStudioService studio, ILogger logger)
+    public WidgetSlotsPage(WidgetStudioService studio, ILogger logger, WidgetSize initialSize = WidgetSize.Small)
     {
         this.studio = studio; this.logger = logger;
         Title = "Widget slots"; AutomationId = "WidgetSlotsPage"; SafeAreaEdges = SafeAreaEdges.All;
         DashboardStyle.Page(this); NavigationPage.SetHasNavigationBar(this, false);
-        size.ItemsSource = Sizes.Select(WidgetDesignRules.SizeName).ToArray(); size.SelectedIndex = 0;
+        size.ItemsSource = Sizes.Select(WidgetDesignRules.SizeName).ToArray(); size.SelectedIndex = Math.Max(0, Array.IndexOf(Sizes, initialSize));
         size.SetAppThemeColor(Picker.TextColorProperty, Color.FromArgb("#16171C"), Colors.White);
         SemanticProperties.SetDescription(size, "Size of the widget slots to assign");
         size.SelectedIndexChanged += async (_, _) => await RunAsync(LoadAsync);
@@ -61,7 +61,7 @@ internal sealed class WidgetSlotsPage : ContentPage
         reloadPending = false;
         ShowSlots(library); ShowStatus(library.Designs.Any(x => x.Size == SelectedSize)
             ? "Choose Assign or Change to use a saved design."
-            : "No saved designs in this size yet. Go back to Widgets and tap Add to create one.");
+            : "No saved designs in this size yet. Go back to My Widgets and tap + to create one.");
     }
     private void ShowSlots(WidgetLibraryCatalog library)
     {
@@ -89,7 +89,7 @@ internal sealed class WidgetSlotsPage : ContentPage
         var library = await studio.Repository.ReadLibraryAsync();
         if (!Foreground || epoch != lifetime) return;
         var choices = library.Designs.Where(x => x.Size == family).OrderBy(x => x.Name, StringComparer.CurrentCultureIgnoreCase).ToArray();
-        if (choices.Length == 0) { ShowStatus("Create a saved design in this size first. Go back to Widgets and tap Add."); return; }
+        if (choices.Length == 0) { ShowStatus("Create a saved design in this size first. Go back to My Widgets and tap +."); return; }
         // Prefixes keep user names such as "Cancel" distinct from the native sheet's cancel action.
         var labels = choices.Select((design, index) => $"{index + 1}. {design.Name}").ToArray();
         var chosen = await DisplayActionSheetAsync($"Assign {WidgetSlotRules.Title(family, number)}", "Cancel", null, labels);

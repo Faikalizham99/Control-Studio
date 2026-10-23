@@ -38,10 +38,58 @@ final class CounterStoreTests: XCTestCase {
         XCTAssertEqual(try store.read().value, 40)
     }
 
+    func testResetPersistsZeroAndTheNextIncrementStartsAtOne() throws {
+        _ = try store.increment()
+        try sql("UPDATE counter SET updated_at=1 WHERE id=1")
+        let reset = try store.reset()
+        XCTAssertEqual(reset.value, 0)
+        XCTAssertEqual(reset.storage, "shared")
+        XCTAssertGreaterThan(try XCTUnwrap(reset.updatedAtUnixMilliseconds), 1)
+        let reopened = CounterStore(directory: directory, storage: "shared")
+        XCTAssertEqual(try reopened.read(), reset)
+        XCTAssertEqual(try reopened.increment().value, 1)
+    }
+
+    func testResetWorksAtMaximumAndForLocalFallbackWithoutChangingScope() throws {
+        _ = try store.increment()
+        try sql("UPDATE counter SET value=2147483647 WHERE id=1")
+        XCTAssertEqual(try store.reset().value, 0)
+        let local = CounterStore(directory: directory.appendingPathComponent("local"), storage: "local")
+        _ = try local.increment()
+        let reset = try local.reset()
+        XCTAssertEqual(reset.value, 0); XCTAssertEqual(reset.storage, "local")
+        XCTAssertFalse(reset.refreshRequested); XCTAssertNotNil(reset.updatedAtUnixMilliseconds)
+        XCTAssertEqual(try store.read().storage, "shared")
+    }
+
+    func testConcurrentResetsAndIncrementsStayAtomic() throws {
+        _ = try store.read()
+        let queue = DispatchQueue(label: "mixed-counter-test", attributes: .concurrent)
+        let group = DispatchGroup(); let errors = Errors()
+        for index in 0..<40 {
+            group.enter()
+            queue.async { [self] in
+                defer { group.leave() }
+                do {
+                    let snapshot = try index.isMultiple(of: 5) ? store.reset() : store.increment()
+                    try snapshot.validate()
+                    if index.isMultiple(of: 5), snapshot.value != 0 { throw CounterError.invalidData }
+                } catch { errors.append(error) }
+            }
+        }
+        group.wait()
+        XCTAssertTrue(errors.isEmpty)
+        let final = try store.read().value
+        XCTAssertGreaterThanOrEqual(final, 0); XCTAssertLessThanOrEqual(final, 32)
+        _ = try store.reset()
+        XCTAssertEqual(try store.increment().value, 1)
+    }
+
     func testFutureSchemaIsRejectedWithoutReset() throws {
         _ = try store.increment()
         try sql("PRAGMA user_version=2")
         XCTAssertThrowsError(try store.increment()) { XCTAssertEqual($0 as? CounterError, .unsupportedSchema) }
+        XCTAssertThrowsError(try store.reset()) { XCTAssertEqual($0 as? CounterError, .unsupportedSchema) }
         try sql("PRAGMA user_version=1")
         XCTAssertEqual(try store.read().value, 1)
     }
@@ -57,6 +105,7 @@ final class CounterStoreTests: XCTestCase {
         _ = try store.increment()
         try sql("UPDATE counter SET updated_at=-1 WHERE id=1")
         XCTAssertThrowsError(try store.increment()) { XCTAssertEqual($0 as? CounterError, .invalidData) }
+        XCTAssertThrowsError(try store.reset()) { XCTAssertEqual($0 as? CounterError, .invalidData) }
     }
 
     func testJsonContractIncludesExplicitNullAndScope() throws {

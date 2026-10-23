@@ -33,9 +33,9 @@ internal sealed class WidgetEditorPage : ContentPage
     private Window? observedWindow;
     private bool Foreground => active && UIKit.UIApplication.SharedApplication.ApplicationState == UIKit.UIApplicationState.Active;
 
-    public WidgetEditorPage(WidgetStudioService studio, AppleColorPicker colourPicker, ILogger logger, WidgetDesign? original = null)
+    public WidgetEditorPage(WidgetStudioService studio, AppleColorPicker colourPicker, ILogger logger, WidgetDesign? original = null, WidgetSize initialSize = WidgetSize.Small)
     {
-        this.studio = studio; this.logger = logger; draft = original ?? WidgetDesignRules.New();
+        this.studio = studio; this.logger = logger; draft = original ?? (WidgetDesignRules.New() with { Size = initialSize });
         Title = original is null ? "New widget" : "Edit widget"; AutomationId = "WidgetEditorPage";
         SafeAreaEdges = SafeAreaEdges.All; DashboardStyle.Page(this); NavigationPage.SetHasNavigationBar(this, false);
         name.Text = draft.Name; size.SelectedIndex = Math.Min(3, (int)draft.Size);
@@ -212,7 +212,7 @@ internal sealed class WidgetEditorPage : ContentPage
         var result = await studio.SaveAsync(draft); draft = result.Design; saved = true;
         await CleanupAsync();
         if (!Foreground || departed) return;
-        if (!result.Published) await DisplayAlertAsync("Saved on this device", "Your design is saved, but the Home Screen update could not be published. Check App Group signing in Settings, then tap Refresh in Widgets.", "OK");
+        if (!result.Published) await DisplayAlertAsync("Saved on this device", "Your design is saved, but the Home Screen update could not be published. Check App Group signing in Settings, then tap Refresh widgets in My Widgets.", "OK");
         if (Foreground && !departed) await CloseSavedAsync();
     }
     private void RefreshActions()

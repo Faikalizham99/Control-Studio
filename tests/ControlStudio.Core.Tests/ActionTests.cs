@@ -143,5 +143,6 @@ public sealed class ActionTests
         public int Value;
         public Task<CounterSnapshot> ReadAsync(CancellationToken cancellationToken = default) => Task.FromResult(new CounterSnapshot(1, Value, 1, "shared", true));
         public Task<CounterSnapshot> IncrementAsync(CancellationToken cancellationToken = default) { Value++; return ReadAsync(cancellationToken); }
+        public Task<CounterSnapshot> ResetAsync(CancellationToken cancellationToken = default) { Value = 0; return ReadAsync(cancellationToken); }
     }
 }

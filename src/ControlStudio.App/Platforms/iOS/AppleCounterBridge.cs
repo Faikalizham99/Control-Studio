@@ -9,11 +9,14 @@ public sealed class AppleCounterBridge : INativeCounterBridge
     private static extern IntPtr ReadNative();
     [DllImport("__Internal", EntryPoint = "cs_counter_increment")]
     private static extern IntPtr IncrementNative();
+    [DllImport("__Internal", EntryPoint = "cs_counter_reset")]
+    private static extern IntPtr ResetNative();
     [DllImport("__Internal", EntryPoint = "cs_counter_free")]
     private static extern void FreeNative(IntPtr value);
 
     public string Read() => Invoke(ReadNative);
     public string Increment() => Invoke(IncrementNative);
+    public string Reset() => Invoke(ResetNative);
 
     private static string Invoke(Func<IntPtr> operation)
     {

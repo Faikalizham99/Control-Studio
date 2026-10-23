@@ -29,7 +29,27 @@ public sealed class NativeCounterRepositoryTests
         using var cancellation = new CancellationTokenSource();
         cancellation.Cancel();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => repository.IncrementAsync(cancellation.Token));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => repository.ResetAsync(cancellation.Token));
         Assert.Equal(0, bridge.Increments);
+        Assert.Equal(0, bridge.Resets);
+    }
+
+    [Fact]
+    public async Task CancellationAfterNativeResetStartsDoesNotHideCommittedResult()
+    {
+        using var cancelled = new CancellationTokenSource();
+        var bridge = new RecordingBridge { OnReset = cancelled.Cancel };
+        var result = await new NativeCounterRepository(bridge).ResetAsync(cancelled.Token);
+        Assert.True(cancelled.IsCancellationRequested); Assert.Equal(0, result.Value); Assert.Equal(1, bridge.Resets);
+    }
+    [Fact]
+    public async Task ResetUsesItsNativeTransactionAndReturnsPersistedZero()
+    {
+        var bridge = new RecordingBridge();
+        var result = await new NativeCounterRepository(bridge).ResetAsync();
+        Assert.Equal(1, bridge.Resets); Assert.Equal(0, bridge.Increments);
+        Assert.Equal(0, result.Value); Assert.Equal(2000, result.UpdatedAtUnixMilliseconds);
+        Assert.True(result.IsShared); Assert.True(result.RefreshRequested);
     }
 
     [Fact]
@@ -52,11 +72,19 @@ public sealed class NativeCounterRepositoryTests
     private sealed class RecordingBridge : INativeCounterBridge
     {
         public int Increments { get; private set; }
+        public int Resets { get; private set; }
+        public Action? OnReset { get; init; }
         public string Read() => throw new NotSupportedException();
         public string Increment()
         {
             Increments++;
             return "{\"schemaVersion\":1,\"value\":7,\"updatedAtUnixMilliseconds\":1000,\"storage\":\"shared\",\"refreshRequested\":true}";
+        }
+        public string Reset()
+        {
+            Resets++;
+            OnReset?.Invoke();
+            return "{\"schemaVersion\":1,\"value\":0,\"updatedAtUnixMilliseconds\":2000,\"storage\":\"shared\",\"refreshRequested\":true}";
         }
     }
 }

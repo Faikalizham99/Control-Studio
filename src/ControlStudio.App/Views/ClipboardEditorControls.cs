@@ -81,7 +81,7 @@ internal sealed class ClipboardEditorActionButton : ContentView
         var padding = new Thickness(text.Length == 0 ? 10 : 12, 0);
         if (primary)
         {
-            var accent = new AccentSurface(caption, 25, padding);
+            var accent = new AccentSurface(caption, 25, padding, captionSize: 16);
             if (label is not null) accent.BindForeground(label, Label.TextColorProperty);
             if (icon is ProfileGlyph profile) accent.BindForeground(profile, ProfileGlyph.TintProperty);
             if (icon is StudioGlyph studio) accent.BindForeground(studio, StudioGlyph.TintProperty);

@@ -11,6 +11,19 @@ public sealed class WidgetDesignRepositoryTests : IDisposable
     private string Shared => Path.Combine(root, "shared");
     private WidgetDesignRepository Repository() => new(Private);
     private static byte[] Png => Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aZXsAAAAASUVORK5CYII=");
+    [Fact]
+    public async Task DisplayTimestampReadsExistingRenderWithoutChangingLibraryOrPhotos()
+    {
+        var repo = Repository(); var design = await repo.SaveAsync(WidgetDesignRules.New(), Png);
+        var path = repo.RenderPath(design.RenderKey)!;
+        var stamp = new DateTime(2026, 10, 23, 4, 0, 0, DateTimeKind.Utc); File.SetLastWriteTimeUtc(path, stamp);
+        var catalog = await File.ReadAllBytesAsync(Path.Combine(Private, "catalog.json"));
+        Assert.Equal(new DateTimeOffset(stamp), repo.RenderUpdatedAt(design.RenderKey));
+        Assert.Equal(catalog, await File.ReadAllBytesAsync(Path.Combine(Private, "catalog.json")));
+        Assert.Equal(Png, await File.ReadAllBytesAsync(path));
+        Assert.Null(repo.RenderUpdatedAt("../invalid"));
+        Assert.Null(repo.RenderUpdatedAt(Guid.NewGuid().ToString("N")));
+    }
     private async Task<WidgetDesign> PhotoDraft()
     {
         var key = await Repository().ImportPhotoAsync(Png);

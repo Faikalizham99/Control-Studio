@@ -39,7 +39,7 @@ public sealed class AccentControlTests : IDisposable
         foreach (var hex in Accents)
         {
             ApplyAndSwitchTheme(surface, hex, theme);
-            AssertCaption(surface, caption.TextColor, 3); Assert.Equal(caption.TextColor, glyph.Tint);
+            AssertCaption(surface, caption.TextColor, 4.5); Assert.Equal(caption.TextColor, glyph.Tint);
         }
     }
 

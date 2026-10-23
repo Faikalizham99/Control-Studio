@@ -7,17 +7,21 @@ public interface INativeCounterBridge
 {
     string Read();
     string Increment();
+    string Reset();
 }
 
 /// <summary>The native store owns transactions, persistence and widget refresh requests.</summary>
 public sealed class NativeCounterRepository(INativeCounterBridge bridge) : ICounterRepository
 {
-    // Cancellation is honored before starting. A committed increment is never reported as cancelled.
+    // Cancellation is honored before starting. A committed mutation is never reported as cancelled.
     public Task<CounterSnapshot> ReadAsync(CancellationToken cancellationToken = default) =>
         ExecuteAsync(bridge.Read, cancellationToken);
 
     public Task<CounterSnapshot> IncrementAsync(CancellationToken cancellationToken = default) =>
         ExecuteAsync(bridge.Increment, cancellationToken);
+
+    public Task<CounterSnapshot> ResetAsync(CancellationToken cancellationToken = default) =>
+        ExecuteAsync(bridge.Reset, cancellationToken);
 
     private static Task<CounterSnapshot> ExecuteAsync(Func<string> operation, CancellationToken token)
     {

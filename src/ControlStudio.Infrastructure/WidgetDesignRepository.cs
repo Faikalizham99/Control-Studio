@@ -18,6 +18,17 @@ public sealed class WidgetDesignRepository
     public bool HasSavedLibrary => File.Exists(CatalogPath);
     public string? AssetPath(string key) => ImagePath("photos", key);
     public string? RenderPath(string key) => ImagePath("renders", key);
+    public DateTimeOffset? RenderUpdatedAt(string key)
+    {
+        var path = RenderPath(key); if (path is null) return null;
+        try
+        {
+            var timestamp = File.GetLastWriteTimeUtc(path);
+            return timestamp.Year > 1601 ? new DateTimeOffset(timestamp) : null;
+        }
+        catch (IOException) { return null; }
+        catch (UnauthorizedAccessException) { return null; }
+    }
     public string? ThumbnailPath(string key)
     {
         if (!WidgetDesignRules.ValidKey(key)) return null;

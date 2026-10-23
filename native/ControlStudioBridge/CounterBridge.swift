@@ -4,11 +4,16 @@ import OSLog
 
 private let bridgeLog = Logger(subsystem: "com.faikalizham.controlstudio", category: "CounterBridge")
 
-private func response(increment: Bool) -> UnsafeMutablePointer<CChar>? {
+private func response(operation: CounterOperation) -> UnsafeMutablePointer<CChar>? {
     do {
         let store = try CounterStore.forHost()
-        var snapshot = try increment ? store.increment() : store.read()
-        if increment && snapshot.storage == "shared" {
+        var snapshot: CounterSnapshot
+        switch operation {
+        case .read: snapshot = try store.read()
+        case .increment: snapshot = try store.increment()
+        case .reset: snapshot = try store.reset()
+        }
+        if operation != .read && snapshot.storage == "shared" {
             WidgetCenter.shared.reloadTimelines(ofKind: StudioConstants.widgetKind)
             snapshot.refreshRequested = true
         }
@@ -23,10 +28,13 @@ private func response(increment: Bool) -> UnsafeMutablePointer<CChar>? {
 }
 
 @_cdecl("cs_counter_read")
-public func counterRead() -> UnsafeMutablePointer<CChar>? { response(increment: false) }
+public func counterRead() -> UnsafeMutablePointer<CChar>? { response(operation: .read) }
 
 @_cdecl("cs_counter_increment")
-public func counterIncrement() -> UnsafeMutablePointer<CChar>? { response(increment: true) }
+public func counterIncrement() -> UnsafeMutablePointer<CChar>? { response(operation: .increment) }
+
+@_cdecl("cs_counter_reset")
+public func counterReset() -> UnsafeMutablePointer<CChar>? { response(operation: .reset) }
 
 @_cdecl("cs_counter_free")
 public func counterFree(_ pointer: UnsafeMutablePointer<CChar>?) { free(pointer) }

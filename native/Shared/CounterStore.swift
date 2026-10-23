@@ -72,6 +72,8 @@ struct CounterSnapshot: Codable, Equatable {
     }
 }
 
+enum CounterOperation: Equatable { case read, increment, reset }
+
 /// One short-lived connection per operation. SQLite serializes writers across all app processes.
 struct CounterStore {
     let directory: URL
@@ -105,10 +107,11 @@ struct CounterStore {
         }
     }
 
-    func read() throws -> CounterSnapshot { try transaction(increment: false) }
-    func increment() throws -> CounterSnapshot { try transaction(increment: true) }
+    func read() throws -> CounterSnapshot { try transaction(operation: .read) }
+    func increment() throws -> CounterSnapshot { try transaction(operation: .increment) }
+    func reset() throws -> CounterSnapshot { try transaction(operation: .reset) }
 
-    private func transaction(increment: Bool) throws -> CounterSnapshot {
+    private func transaction(operation: CounterOperation) throws -> CounterSnapshot {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         var connection: OpaquePointer?
         let path = directory.appendingPathComponent("counter.sqlite3").path
@@ -132,12 +135,13 @@ struct CounterStore {
         }
         let existing = try load(db)
         try existing.validate()
-        if increment {
-            guard existing.value < StudioConstants.maximumCounter else { throw CounterError.counterOverflow }
+        if operation != .read {
+            if operation == .increment, existing.value == StudioConstants.maximumCounter { throw CounterError.counterOverflow }
             let timestamp = Int64((Date().timeIntervalSince1970 * 1_000).rounded(.down))
             guard (0...253_402_300_799_999).contains(timestamp) else { throw CounterError.invalidData }
             // Only trusted integers are interpolated; there is no user-provided SQL.
-            try execute(db, "UPDATE counter SET value=value+1, updated_at=\(timestamp) WHERE id=1")
+            let value = operation == .reset ? 0 : existing.value + 1
+            try execute(db, "UPDATE counter SET value=\(value), updated_at=\(timestamp) WHERE id=1")
         }
         let snapshot = try load(db)
         try snapshot.validate()

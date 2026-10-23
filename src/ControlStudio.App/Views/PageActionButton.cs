@@ -5,13 +5,15 @@ internal sealed class PageActionButton : ContentView
 {
     private readonly Button tap;
     private readonly SecondaryActionSurface surface;
+    private readonly bool destructive;
     public static readonly BindableProperty DisabledReasonProperty = BindableProperty.Create(nameof(DisabledReason), typeof(string), typeof(PageActionButton), "",
         propertyChanged: (view, _, _) => ((PageActionButton)view).UpdateHint());
     public string DisabledReason { get => (string)GetValue(DisabledReasonProperty); set => SetValue(DisabledReasonProperty, value); }
     public event EventHandler? Clicked;
 
-    public PageActionButton(string text, string automationId, ProfileSymbol? symbol = null)
+    public PageActionButton(string text, string automationId, ProfileSymbol? symbol = null, bool destructive = false)
     {
+        this.destructive = destructive;
         MinimumHeightRequest = MinimumWidthRequest = 44;
         var caption = new HorizontalStackLayout { Spacing = 6, HorizontalOptions = LayoutOptions.Center, VerticalOptions = LayoutOptions.Center, InputTransparent = true };
         Label? label = null; ProfileGlyph? icon = null;
@@ -21,7 +23,7 @@ internal sealed class PageActionButton : ContentView
             label = new Label { Text = text, FontSize = 14, FontAttributes = FontAttributes.Bold, VerticalOptions = LayoutOptions.Center };
             AutomationProperties.SetIsInAccessibleTree(label, false); caption.Children.Add(label);
         }
-        surface = new SecondaryActionSurface(caption, 22, text.Length > 0 ? new Thickness(14, 8) : 10);
+        surface = new SecondaryActionSurface(caption, 22, text.Length > 0 ? new Thickness(14, 8) : 10, destructive: destructive);
         if (label is not null) surface.BindForeground(label, Label.TextColorProperty);
         if (icon is not null) surface.BindForeground(icon, ProfileGlyph.TintProperty);
         tap = SettingsControls.TapTarget(text.Length > 0 ? text : "Back", automationId); tap.CornerRadius = 22;
@@ -29,6 +31,7 @@ internal sealed class PageActionButton : ContentView
         tap.Pressed += (_, _) => { if (IsEnabled) surface.Scale = .97; };
         tap.Released += (_, _) => surface.Scale = 1;
         Content = new Grid { MinimumWidthRequest = 44, MinimumHeightRequest = 44, Children = { tap, surface } };
+        UpdateHint();
     }
 
     protected override void OnPropertyChanged(string? propertyName = null)
@@ -36,7 +39,7 @@ internal sealed class PageActionButton : ContentView
         base.OnPropertyChanged(propertyName);
         if (propertyName == nameof(IsEnabled)) { if (surface is not null) surface.Scale = 1; UpdateHint(); }
     }
-    private void UpdateHint() { if (tap is not null) SemanticProperties.SetHint(tap, IsEnabled ? "" : DisabledReason); }
+    private void UpdateHint() { if (tap is not null) SemanticProperties.SetHint(tap, IsEnabled ? (destructive ? "Asks for confirmation." : "") : DisabledReason); }
 }
 
 internal static class PageActionBar

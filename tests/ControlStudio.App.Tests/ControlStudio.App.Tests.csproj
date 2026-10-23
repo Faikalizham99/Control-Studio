@@ -16,6 +16,10 @@
     <Compile Include="../../src/ControlStudio.App/ClipboardCopyFeedback.cs" Link="ClipboardCopyFeedback.cs" />
     <Compile Include="../../src/ControlStudio.App/Views/ClipboardCopyFeedbackViews.cs" Link="Views/ClipboardCopyFeedbackViews.cs" />
     <Compile Include="../../src/ControlStudio.App/Views/WidgetCanvasView.cs" Link="Views/WidgetCanvasView.cs" />
+    <Compile Include="../../src/ControlStudio.App/Views/WidgetStudioControls.cs" Link="Views/WidgetStudioControls.cs" />
+    <Compile Include="../../src/ControlStudio.App/Views/DashboardStyle.cs" Link="Views/DashboardStyle.cs" />
+    <Compile Include="../../src/ControlStudio.App/Views/WidgetStudioPage.cs" Link="Views/WidgetStudioPage.cs" />
+    <Compile Include="../../src/ControlStudio.App/Views/HomePage.cs" Link="Views/HomePage.cs" />
     <Compile Include="../../src/ControlStudio.App/PhotoImportInput.cs" Link="PhotoImportInput.cs" />
     <Compile Include="../../src/ControlStudio.App/Views/AccentButton.cs" Link="Views/AccentButton.cs" />
     <Compile Include="../../src/ControlStudio.App/Views/AccentSurface.cs" Link="Views/AccentSurface.cs" />

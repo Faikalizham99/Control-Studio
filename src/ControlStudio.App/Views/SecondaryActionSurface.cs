@@ -19,7 +19,7 @@ internal sealed class SecondaryActionSurface : Border
     public static readonly BindableProperty NeutralForegroundProperty = NeutralForegroundPropertyKey.BindableProperty;
     public Color NeutralForeground => (Color)GetValue(NeutralForegroundProperty);
 
-    public SecondaryActionSurface(View content, double radius = 22, Thickness? padding = null)
+    public SecondaryActionSurface(View content, double radius = 22, Thickness? padding = null, bool destructive = false)
     {
         Content = content; StrokeShape = new RoundRectangle { CornerRadius = radius }; StrokeThickness = 1;
         Padding = padding ?? new Thickness(12, 0); InputTransparent = true;
@@ -29,7 +29,16 @@ internal sealed class SecondaryActionSurface : Border
         this.SetAppThemeColor(InactiveStrokeProperty, Color.FromArgb("#7A8496"), Color.FromArgb("#7F8999"));
         this.SetAppThemeColor(InactiveCaptionProperty, Color.FromArgb("#515A6B"), Color.FromArgb("#BCC4D2"));
         this.SetAppThemeColor(NeutralCaptionProperty, Color.FromArgb("#252A34"), Color.FromArgb("#F5F5F7"));
-        SetDynamicResource(ActiveCaptionProperty, "AccentText");
+        if (destructive)
+        {
+            this.SetAppThemeColor(ActiveFillProperty, Color.FromArgb("#C22D42"), Color.FromArgb("#B6243B"));
+            this.SetAppThemeColor(ActiveStrokeProperty, Color.FromArgb("#A51D31"), Color.FromArgb("#FF8597"));
+            this.SetAppThemeColor(InactiveFillProperty, Color.FromArgb("#F2E2E6"), Color.FromArgb("#35282E"));
+            this.SetAppThemeColor(InactiveStrokeProperty, Color.FromArgb("#A77581"), Color.FromArgb("#A87D89"));
+            this.SetAppThemeColor(InactiveCaptionProperty, Color.FromArgb("#80515B"), Color.FromArgb("#CCA8B2"));
+            SetValue(ActiveCaptionProperty, Colors.White); SetValue(NeutralCaptionProperty, Colors.White);
+        }
+        else SetDynamicResource(ActiveCaptionProperty, "AccentText");
         UpdatePalette();
     }
 

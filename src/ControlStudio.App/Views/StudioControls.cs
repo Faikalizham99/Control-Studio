@@ -2,7 +2,7 @@ using Microsoft.Maui.Graphics;
 
 namespace ControlStudio.App.Views;
 
-internal enum StudioSymbol { Widgets, Clipboard, Counter, Bars, Calendar, Photo, Text, Link, Chevron, Edit, Delete, Open, Preview, Tag, Expand, Clear, EyeOff, Pin, PinFilled, Check, LayerUp, LayerDown }
+internal enum StudioSymbol { Widgets, Clipboard, Counter, Bars, Calendar, Photo, Text, Link, Chevron, Edit, Delete, Open, Preview, Tag, Expand, Clear, EyeOff, Pin, PinFilled, Check, LayerUp, LayerDown, Plus, Hash, Refresh }
 
 internal sealed class StudioGlyph : GraphicsView, IDrawable
 {
@@ -118,6 +118,18 @@ internal sealed class StudioGlyph : GraphicsView, IDrawable
         else if (symbol == StudioSymbol.LayerDown)
         {
             Lines(canvas, 6, 15, 12, 21, 18, 15); canvas.DrawLine(12, 5, 12, 21); canvas.DrawLine(5, 3, 19, 3);
+        }
+        else if (symbol == StudioSymbol.Plus) { canvas.DrawLine(12, 4, 12, 20); canvas.DrawLine(4, 12, 20, 12); }
+        else if (symbol == StudioSymbol.Hash)
+        {
+            canvas.DrawLine(9, 3, 6, 21); canvas.DrawLine(18, 3, 15, 21);
+            canvas.DrawLine(4, 9, 21, 9); canvas.DrawLine(3, 16, 20, 16);
+        }
+        else if (symbol == StudioSymbol.Refresh)
+        {
+            var arc = new PathF(); arc.MoveTo(20, 9); arc.CurveTo(17, 1, 5, 1, 3, 11);
+            arc.MoveTo(4, 15); arc.CurveTo(7, 23, 19, 23, 21, 13); canvas.DrawPath(arc);
+            Lines(canvas, 20, 3, 20, 9, 14, 9); Lines(canvas, 4, 21, 4, 15, 10, 15);
         }
         else if (symbol == StudioSymbol.Check) Lines(canvas, 4, 12, 9, 17, 20, 6);
         else if (symbol == StudioSymbol.Chevron) Lines(canvas, 9, 5, 16, 12, 9, 19);
