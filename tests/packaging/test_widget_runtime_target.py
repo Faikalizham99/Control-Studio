@@ -32,7 +32,7 @@ class WidgetRuntimeTargetTests(unittest.TestCase):
 
     def test_background_adapter_is_compiled_once_and_only_in_widget_extension(self):
         for name, target in self.targets.items():
-            for source in ["CSWidgetBackgroundAdapter.m", "CSWidgetBackgroundDiagnostics.m"]:
+            for source in ["CSWidgetBackgroundAdapter.m"]:
                 matches = [file for file in self.sources(target) if file["path"] == "WidgetRuntime/" + source]
                 self.assertEqual(1 if name == "ControlStudioWidgets" else 0, len(matches), name)
                 for file in matches:

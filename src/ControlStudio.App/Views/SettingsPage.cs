@@ -37,16 +37,6 @@ public sealed class SettingsPage : ContentPage
         about.SetDynamicResource(Button.TextColorProperty, "AccentText");
         about.Clicked += async (_, _) => await Navigation.PushAsync(new AboutPage());
         body.Children.Add(about);
-        var diagnostics = new Button { Text = "Widget diagnostics  ›", BackgroundColor = Colors.Transparent, FontSize = 14, MinimumHeightRequest = 44, AutomationId = "OpenWidgetDiagnostics" };
-        diagnostics.SetDynamicResource(Button.TextColorProperty, "AccentText");
-        diagnostics.Clicked += async (_, _) =>
-        {
-            if (picking || colours.IsBusy) return;
-            picking = true;
-            try { await Navigation.PushAsync(new WidgetDiagnosticsPage(AppleWidgetBackgroundDiagnostics.ReadAsync)); }
-            finally { picking = false; }
-        };
-        body.Children.Add(diagnostics);
         Content = new ScrollView { Content = body };
         Refresh();
     }

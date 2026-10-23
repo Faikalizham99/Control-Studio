@@ -89,16 +89,6 @@
 			"isa" = "PBXBuildFile";
 			"fileRef" = "DCDD2E72E39BA36561DF5F3D";
 		};
-		"BA8C59E7AE39BB4B50F3FBAA" = {
-			"isa" = "PBXFileReference";
-			"lastKnownFileType" = "sourcecode.c.objc";
-			"path" = "WidgetRuntime/CSWidgetBackgroundDiagnostics.m";
-			"sourceTree" = "<group>";
-		};
-		"FC5E14AD6B856AB5C8795A31" = {
-			"isa" = "PBXBuildFile";
-			"fileRef" = "BA8C59E7AE39BB4B50F3FBAA";
-		};
 		"281240187B75A46D30C238C0" = {
 			"isa" = "PBXSourcesBuildPhase";
 			"buildActionMask" = 2147483647;
@@ -110,7 +100,6 @@
 				"D54E84724757C35B2EAEA303",
 				"7052DB8C589EB931B19128DD",
 				"1F63B78E88C531B0B1F6B54C",
-				"FC5E14AD6B856AB5C8795A31",
 			);
 			"runOnlyForDeploymentPostprocessing" = 0;
 		};
@@ -329,7 +318,6 @@
 				"C9FF7C42709595CD3EDE50C0",
 				"A8F19B76FEAA4F360CE14AAA",
 				"DCDD2E72E39BA36561DF5F3D",
-				"BA8C59E7AE39BB4B50F3FBAA",
 				"0F641DB0626D777B6F91FE44",
 				"0A3E27B8CA818264D75C8D81",
 			);

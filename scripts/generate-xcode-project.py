@@ -49,10 +49,6 @@ def generate():
                           path="WidgetRuntime/CSWidgetBackgroundAdapter.m", sourceTree="<group>")
             children.append(runtime)
             build_files.append(add("widget-background-adapter-build", "PBXBuildFile", fileRef=runtime))
-            diagnostics = add("widget-background-diagnostics", "PBXFileReference", lastKnownFileType="sourcecode.c.objc",
-                              path="WidgetRuntime/CSWidgetBackgroundDiagnostics.m", sourceTree="<group>")
-            children.append(diagnostics)
-            build_files.append(add("widget-background-diagnostics-build", "PBXBuildFile", fileRef=diagnostics))
         sources = add(name + "-sources", "PBXSourcesBuildPhase", buildActionMask=2147483647,
                       files=build_files, runOnlyForDeploymentPostprocessing=0)
         frameworks = add(name + "-frameworks", "PBXFrameworksBuildPhase", buildActionMask=2147483647,
