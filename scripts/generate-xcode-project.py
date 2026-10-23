@@ -38,14 +38,10 @@ def generate():
         products.append(product)
         build_files = [add(name + "-" + ref, "PBXBuildFile", fileRef=ref) for ref in [source, group_source, widget_store, file]]
         if name == "ControlStudioWidgets":
-            design_view = add("widget-design-view", "PBXFileReference", lastKnownFileType="sourcecode.swift",
-                              path="ControlStudioWidgets/StudioDesignWidget.swift", sourceTree="<group>")
+            design_view = add("widget-slots-view", "PBXFileReference", lastKnownFileType="sourcecode.swift",
+                              path="ControlStudioWidgets/StudioSlotWidget.swift", sourceTree="<group>")
             children.append(design_view)
-            build_files.append(add("widget-design-view-build", "PBXBuildFile", fileRef=design_view))
-            diagnostics = add("widget-diagnostics", "PBXFileReference", lastKnownFileType="sourcecode.swift",
-                              path="Shared/WidgetDiagnostics.swift", sourceTree="<group>")
-            children.append(diagnostics)
-            build_files.append(add("widget-diagnostics-build", "PBXBuildFile", fileRef=diagnostics))
+            build_files.append(add("widget-slots-view-build", "PBXBuildFile", fileRef=design_view))
         sources = add(name + "-sources", "PBXSourcesBuildPhase", buildActionMask=2147483647,
                       files=build_files, runOnlyForDeploymentPostprocessing=0)
         frameworks = add(name + "-frameworks", "PBXFrameworksBuildPhase", buildActionMask=2147483647,
@@ -61,7 +57,7 @@ def generate():
             "APPLICATION_EXTENSION_API_ONLY": "YES", "IPHONEOS_DEPLOYMENT_TARGET": "17.0",
             "SWIFT_VERSION": "5.0", "SWIFT_OPTIMIZATION_LEVEL": "-O",
             "SWIFT_EMIT_LOC_STRINGS": "YES", "TARGETED_DEVICE_FAMILY": "1,2",
-            "CURRENT_PROJECT_VERSION": "18", "MARKETING_VERSION": "0.2.16",
+            "CURRENT_PROJECT_VERSION": "19", "MARKETING_VERSION": "0.2.17",
             "LD_RUNPATH_SEARCH_PATHS": ["$(inherited)", "@executable_path/Frameworks", "@executable_path/../../Frameworks"],
             "OTHER_LDFLAGS": ["$(inherited)", "-lsqlite3"],
         }

@@ -16,4 +16,3 @@ xcodebuild -project native/ControlStudioNative.xcodeproj -alltargets \
 test -f artifacts/native/Release-iphoneos/ControlStudioWidgets.appex/Info.plist
 test -s artifacts/native/Release-iphoneos/ControlStudioIntents.appex/Metadata.appintents/extract.actionsdata
 python3 scripts/validate-intent-metadata.py artifacts/native/Release-iphoneos/ControlStudioIntents.appex
-python3 scripts/validate-intent-metadata.py artifacts/native/Release-iphoneos/ControlStudioWidgets.appex --widget

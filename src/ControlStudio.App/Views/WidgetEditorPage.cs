@@ -92,7 +92,7 @@ internal sealed class WidgetEditorPage : ContentPage
         background.BusyChanged += (_, _) => RefreshActions();
         form.Children.Add(ClipboardEditorControls.Card(new VerticalStackLayout { Spacing = 10, Children = { SettingsControls.Text("Background colour", 19, bold: true), background } }));
         status.IsVisible = false; form.Children.Add(status); form.Children.Add(save);
-        form.Children.Add(SettingsControls.Text("Save, then add Control Studio → Studio Widget on your Home Screen. Touch and hold it → Edit Widget → choose your design in the matching size. iOS schedules updates.", 13, secondary: true));
+        form.Children.Add(SettingsControls.Text("Save, then open Widget slots in Widgets and assign this design to a matching slot. Add Studio 1–10 in that size on your Home Screen. Editing a design updates every slot using it; changing its size empties its old slots. iOS schedules updates.", 13, secondary: true));
         save.Clicked += async (_, _) => await RunAsync(SaveAsync);
         cancel.Clicked += async (_, _) => await ExitAsync();
         back.Clicked += async (_, _) => await ExitAsync();

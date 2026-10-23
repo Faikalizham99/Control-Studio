@@ -19,8 +19,10 @@ public sealed class WidgetStudioService
     private readonly WidgetDesignPublisher publisher;
     private readonly ILogger<WidgetStudioService> logger;
     private readonly SemaphoreSlim gate = new(1, 1);
-    [DllImport("__Internal", EntryPoint = "cs_widgets_reload_designs")]
+    [DllImport("__Internal", EntryPoint = "cs_widgets_reload_slots")]
     private static extern void ReloadNative();
+    [DllImport("__Internal", EntryPoint = "cs_widgets_reload_slot")]
+    private static extern void ReloadSlotNative(int number);
 
     public WidgetStudioService(ILogger<WidgetStudioService> logger)
     {
@@ -91,30 +93,13 @@ public sealed class WidgetStudioService
         await gate.WaitAsync();
         try { return await PublishCoreAsync(); } finally { gate.Release(); }
     }
-    public Task<WidgetDiagnosticSnapshot> ReadDiagnosticsAsync() => new WidgetDiagnosticRepository(SharedDirectory()).ReadAsync();
-    public async Task<bool> ConfigureDiagnosticsAsync(bool? textOnly)
+    public async Task<bool> AssignSlotAsync(WidgetSize size, int number, Guid? designId)
     {
         await gate.WaitAsync();
         try
         {
-            var diagnostics = new WidgetDiagnosticRepository(SharedDirectory());
-            WidgetDiagnosticSettings? started = null;
-            if (textOnly is { } mode)
-            {
-                started = await diagnostics.StartAsync(mode);
-                try { await diagnostics.RecordHostAsync(started, mode ? "session.text-started" : "session.photo-started"); }
-                catch (Exception ex) { logger.LogWarning("Widget diagnostic event unavailable. ErrorType={ErrorType}", ex.GetType().Name); }
-            }
-            else await diagnostics.StopAsync();
-            try
-            {
-                ReloadNative();
-                if (started is not null)
-                    try { await diagnostics.RecordHostAsync(started, "reload.requested"); }
-                    catch (Exception ex) { logger.LogWarning("Widget diagnostic event unavailable. ErrorType={ErrorType}", ex.GetType().Name); }
-                return true;
-            }
-            catch (Exception ex) { logger.LogWarning("Widget diagnostic reload unavailable. ErrorType={ErrorType}", ex.GetType().Name); return false; }
+            await Repository.AssignSlotAsync(size, number, designId);
+            return await PublishCoreAsync(number);
         }
         finally { gate.Release(); }
     }
@@ -123,9 +108,9 @@ public sealed class WidgetStudioService
         await gate.WaitAsync();
         try { await Repository.DeleteAsync(id); return await PublishCoreAsync(); } finally { gate.Release(); }
     }
-    private async Task<bool> PublishCoreAsync()
+    private async Task<bool> PublishCoreAsync(int? slot = null)
     {
-        try { await publisher.PublishAsync(); ReloadNative(); return true; }
+        try { await publisher.PublishAsync(); if (slot is { } number) ReloadSlotNative(number); else ReloadNative(); return true; }
         catch (Exception ex) { logger.LogWarning("Widget publication failed. ErrorType={ErrorType}", ex.GetType().Name); return false; }
     }
     private (byte[] Full, byte[] Thumbnail) Render(WidgetDesign design)

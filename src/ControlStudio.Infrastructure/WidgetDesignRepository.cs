@@ -15,6 +15,7 @@ public sealed class WidgetDesignRepository
         this.directory = Path.GetFullPath(directory); gate = Locks.GetOrAdd(this.directory, _ => new(1, 1));
     }
     private string CatalogPath => Path.Combine(directory, "catalog.json");
+    public bool HasSavedLibrary => File.Exists(CatalogPath);
     public string? AssetPath(string key) => ImagePath("photos", key);
     public string? RenderPath(string key) => ImagePath("renders", key);
     public string? ThumbnailPath(string key)
@@ -33,15 +34,35 @@ public sealed class WidgetDesignRepository
         try { return (await ReadCoreAsync(token)).Designs; }
         finally { gate.Release(); }
     }
-    private async Task<WidgetCatalog> ReadCoreAsync(CancellationToken token)
+    public async Task<WidgetLibraryCatalog> ReadLibraryAsync(CancellationToken token = default)
     {
-        if (!File.Exists(CatalogPath)) return new(1, []);
+        await gate.WaitAsync(token);
+        try { return await ReadCoreAsync(token); }
+        finally { gate.Release(); }
+    }
+    private async Task<WidgetLibraryCatalog> ReadCoreAsync(CancellationToken token)
+    {
+        if (!File.Exists(CatalogPath)) return new(2, [], []);
         if (new FileInfo(CatalogPath).Length > WidgetDesignRules.MaximumCatalogBytes) throw new IOException("The widget catalog is too large. Data was not changed.");
         try
         {
-            var catalog = JsonSerializer.Deserialize(await File.ReadAllBytesAsync(CatalogPath, token), WidgetDesignRules.JsonContext.WidgetCatalog)
-                ?? throw new IOException("The widget catalog is empty. Data was not changed.");
-            WidgetDesignRules.Validate(catalog); return catalog;
+            var bytes = await File.ReadAllBytesAsync(CatalogPath, token);
+            if (bytes.Length > WidgetDesignRules.MaximumCatalogBytes) throw new IOException("The widget catalog is too large.");
+            using var document = JsonDocument.Parse(bytes);
+            if (document.RootElement.ValueKind != JsonValueKind.Object || !document.RootElement.TryGetProperty("schemaVersion", out var schema)
+                || schema.ValueKind != JsonValueKind.Number || !schema.TryGetInt32(out var version)) throw new IOException("The widget library is invalid. Data was not changed.");
+            if (version == 1)
+            {
+                var original = JsonSerializer.Deserialize(bytes, WidgetDesignRules.JsonContext.WidgetCatalog)
+                    ?? throw new IOException("The widget catalog is empty. Data was not changed.");
+                WidgetDesignRules.Validate(original);
+                // Existing IDs, revisions, layers and images are retained. The first mutation upgrades atomically.
+                return new(2, original.Designs, []);
+            }
+            if (version != 2) throw new IOException("This widget library requires a newer app. Data was not changed.");
+            var library = JsonSerializer.Deserialize(bytes, WidgetDesignRules.JsonContext.WidgetLibraryCatalog)
+                ?? throw new IOException("The widget library is empty. Data was not changed.");
+            WidgetSlotRules.Validate(library); return library;
         }
         catch (JsonException ex) { throw new IOException("The widget catalog could not be read. Data was not changed.", ex); }
     }
@@ -58,7 +79,8 @@ public sealed class WidgetDesignRepository
         await gate.WaitAsync(token);
         try
         {
-            var designs = (await ReadCoreAsync(token)).Designs.ToList();
+            var library = await ReadCoreAsync(token);
+            var designs = library.Designs.ToList();
             var index = designs.FindIndex(x => x.Id == draft.Id);
             var oldAssets = index >= 0 ? designs[index].Layers.Select(x => x.AssetKey).ToArray() : [];
             if (index < 0 && draft.Revision != 0 || index >= 0 && designs[index].Revision != draft.Revision)
@@ -74,7 +96,8 @@ public sealed class WidgetDesignRepository
             {
                 await WriteImageAsync("renders", saved.RenderKey, render, token);
                 if (thumbnail is not null) await WriteImageAsync("renders", saved.RenderKey + ".thumb", thumbnail, token);
-                await WriteCatalogAsync(new(1, designs), token);
+                var slots = library.Slots.Where(x => x.DesignId != saved.Id || x.Size == saved.Size).ToArray();
+                await WriteCatalogAsync(new(2, designs, slots), token);
             }
             catch { TryRemove(RenderPath(saved.RenderKey)); TryRemove(ThumbnailPath(saved.RenderKey)); throw; }
             // Keep sources/renders referenced by other designs. Cleanup is best effort after commit.
@@ -88,10 +111,27 @@ public sealed class WidgetDesignRepository
         await gate.WaitAsync(token);
         try
         {
-            var before = (await ReadCoreAsync(token)).Designs;
+            var library = await ReadCoreAsync(token);
+            var before = library.Designs;
             var removedAssets = before.Where(x => x.Id == id).SelectMany(x => x.Layers).Select(x => x.AssetKey).ToArray();
             var designs = before.Where(x => x.Id != id).ToArray();
-            await WriteCatalogAsync(new(1, designs), token); RemoveUnusedSources(removedAssets, designs); CollectUnreferenced(designs);
+            await WriteCatalogAsync(new(2, designs, library.Slots.Where(x => x.DesignId != id).ToArray()), token);
+            RemoveUnusedSources(removedAssets, designs); CollectUnreferenced(designs);
+        }
+        finally { gate.Release(); }
+    }
+    public async Task AssignSlotAsync(WidgetSize size, int number, Guid? designId, CancellationToken token = default)
+    {
+        WidgetSlotRules.ValidateAddress(size, number);
+        await gate.WaitAsync(token);
+        try
+        {
+            var library = await ReadCoreAsync(token);
+            if (designId is { } id && !library.Designs.Any(x => x.Id == id && x.Size == size))
+                throw new IOException("This design is unavailable or has a different size. Choose a matching saved design.");
+            var slots = library.Slots.Where(x => x.Size != size || x.Number != number).ToList();
+            if (designId is { } selected) slots.Add(new(size, number, selected));
+            await WriteCatalogAsync(library with { Slots = slots.OrderBy(x => x.Size).ThenBy(x => x.Number).ToArray() }, token);
         }
         finally { gate.Release(); }
     }
@@ -125,10 +165,10 @@ public sealed class WidgetDesignRepository
         var referenced = designs.SelectMany(x => x.Layers).Select(x => x.AssetKey).ToHashSet();
         foreach (var key in candidates.Where(x => !referenced.Contains(x))) TryRemove(AssetPath(key));
     }
-    private async Task WriteCatalogAsync(WidgetCatalog catalog, CancellationToken token)
+    private async Task WriteCatalogAsync(WidgetLibraryCatalog catalog, CancellationToken token)
     {
-        WidgetDesignRules.Validate(catalog);
-        var bytes = JsonSerializer.SerializeToUtf8Bytes(catalog, WidgetDesignRules.JsonContext.WidgetCatalog);
+        WidgetSlotRules.Validate(catalog);
+        var bytes = JsonSerializer.SerializeToUtf8Bytes(catalog, WidgetDesignRules.JsonContext.WidgetLibraryCatalog);
         if (bytes.Length > WidgetDesignRules.MaximumCatalogBytes) throw new IOException("The widget catalog is too large.");
         await AtomicWriteAsync(CatalogPath, bytes, token);
     }

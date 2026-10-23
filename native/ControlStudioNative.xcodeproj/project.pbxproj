@@ -59,25 +59,15 @@
 			"isa" = "PBXBuildFile";
 			"fileRef" = "C9FF7C42709595CD3EDE50C0";
 		};
-		"426B8C1CC1D827B47E22F7EE" = {
+		"A8F19B76FEAA4F360CE14AAA" = {
 			"isa" = "PBXFileReference";
 			"lastKnownFileType" = "sourcecode.swift";
-			"path" = "ControlStudioWidgets/StudioDesignWidget.swift";
+			"path" = "ControlStudioWidgets/StudioSlotWidget.swift";
 			"sourceTree" = "<group>";
 		};
-		"0480B9A3EB8F2DFC39FD0B81" = {
+		"7052DB8C589EB931B19128DD" = {
 			"isa" = "PBXBuildFile";
-			"fileRef" = "426B8C1CC1D827B47E22F7EE";
-		};
-		"F95EF3914B02A6C6D9F4266C" = {
-			"isa" = "PBXFileReference";
-			"lastKnownFileType" = "sourcecode.swift";
-			"path" = "Shared/WidgetDiagnostics.swift";
-			"sourceTree" = "<group>";
-		};
-		"C10286AEF3135D7F82F27BD1" = {
-			"isa" = "PBXBuildFile";
-			"fileRef" = "F95EF3914B02A6C6D9F4266C";
+			"fileRef" = "A8F19B76FEAA4F360CE14AAA";
 		};
 		"281240187B75A46D30C238C0" = {
 			"isa" = "PBXSourcesBuildPhase";
@@ -87,8 +77,7 @@
 				"6B6C4C4DD3FCEE1032DC64CE",
 				"DD3FF1AF259ABD55EF7DF8C2",
 				"79CC07C72413E552BC034B32",
-				"0480B9A3EB8F2DFC39FD0B81",
-				"C10286AEF3135D7F82F27BD1",
+				"7052DB8C589EB931B19128DD",
 			);
 			"runOnlyForDeploymentPostprocessing" = 0;
 		};
@@ -129,8 +118,8 @@
 				"SWIFT_OPTIMIZATION_LEVEL" = "-O";
 				"SWIFT_EMIT_LOC_STRINGS" = "YES";
 				"TARGETED_DEVICE_FAMILY" = "1,2";
-				"CURRENT_PROJECT_VERSION" = "18";
-				"MARKETING_VERSION" = "0.2.16";
+				"CURRENT_PROJECT_VERSION" = "19";
+				"MARKETING_VERSION" = "0.2.17";
 				"LD_RUNPATH_SEARCH_PATHS" = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -246,8 +235,8 @@
 				"SWIFT_OPTIMIZATION_LEVEL" = "-O";
 				"SWIFT_EMIT_LOC_STRINGS" = "YES";
 				"TARGETED_DEVICE_FAMILY" = "1,2";
-				"CURRENT_PROJECT_VERSION" = "18";
-				"MARKETING_VERSION" = "0.2.16";
+				"CURRENT_PROJECT_VERSION" = "19";
+				"MARKETING_VERSION" = "0.2.17";
 				"LD_RUNPATH_SEARCH_PATHS" = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -303,8 +292,7 @@
 				"2EAE80D65C910A9C1E47FE9F",
 				"3647715DBD47B59F9F21A188",
 				"C9FF7C42709595CD3EDE50C0",
-				"426B8C1CC1D827B47E22F7EE",
-				"F95EF3914B02A6C6D9F4266C",
+				"A8F19B76FEAA4F360CE14AAA",
 				"0F641DB0626D777B6F91FE44",
 				"0A3E27B8CA818264D75C8D81",
 			);

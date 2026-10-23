@@ -28,24 +28,20 @@ struct WidgetDesignCatalog: Decodable {
 
 enum WidgetDesignError: Error { case invalidCatalog, unsupportedSchema, imageUnavailable }
 
-enum WidgetDesignSelection: Equatable {
-    static let automaticID = "automatic"
-    case design(WidgetDesignSummary), empty, unavailable, wrongSize(WidgetDesignSize)
+struct WidgetSlotAssignment: Decodable, Equatable {
+    let size: WidgetDesignSize
+    let number: Int
+    let designId: String
+}
 
-    static func resolve(_ designs: [WidgetDesignSummary], size: WidgetDesignSize, selectedID: String?) -> Self {
-        if let selectedID, selectedID != automaticID {
-            guard let design = designs.first(where: { $0.id == selectedID }) else { return .unavailable }
-            guard design.size == size else { return .wrongSize(design.size) }
-            return .design(design)
-        }
-        guard let design = designs.first(where: { $0.size == size }) else { return .empty }
-        return .design(design)
-    }
+struct WidgetSlotCatalog: Decodable {
+    let schemaVersion: Int
+    let slots: [WidgetSlotAssignment]
 }
 
 struct WidgetDesignStore {
-    static let widgetKind = "ControlStudio.Design"
-    static let diagnosticWidgetKind = "ControlStudio.DesignDiagnostic"
+    static let slotsPerSize = 10
+    static func slotKind(_ number: Int) -> String { "ControlStudio.Slot.\(number)" }
     let directory: URL
     static func shared() throws -> WidgetDesignStore {
         #if os(iOS)
@@ -59,6 +55,26 @@ struct WidgetDesignStore {
     }
     static func validKey(_ value: String) -> Bool {
         value.count == 32 && value.utf8.allSatisfy { (48...57).contains($0) || (97...102).contains($0) }
+    }
+    func readSlots() throws -> [WidgetSlotAssignment] {
+        let url = directory.appendingPathComponent("slots.json")
+        guard FileManager.default.fileExists(atPath: url.path) else { return [] }
+        let catalog = try JSONDecoder().decode(WidgetSlotCatalog.self, from: boundedData(url, maximum: 16_384))
+        guard catalog.schemaVersion == 1 else { throw WidgetDesignError.unsupportedSchema }
+        guard catalog.slots.count <= 50 else { throw WidgetDesignError.invalidCatalog }
+        var addresses = Set<String>()
+        for slot in catalog.slots {
+            guard (1...Self.slotsPerSize).contains(slot.number), UUID(uuidString: slot.designId) != nil,
+                slot.designId != "00000000-0000-0000-0000-000000000000",
+                addresses.insert("\(slot.size.rawValue).\(slot.number)").inserted else { throw WidgetDesignError.invalidCatalog }
+        }
+        return catalog.slots
+    }
+    func assignedDesign(size: WidgetDesignSize, number: Int) throws -> WidgetDesignSummary? {
+        guard (1...Self.slotsPerSize).contains(number) else { throw WidgetDesignError.invalidCatalog }
+        guard let assignment = try readSlots().first(where: { $0.size == size && $0.number == number }) else { return nil }
+        // Missing/changed-size IDs leave this slot empty; never substitute another photo.
+        return try read().first { $0.id == assignment.designId && $0.size == size }
     }
     func read() throws -> [WidgetDesignSummary] {
         let url = directory.appendingPathComponent("catalog.json")

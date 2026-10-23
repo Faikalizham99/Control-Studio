@@ -76,7 +76,7 @@ public sealed class WidgetDesignRepositoryTests : IDisposable
         await Assert.ThrowsAsync<IOException>(() => Repository().SaveAsync(original, Png));
     }
     [Theory]
-    [InlineData("{\"schemaVersion\":2,\"designs\":[]}")]
+    [InlineData("{\"schemaVersion\":3,\"designs\":[]}")]
     [InlineData("{broken")]
     [InlineData("{\"schemaVersion\":1,\"designs\":null}")]
     public async Task UnsupportedOrCorruptCatalogIsNotResetOrOverwritten(string contents)
@@ -117,7 +117,7 @@ public sealed class WidgetDesignRepositoryTests : IDisposable
         Assert.Equal(future, await File.ReadAllTextAsync(path));
     }
     [Fact]
-    public async Task SameSizeNamesAreDistinctForTheHomeScreenSelector()
+    public async Task SameSizeNamesAreDistinctInTheDesignLibrary()
     {
         var repo = Repository(); var first = await repo.SaveAsync(WidgetDesignRules.New(), Png);
         await Assert.ThrowsAsync<IOException>(() => repo.SaveAsync(WidgetDesignRules.New() with { Name = " my WIDGET " }, Png));

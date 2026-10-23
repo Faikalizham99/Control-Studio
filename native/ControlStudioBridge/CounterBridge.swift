@@ -31,8 +31,15 @@ public func counterIncrement() -> UnsafeMutablePointer<CChar>? { response(increm
 @_cdecl("cs_counter_free")
 public func counterFree(_ pointer: UnsafeMutablePointer<CChar>?) { free(pointer) }
 
-@_cdecl("cs_widgets_reload_designs")
-public func reloadWidgetDesigns() {
-    WidgetCenter.shared.reloadTimelines(ofKind: WidgetDesignStore.widgetKind)
-    WidgetCenter.shared.reloadTimelines(ofKind: WidgetDesignStore.diagnosticWidgetKind)
+@_cdecl("cs_widgets_reload_slots")
+public func reloadWidgetSlots() {
+    for number in 1...WidgetDesignStore.slotsPerSize {
+        WidgetCenter.shared.reloadTimelines(ofKind: WidgetDesignStore.slotKind(number))
+    }
+}
+
+@_cdecl("cs_widgets_reload_slot")
+public func reloadWidgetSlot(_ number: Int32) {
+    guard (1...WidgetDesignStore.slotsPerSize).contains(Int(number)) else { return }
+    WidgetCenter.shared.reloadTimelines(ofKind: WidgetDesignStore.slotKind(Int(number)))
 }

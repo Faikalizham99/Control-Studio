@@ -17,8 +17,8 @@ public sealed record WidgetCatalog(int SchemaVersion, IReadOnlyList<WidgetDesign
     UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow, UseStringEnumConverter = true, MaxDepth = 16)]
 [JsonSerializable(typeof(WidgetCatalog))]
 [JsonSerializable(typeof(WidgetDesign))]
-[JsonSerializable(typeof(WidgetDiagnosticSettings))]
-[JsonSerializable(typeof(WidgetDiagnosticEvent))]
+[JsonSerializable(typeof(WidgetSlotCatalog))]
+[JsonSerializable(typeof(WidgetLibraryCatalog))]
 public partial class WidgetJsonContext : JsonSerializerContext;
 
 public static class WidgetDesignRules

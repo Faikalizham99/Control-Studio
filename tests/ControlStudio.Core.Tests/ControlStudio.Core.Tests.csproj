@@ -7,6 +7,6 @@
     <ProjectReference Include="../../src/ControlStudio.Core/ControlStudio.Core.csproj" />
     <None Include="../../contracts/counter-v1.example.json" Link="counter-v1.example.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../contracts/widget-designs-v1.example.json" Link="widget-designs-v1.example.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../contracts/widget-slots-v1.example.json" Link="widget-slots-v1.example.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
-  <ItemGroup><None Include="../../contracts/widget-diagnostics-v1.*.json" Link="%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" /></ItemGroup>
 </Project>

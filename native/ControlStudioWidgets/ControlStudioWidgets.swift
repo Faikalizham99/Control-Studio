@@ -79,5 +79,9 @@ struct CounterWidget: Widget {
 
 @main
 struct ControlStudioWidgets: WidgetBundle {
-    var body: some Widget { CounterWidget(); StudioDesignWidget(); StudioDesignDiagnosticWidget() }
+    var body: some Widget {
+        CounterWidget()
+        StudioSlotsOneToFive().body
+        StudioSlotsSixToTen().body
+    }
 }

@@ -17,7 +17,7 @@ public sealed class WidgetsPage : ContentPage
     private readonly PageActionButton add = new("Add", "AddWidgetDesign");
     private readonly PageActionButton back = new("", "BackFromWidgets", ProfileSymbol.Back);
     private readonly ClipboardEditorActionButton refresh = new("Refresh widgets", ClipboardEditorControls.Icon(StudioSymbol.Widgets), "RefreshWidgetDesigns");
-    private readonly ClipboardEditorActionButton diagnostics = new("Widget diagnostics", ClipboardEditorControls.Icon(StudioSymbol.Widgets), "OpenWidgetDiagnostics");
+    private readonly ClipboardEditorActionButton widgetSlots = new("Widget slots", ClipboardEditorControls.Icon(StudioSymbol.Widgets), "OpenWidgetSlots", primary: true);
     private readonly CounterWidgetPreview small = new(false);
     private readonly CounterWidgetPreview medium = new(true);
     private readonly Label status = SettingsControls.Text("", 13, secondary: true);
@@ -36,13 +36,13 @@ public sealed class WidgetsPage : ContentPage
         refresh.Clicked += async (_, _) => await ReloadAsync(publish: true);
         var setup = DashboardStyle.Button("How to add a widget");
         setup.Clicked += async (_, _) => await GuardAsync(() => Navigation.PushAsync(new AboutPage()));
-        diagnostics.Clicked += async (_, _) => await GuardAsync(() => Navigation.PushAsync(new WidgetDiagnosticsPage(studio, logger)));
+        widgetSlots.Clicked += async (_, _) => await GuardAsync(() => Navigation.PushAsync(new WidgetSlotsPage(studio, logger)));
         var content = new ScrollView { Content = new VerticalStackLayout { Padding = 20, Spacing = 16, Children =
         {
             SettingsControls.Text("Your widgets", 28, bold: true),
             SettingsControls.Text("Build a widget with optional photo layers. Choose Small, Medium, Large or Extra Large. Portrait Extra Large works on iPhone and iPad with iOS/iPadOS 27+.", 15, secondary: true),
-            designs, status, refresh, diagnostics,
-            SettingsControls.Text("Add Control Studio → Studio Widget on your Home Screen. Touch and hold → Edit Widget → choose a design in the matching size. Each widget can show a different design, even in the same size. Automatic uses the first matching design.", 13, secondary: true),
+            widgetSlots, designs, status, refresh,
+            SettingsControls.Text("Save a design, then assign it in Widget slots. Add Control Studio → Studio 1–10 on your Home Screen and choose the matching size. Remove old custom widgets once and add the new slots; your saved designs stay here.", 13, secondary: true),
             SettingsControls.Text("Counter widgets", 28, bold: true),
             SettingsControls.Text("Preview your counter in the two available sizes.", 15, secondary: true),
             SettingsControls.Text("Small", 14, bold: true), small,
@@ -71,7 +71,7 @@ public sealed class WidgetsPage : ContentPage
             reloadPending = false;
             var saved = await studio.Repository.ReadAsync(token); token.ThrowIfCancellationRequested();
             ShowDesigns(saved);
-            if (publish || saved.Count > 0)
+            if (publish || studio.Repository.HasSavedLibrary)
             {
                 var published = await studio.PublishAsync(); token.ThrowIfCancellationRequested();
                 status.Text = published ? "Widget update requested. iOS controls when it appears." : "Saved on this device. Home Screen update unavailable. Check App Group signing, then tap Refresh.";
@@ -113,7 +113,7 @@ public sealed class WidgetsPage : ContentPage
             edit.Clicked += async (_, _) => await GuardAsync(() => Navigation.PushAsync(new WidgetEditorPage(studio, colourPicker, logger, design)));
             delete.Clicked += async (_, _) => await GuardAsync(async () =>
             {
-                if (!await DisplayAlertAsync("Delete widget design?", "Remove this saved design? Any Home Screen widgets using it will ask you to choose another design. Your original photos are kept.", "Delete", "Cancel") || !active) return;
+                if (!await DisplayAlertAsync("Delete widget design?", "Remove this saved design? Its assigned slots will become empty. Your original photos are kept.", "Delete", "Cancel") || !active) return;
                 var published = await studio.DeleteAsync(design.Id);
                 if (!active) return;
                 ShowDesigns(await studio.Repository.ReadAsync());
@@ -132,7 +132,7 @@ public sealed class WidgetsPage : ContentPage
             } }));
         }
     }
-    private void SetEnabled(bool enabled) => add.IsEnabled = back.IsEnabled = refresh.IsEnabled = diagnostics.IsEnabled = designs.IsEnabled = enabled;
+    private void SetEnabled(bool enabled) => add.IsEnabled = back.IsEnabled = refresh.IsEnabled = widgetSlots.IsEnabled = designs.IsEnabled = enabled;
     private async Task GuardAsync(Func<Task> operation)
     {
         if (busy || !active) return; busy = true; SetEnabled(false);

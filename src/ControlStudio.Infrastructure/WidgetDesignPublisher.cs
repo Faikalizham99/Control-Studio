@@ -21,7 +21,18 @@ public sealed class WidgetDesignPublisher(WidgetDesignRepository repository, Fun
                     ?? throw new IOException("The shared widget catalog is invalid.");
                 WidgetDesignRules.Validate(old);
             }
-            var designs = await repository.ReadAsync(token);
+            var slotManifest = Path.Combine(directory, "slots.json");
+            if (File.Exists(slotManifest))
+            {
+                if (new FileInfo(slotManifest).Length > WidgetSlotRules.MaximumCatalogBytes) throw new IOException("The shared slot list is too large.");
+                var bytes = await File.ReadAllBytesAsync(slotManifest, token);
+                if (bytes.Length > WidgetSlotRules.MaximumCatalogBytes) throw new IOException("The shared slot list is too large.");
+                var old = JsonSerializer.Deserialize(bytes, WidgetDesignRules.JsonContext.WidgetSlotCatalog)
+                    ?? throw new IOException("The shared slot list is invalid.");
+                WidgetSlotRules.Validate(old);
+            }
+            var library = await repository.ReadLibraryAsync(token);
+            var designs = library.Designs;
             foreach (var design in designs)
             {
                 var path = repository.RenderPath(design.RenderKey) ?? throw new IOException("A widget preview is missing. Open its editor and save it again.");
@@ -32,6 +43,12 @@ public sealed class WidgetDesignPublisher(WidgetDesignRepository repository, Fun
             }
             var catalog = new WidgetCatalog(1, designs); WidgetDesignRules.Validate(catalog);
             await WidgetDesignRepository.AtomicWriteAsync(manifest, JsonSerializer.SerializeToUtf8Bytes(catalog, WidgetDesignRules.JsonContext.WidgetCatalog), token);
+            var slots = new WidgetSlotCatalog(1, library.Slots); WidgetSlotRules.Validate(slots);
+            var slotBytes = JsonSerializer.SerializeToUtf8Bytes(slots, WidgetDesignRules.JsonContext.WidgetSlotCatalog);
+            if (slotBytes.Length > WidgetSlotRules.MaximumCatalogBytes) throw new IOException("The shared slot list is too large.");
+            // Catalog first: a new assignment cannot be published before its design and image exist.
+            await WidgetDesignRepository.AtomicWriteAsync(slotManifest, slotBytes, token);
+            RemoveRetiredTestData(directory);
             // Cached timelines may still refer to the previous generation. Keep recent immutable renders.
             var current = designs.Select(x => x.RenderKey).ToHashSet();
             var folder = Path.Combine(directory, "renders");
@@ -45,5 +62,12 @@ public sealed class WidgetDesignPublisher(WidgetDesignRepository repository, Fun
             catch (IOException) { } catch (UnauthorizedAccessException) { }
         }
         finally { gate.Release(); }
+    }
+    private static void RemoveRetiredTestData(string directory)
+    {
+        // This exact direct child belongs only to the removed loading experiment; never sweep design/image folders.
+        var retired = Path.Combine(directory, "diagnostics");
+        try { if (Directory.Exists(retired)) Directory.Delete(retired, recursive: true); }
+        catch (IOException) { } catch (UnauthorizedAccessException) { }
     }
 }
