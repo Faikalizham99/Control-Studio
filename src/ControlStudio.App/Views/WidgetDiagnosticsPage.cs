@@ -40,12 +40,13 @@ internal sealed class WidgetDiagnosticsPage : ContentPage
         var content = new VerticalStackLayout { Padding = 20, Spacing = 16, Children =
         {
             SettingsControls.Text("Find where loading stops", 25, bold: true),
-            SettingsControls.Text("This test applies to Studio Widgets on this device. Saved designs and counter widgets are kept as they are.", 14, secondary: true),
+            SettingsControls.Text("Compare Studio Widget with the separate Studio Widget Test on your Home Screen. Saved designs and counter widgets are kept as they are.", 14, secondary: true),
             ClipboardEditorControls.Card(new VerticalStackLayout { Spacing = 12, Children =
             {
                 state,
-                SettingsControls.Text("1. Start the text test.\n2. Return to the Home Screen. Edit your Studio Widget and reselect a design in the matching size.\n3. Return here, tap Read results, then Copy report. Tell us whether text or grey bars appeared.\n4. Repeat with Start photo test and copy that report too.", 14),
+                SettingsControls.Text("1. Save a Small design in Widgets, then start the text test here.\n2. On the Home Screen, add Control Studio's Studio Widget Test in Small. It chooses a matching design automatically; there is no design selector.\n3. Return here, tap Read results, then Copy report. Tell us whether text, a photo, an error or grey bars appeared.\n4. Start the photo test, check the same test widget, then read and copy that report too.", 14),
                 text, photo, stop,
+                SettingsControls.Text("Studio Widget Test uses the first saved design matching its size. For a clear comparison, use a size with one saved design. Both widget types follow this test mode, so the original Studio Widget can be compared alongside it.", 13, secondary: true),
                 SettingsControls.Text("Text test skips photo loading and uses a simple text view. Photo test uses the existing image path. Each start creates a fresh report; copy results before starting the next test. iOS decides when to refresh.", 13, secondary: true)
             } }),
             status,
@@ -92,6 +93,8 @@ internal sealed class WidgetDiagnosticsPage : ContentPage
         result.AppendLine($"Started UTC: {DateTimeOffset.FromUnixTimeMilliseconds(settings.StartedAtUnixMilliseconds):O}");
         result.AppendLine($"Unreadable event files: {value.UnreadableEvents}");
         result.AppendLine($"Widget records: {value.Events.Count(x => x.Source != "host")}; host records: {value.Events.Count(x => x.Source == "host")}");
+        result.AppendLine($"Captured static provider requests: {ProviderRequests(value, "static")}; configurable provider requests: {ProviderRequests(value, "configurable")}");
+        result.AppendLine("path=static: Studio Widget Test; path=configurable: Studio Widget.");
         foreach (var group in value.Events.GroupBy(x => x.Request))
         {
             result.AppendLine($"Request {group.Key[..8]}:");
@@ -101,6 +104,8 @@ internal sealed class WidgetDiagnosticsPage : ContentPage
         result.AppendLine("entry.ready is not a delivery acknowledgement from iOS.");
         return result.ToString();
     }
+    private static int ProviderRequests(WidgetDiagnosticSnapshot value, string path) => value.Events
+        .Count(x => x.Source is "snapshot" or "timeline" && x.Stage == "provider.begin" && x.Detail.StartsWith($"path={path};", StringComparison.Ordinal));
     private async Task CopyAsync()
     {
         var epoch = lifetime; var operation = copyEpoch;

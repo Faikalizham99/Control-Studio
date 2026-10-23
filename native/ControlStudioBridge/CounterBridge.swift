@@ -32,4 +32,7 @@ public func counterIncrement() -> UnsafeMutablePointer<CChar>? { response(increm
 public func counterFree(_ pointer: UnsafeMutablePointer<CChar>?) { free(pointer) }
 
 @_cdecl("cs_widgets_reload_designs")
-public func reloadWidgetDesigns() { WidgetCenter.shared.reloadTimelines(ofKind: WidgetDesignStore.widgetKind) }
+public func reloadWidgetDesigns() {
+    WidgetCenter.shared.reloadTimelines(ofKind: WidgetDesignStore.widgetKind)
+    WidgetCenter.shared.reloadTimelines(ofKind: WidgetDesignStore.diagnosticWidgetKind)
+}

@@ -30,6 +30,7 @@ enum WidgetDesignError: Error { case invalidCatalog, unsupportedSchema, imageUna
 
 struct WidgetDesignStore {
     static let widgetKind = "ControlStudio.Design"
+    static let diagnosticWidgetKind = "ControlStudio.DesignDiagnostic"
     let directory: URL
     static func shared() throws -> WidgetDesignStore {
         #if os(iOS)

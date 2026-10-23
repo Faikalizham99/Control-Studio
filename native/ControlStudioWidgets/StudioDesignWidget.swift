@@ -54,19 +54,24 @@ struct StudioDesignProvider: AppIntentTimelineProvider {
     func placeholder(in context: Context) -> StudioDesignEntry { StudioDesignEntry(date: .now) }
     func snapshot(for configuration: StudioDesignIntent, in context: Context) async -> StudioDesignEntry {
         let trace = StudioWidgetTrace(source: "snapshot")
-        trace.record("provider.begin", "family=\(context.family.rawValue);selected=\(configuration.design != nil ? 1 : 0)")
-        let entry = current(configuration, context.family, trace)
+        trace.record("provider.begin", "path=configurable;family=\(context.family.rawValue);selected=\(configuration.design != nil ? 1 : 0)")
+        let entry = StudioDesignLoader.current(configuration.design?.id, context.family, trace)
         trace.record("entry.ready", entry.image == nil ? "image=0" : "image=1")
         return entry
     }
     func timeline(for configuration: StudioDesignIntent, in context: Context) async -> Timeline<StudioDesignEntry> {
         let trace = StudioWidgetTrace(source: "timeline")
-        trace.record("provider.begin", "family=\(context.family.rawValue);selected=\(configuration.design != nil ? 1 : 0)")
-        let entry = current(configuration, context.family, trace)
+        trace.record("provider.begin", "path=configurable;family=\(context.family.rawValue);selected=\(configuration.design != nil ? 1 : 0)")
+        let entry = StudioDesignLoader.current(configuration.design?.id, context.family, trace)
         trace.record("entry.ready", entry.image == nil ? "image=0" : "image=1")
         return Timeline(entries: [entry], policy: .after(Date().addingTimeInterval(900)))
     }
-    private func current(_ configuration: StudioDesignIntent, _ family: WidgetFamily, _ trace: StudioWidgetTrace) -> StudioDesignEntry {
+}
+
+/// Both providers deliberately share selection checks, PNG loading and entry creation.
+/// The static provider passes no ID and never constructs or resolves an App Intent.
+private enum StudioDesignLoader {
+    static func current(_ selectedID: String?, _ family: WidgetFamily, _ trace: StudioWidgetTrace) -> StudioDesignEntry {
         let size: WidgetDesignSize
         if #available(iOS 27.0, *), family == .systemExtraLargePortrait {
             size = .extraLargePortrait
@@ -87,8 +92,8 @@ struct StudioDesignProvider: AppIntentTimelineProvider {
             let designs = try store.read()
             trace.record("catalog.read-ok", "count=\(designs.count)")
             let design: WidgetDesignSummary?
-            if let chosen = configuration.design {
-                design = designs.first { $0.id == chosen.id }
+            if let selectedID {
+                design = designs.first { $0.id == selectedID }
                 if design == nil {
                     trace.record("selection.deleted")
                     return StudioDesignEntry(date: .now, message: "This design was deleted. Edit Widget to choose another design.")
@@ -96,7 +101,7 @@ struct StudioDesignProvider: AppIntentTimelineProvider {
             } else { design = designs.first { $0.size == size } }
             guard let design else {
                 trace.record("selection.empty")
-                return StudioDesignEntry(date: .now, message: "Create a \(size.title) design in Control Studio, then choose it in Edit Widget.")
+                return StudioDesignEntry(date: .now, message: "Create and save a \(size.title) design in Control Studio, then tap Refresh in Widgets.")
             }
             guard design.size == size else {
                 trace.record("selection.wrong-size", "saved=\(design.size.rawValue);widget=\(size.rawValue)")
@@ -122,6 +127,26 @@ struct StudioDesignProvider: AppIntentTimelineProvider {
             trace.failure(error)
             return StudioDesignEntry(date: .now, message: "Open Control Studio and tap Refresh in Widgets. Unlock your device if needed.")
         }
+    }
+}
+
+struct StudioDesignDiagnosticProvider: TimelineProvider {
+    func placeholder(in context: Context) -> StudioDesignEntry {
+        StudioDesignEntry(date: .now, message: "Tests the first saved design matching this size. Start a text or photo test in Control Studio's Widget diagnostics.")
+    }
+    func getSnapshot(in context: Context, completion: @escaping (StudioDesignEntry) -> Void) {
+        completion(current(context.family, source: "snapshot"))
+    }
+    func getTimeline(in context: Context, completion: @escaping (Timeline<StudioDesignEntry>) -> Void) {
+        let entry = current(context.family, source: "timeline")
+        completion(Timeline(entries: [entry], policy: .after(Date().addingTimeInterval(900))))
+    }
+    private func current(_ family: WidgetFamily, source: String) -> StudioDesignEntry {
+        let trace = StudioWidgetTrace(source: source)
+        trace.record("provider.begin", "path=static;family=\(family.rawValue);selected=0")
+        let entry = StudioDesignLoader.current(nil, family, trace)
+        trace.record("entry.ready", entry.image == nil ? "image=0" : "image=1")
+        return entry
     }
 }
 
@@ -201,19 +226,35 @@ private final class StudioWidgetTrace {
     }
 }
 
-struct StudioDesignWidget: Widget {
-    private var families: [WidgetFamily] {
+private enum StudioDesignFamilies {
+    static var supported: [WidgetFamily] {
         var result: [WidgetFamily] = [.systemSmall, .systemMedium, .systemLarge, .systemExtraLarge]
         if #available(iOS 27.0, *) { result.append(.systemExtraLargePortrait) }
         return result
     }
+}
+
+struct StudioDesignWidget: Widget {
     var body: some WidgetConfiguration {
         AppIntentConfiguration(kind: WidgetDesignStore.widgetKind, intent: StudioDesignIntent.self, provider: StudioDesignProvider()) { entry in
             StudioDesignView(entry: entry)
         }
         .configurationDisplayName("Studio Widget")
         .description("Your own layered widget design, created in Control Studio.")
-        .supportedFamilies(families)
+        .supportedFamilies(StudioDesignFamilies.supported)
+        .contentMarginsDisabled()
+    }
+}
+
+/// A separate kind keeps installed configurable widgets and their saved selections intact.
+struct StudioDesignDiagnosticWidget: Widget {
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: WidgetDesignStore.diagnosticWidgetKind, provider: StudioDesignDiagnosticProvider()) { entry in
+            StudioDesignView(entry: entry)
+        }
+        .configurationDisplayName("Studio Widget Test")
+        .description("Tests saved designs without a selector. Shows the first design matching this size. Use Widget diagnostics in Control Studio to test text or photos.")
+        .supportedFamilies(StudioDesignFamilies.supported)
         .contentMarginsDisabled()
     }
 }
