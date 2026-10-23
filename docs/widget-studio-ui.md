@@ -1,5 +1,13 @@
 # Studio widget library interface
 
+## Studio icon accent update
+
+The owner authorized changing all three Studio destination tiles (My Widgets, Counter Widgets and Clipboard) to the selected app accent. The fixed blue/purple icon gradients and blue glows are replaced with the existing shared `AccentSurface` and live `AccentGlow` resource. The exact accent fills each tile; a contrasting black/white vector glyph maintains at least 4.5:1 contrast, including black/white accents. The themed outline remains available for separation from the card. Card shadows use the same accent glow. Decorative icons are excluded from the accessibility tree and remain input-transparent, preserving the full-card native tap target and spoken destination label.
+
+The 70-unit tiles, 36-unit glyphs, layout, destinations, press feedback, saved appearance settings and page lifecycle are retained. Dynamic resources update on Settings changes and resolve from the existing saved accent after relaunch, without new persistence or event subscriptions. Review covered all three destinations, light/dark contrast, accessibility and navigation hit handling. Existing 141 app tests (including shared accent/contrast and live Settings resource coverage), managed iOS C# compilation, source/project checks and whitespace checks pass. No new tests duplicate this small composition change. Native appearance, glows, VoiceOver and tapping each destination still require an iPhone check. The owner subsequently authorized committing and pushing main. No version tag or IPA build is authorized for this update.
+
+## Studio library update in 0.2.20
+
 The owner confirmed the widgets were working after the 0.2.19 gallery-name correction, then authorized this UI update and subsequently its commit, main push and new version tag. This ships with the Home reset action in **0.2.20 (22)**. The owner will monitor the tag-triggered IPA build.
 
 Studio now opens three destinations: My Widgets, Counter Widgets, and the retained Clipboard. The first two follow the supplied reference's rounded blue/purple icon tiles, glass card borders, spacing and chevrons on a plain Light/Dark background. Clipboard stays accessible below the widget cards because removing its entry or functionality was not requested.
