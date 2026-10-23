@@ -26,6 +26,8 @@
     <Compile Include="../../src/ControlStudio.App/Views/WidgetStudioPage.cs" Link="Views/WidgetStudioPage.cs" />
     <Compile Include="../../src/ControlStudio.App/Views/HomePage.cs" Link="Views/HomePage.cs" />
     <Compile Include="../../src/ControlStudio.App/PhotoImportInput.cs" Link="PhotoImportInput.cs" />
+    <Compile Include="../../src/ControlStudio.App/WidgetBackgroundReportReader.cs" Link="WidgetBackgroundReportReader.cs" />
+    <Compile Include="../../src/ControlStudio.App/Views/WidgetDiagnosticsPage.cs" Link="Views/WidgetDiagnosticsPage.cs" />
     <Compile Include="../../src/ControlStudio.App/Views/AccentButton.cs" Link="Views/AccentButton.cs" />
     <Compile Include="../../src/ControlStudio.App/Views/AccentSurface.cs" Link="Views/AccentSurface.cs" />
     <Compile Include="../../src/ControlStudio.App/Views/ActionCaption.cs" Link="Views/ActionCaption.cs" />

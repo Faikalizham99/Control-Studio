@@ -32,11 +32,12 @@ class WidgetRuntimeTargetTests(unittest.TestCase):
 
     def test_background_adapter_is_compiled_once_and_only_in_widget_extension(self):
         for name, target in self.targets.items():
-            matches = [file for file in self.sources(target) if file["path"] == "WidgetRuntime/CSWidgetBackgroundAdapter.m"]
-            self.assertEqual(1 if name == "ControlStudioWidgets" else 0, len(matches), name)
-            for file in matches:
-                self.assertEqual("sourcecode.c.objc", file["lastKnownFileType"])
-                self.assertTrue((ROOT / "native" / file["path"]).is_file())
+            for source in ["CSWidgetBackgroundAdapter.m", "CSWidgetBackgroundDiagnostics.m"]:
+                matches = [file for file in self.sources(target) if file["path"] == "WidgetRuntime/" + source]
+                self.assertEqual(1 if name == "ControlStudioWidgets" else 0, len(matches), name)
+                for file in matches:
+                    self.assertEqual("sourcecode.c.objc", file["lastKnownFileType"])
+                    self.assertTrue((ROOT / "native" / file["path"]).is_file())
 
     def test_swift_bridge_is_widget_only_and_exists(self):
         for name, target in self.targets.items():

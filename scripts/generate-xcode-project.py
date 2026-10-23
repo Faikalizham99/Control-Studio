@@ -49,6 +49,10 @@ def generate():
                           path="WidgetRuntime/CSWidgetBackgroundAdapter.m", sourceTree="<group>")
             children.append(runtime)
             build_files.append(add("widget-background-adapter-build", "PBXBuildFile", fileRef=runtime))
+            diagnostics = add("widget-background-diagnostics", "PBXFileReference", lastKnownFileType="sourcecode.c.objc",
+                              path="WidgetRuntime/CSWidgetBackgroundDiagnostics.m", sourceTree="<group>")
+            children.append(diagnostics)
+            build_files.append(add("widget-background-diagnostics-build", "PBXBuildFile", fileRef=diagnostics))
         sources = add(name + "-sources", "PBXSourcesBuildPhase", buildActionMask=2147483647,
                       files=build_files, runOnlyForDeploymentPostprocessing=0)
         frameworks = add(name + "-frameworks", "PBXFrameworksBuildPhase", buildActionMask=2147483647,
@@ -64,7 +68,7 @@ def generate():
             "APPLICATION_EXTENSION_API_ONLY": "YES", "IPHONEOS_DEPLOYMENT_TARGET": "17.0",
             "SWIFT_VERSION": "5.0", "SWIFT_OPTIMIZATION_LEVEL": "-O",
             "SWIFT_EMIT_LOC_STRINGS": "YES", "TARGETED_DEVICE_FAMILY": "1,2",
-            "CURRENT_PROJECT_VERSION": "25", "MARKETING_VERSION": "0.2.23",
+            "CURRENT_PROJECT_VERSION": "26", "MARKETING_VERSION": "0.2.24",
             "LD_RUNPATH_SEARCH_PATHS": ["$(inherited)", "@executable_path/Frameworks", "@executable_path/../../Frameworks"],
             "OTHER_LDFLAGS": ["$(inherited)", "-lsqlite3"],
         }
