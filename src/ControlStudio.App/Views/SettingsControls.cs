@@ -4,6 +4,15 @@ namespace ControlStudio.App.Views;
 
 internal static class SettingsControls
 {
+    /// <summary>Keep the native switch at its intrinsic size and centred beside wrapping text.</summary>
+    public static Switch RowSwitch(string? automationId = null)
+    {
+        var toggle = new Switch { HorizontalOptions = LayoutOptions.End, VerticalOptions = LayoutOptions.Center };
+        if (automationId is not null) toggle.AutomationId = automationId;
+        toggle.SetDynamicResource(Switch.OnColorProperty, "Accent");
+        return toggle;
+    }
+
     public static Label Text(string text, double size = 13, bool secondary = false, bool bold = false)
     {
         var label = new Label { Text = text, FontSize = size, FontAttributes = bold ? FontAttributes.Bold : FontAttributes.None };

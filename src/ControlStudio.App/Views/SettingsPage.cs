@@ -45,9 +45,9 @@ public sealed class SettingsPage : ContentPage
     {
         var avatar = new Grid { WidthRequest = 60, HeightRequest = 60, Children = { initial, portrait } };
         avatar.SetDynamicResource(BackgroundColorProperty, "Accent");
-        var photo = new Border { Content = avatar, Stroke = Colors.White, StrokeThickness = 3, StrokeShape = new Ellipse() };
+        var photo = new Border { Content = avatar, Stroke = Colors.White, StrokeThickness = 3, StrokeShape = new Ellipse(), VerticalOptions = LayoutOptions.Center };
         var names = new VerticalStackLayout { Spacing = 1, VerticalOptions = LayoutOptions.Center, Children = { displayName, SettingsControls.Text("Edit profile", 13, true) } };
-        var chevron = new Button { Text = "›", FontSize = 26, CornerRadius = 22, WidthRequest = 44, HeightRequest = 44, Padding = 0, BackgroundColor = Colors.White.WithAlpha(.3f) };
+        var chevron = new Button { Text = "›", FontSize = 26, CornerRadius = 22, WidthRequest = 44, HeightRequest = 44, Padding = 0, BackgroundColor = Colors.White.WithAlpha(.3f), VerticalOptions = LayoutOptions.Center };
         chevron.SetAppThemeColor(Button.TextColorProperty, Color.FromArgb("#767A86"), Color.FromArgb("#C4C8D2"));
         SemanticProperties.SetDescription(chevron, "Edit profile"); chevron.Clicked += async (_, _) => await OpenProfileAsync();
         var row = new Grid { ColumnSpacing = 12, ColumnDefinitions = { new(GridLength.Auto), new(GridLength.Star), new(GridLength.Auto) } };
@@ -74,10 +74,10 @@ public sealed class SettingsPage : ContentPage
         var primary = DashboardStyle.Button("Primary Button"); primary.FontSize = 12; primary.MinimumHeightRequest = 44; primary.Padding = new Thickness(10, 3);
         primary.Shadow = new Shadow { Opacity = .4f, Radius = 10, Offset = new Point(0, 2) }; primary.Shadow.SetDynamicResource(Shadow.BrushProperty, "AccentGlow");
         primary.Clicked += (_, _) => { previewDetail.Text = "Button tapped ✓"; SemanticScreenReader.Default.Announce("Live preview button tapped"); };
-        var toggle = new Switch { IsToggled = true, HorizontalOptions = LayoutOptions.Center, VerticalOptions = LayoutOptions.Center };
-        toggle.SetDynamicResource(Switch.OnColorProperty, "Accent"); SemanticProperties.SetDescription(toggle, "Live preview switch");
+        var toggle = SettingsControls.RowSwitch(); toggle.IsToggled = true; toggle.HorizontalOptions = LayoutOptions.Center;
+        SemanticProperties.SetDescription(toggle, "Live preview switch");
         var star = new Label { Text = "☆", FontSize = 23, TextColor = Colors.White, HorizontalTextAlignment = TextAlignment.Center, VerticalTextAlignment = TextAlignment.Center };
-        var starWell = new AccentSurface(star, 10, captionSize: 23, captionBold: false) { WidthRequest = 32, HeightRequest = 34 };
+        var starWell = new AccentSurface(star, 10, captionSize: 23, captionBold: false) { WidthRequest = 32, HeightRequest = 34, VerticalOptions = LayoutOptions.Center };
         starWell.BindForeground(star, Label.TextColorProperty);
         var card = new Grid { ColumnSpacing = 8, ColumnDefinitions = { new(GridLength.Auto), new(GridLength.Star) } };
         card.Add(starWell); card.Add(new VerticalStackLayout { Spacing = 2, VerticalOptions = LayoutOptions.Center, Children = { SettingsControls.Text("Live Preview", 12), previewDetail } }, 1);

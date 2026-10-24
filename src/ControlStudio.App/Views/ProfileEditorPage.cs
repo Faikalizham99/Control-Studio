@@ -82,10 +82,12 @@ public sealed class ProfileEditorPage : ContentPage
         backIcon.SetAppThemeColor(ProfileGlyph.TintProperty, Color.FromArgb("#252A34"), Colors.White);
         var backSurface = SettingsControls.Rounded(new Grid { Children = { backIcon, back } }, 22);
         backSurface.WidthRequest = backSurface.HeightRequest = 44; backSurface.HorizontalOptions = LayoutOptions.Start;
+        backSurface.VerticalOptions = LayoutOptions.Center;
         var heading = SettingsControls.Text("Edit profile", 17, bold: true);
         heading.VerticalOptions = LayoutOptions.Center; heading.HorizontalTextAlignment = TextAlignment.Center;
         var cancelSurface = SettingsControls.Rounded(cancel, 22);
         cancelSurface.HorizontalOptions = LayoutOptions.End;
+        cancelSurface.VerticalOptions = LayoutOptions.Center;
         var row = new Grid { ColumnDefinitions = { new(GridLength.Star), new(GridLength.Auto), new(GridLength.Star) } };
         row.Add(backSurface); row.Add(heading, 1); row.Add(cancelSurface, 2);
         return new GlassCard(row, new Thickness(6, 4));

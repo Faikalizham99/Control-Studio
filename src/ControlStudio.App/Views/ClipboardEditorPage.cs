@@ -11,7 +11,7 @@ public sealed class ClipboardEditorPage : ContentPage
     private readonly ClipboardKind kind;
     private readonly AppearancePreferences preferences;
     private readonly ColourPickerView headerColours;
-    private readonly Switch useAppAccent = new() { HorizontalOptions = LayoutOptions.End, AutomationId = "ClipboardHeaderUseAccent" };
+    private readonly Switch useAppAccent = SettingsControls.RowSwitch("ClipboardHeaderUseAccent");
     private readonly ClipboardHeaderView headerPreview;
     private readonly View headerColourCard;
     private string? headerColourHex;
@@ -86,7 +86,6 @@ public sealed class ClipboardEditorPage : ContentPage
     private View BuildHeaderColourCard()
     {
         useAppAccent.IsToggled = headerColourHex is null;
-        useAppAccent.SetDynamicResource(Switch.OnColorProperty, "Accent");
         SemanticProperties.SetDescription(useAppAccent, "Use app accent for this item's header");
         headerColours.SetSelection(headerColourHex ?? preferences.AccentHex);
         headerColours.IsVisible = !useAppAccent.IsToggled;

@@ -12,7 +12,8 @@ internal sealed class ClipboardHeaderView : ContentView
         else
         {
             var layout = new Grid { ColumnDefinitions = { new(GridLength.Star), new(GridLength.Auto) }, ColumnSpacing = 10 };
-            title.VerticalOptions = LayoutOptions.Center; layout.Add(title); layout.Add(trailing, 1); Content = layout;
+            title.VerticalOptions = trailing.VerticalOptions = LayoutOptions.Center;
+            layout.Add(title); layout.Add(trailing, 1); Content = layout;
         }
         SetItem("Item title", null);
     }

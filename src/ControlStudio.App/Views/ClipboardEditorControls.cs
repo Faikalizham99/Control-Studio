@@ -27,7 +27,7 @@ internal static class ClipboardEditorControls
 
     public static View Heading(string title, string subtitle, View icon)
     {
-        var tile = Surface(icon, 14, 11); tile.WidthRequest = tile.HeightRequest = 46;
+        var tile = Surface(icon, 14, 11); tile.WidthRequest = tile.HeightRequest = 46; tile.VerticalOptions = LayoutOptions.Center;
         var labels = new VerticalStackLayout { Spacing = 3, VerticalOptions = LayoutOptions.Center, Children =
         {
             SettingsControls.Text(title, 15, bold: true), SettingsControls.Text(subtitle, 12, secondary: true)
@@ -47,6 +47,7 @@ internal static class ClipboardEditorControls
         var heading = SettingsControls.Text(title, 17, bold: true);
         heading.HorizontalTextAlignment = TextAlignment.Center; heading.VerticalOptions = LayoutOptions.Center;
         back.HorizontalOptions = LayoutOptions.Start; trailing.HorizontalOptions = LayoutOptions.End;
+        back.VerticalOptions = trailing.VerticalOptions = LayoutOptions.Center;
         var row = new Grid { Padding = new Thickness(16, 5), ColumnSpacing = 8,
             ColumnDefinitions = { new(GridLength.Star), new(GridLength.Auto), new(GridLength.Star) } };
         row.Add(back); row.Add(heading, 1); row.Add(trailing, 2); return row;

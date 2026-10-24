@@ -7,7 +7,7 @@ internal sealed class WidgetLayerRow : ContentView
 {
     private readonly Label name = SettingsControls.Text("", 15, bold: true);
     private readonly Image photo = new() { WidthRequest = 48, HeightRequest = 48, Aspect = Aspect.AspectFill, InputTransparent = true };
-    private readonly Switch visible = new();
+    private readonly Switch visible = SettingsControls.RowSwitch();
     private readonly Border surface;
     private readonly Button tap;
     private readonly ClipboardIconButton more;
@@ -17,6 +17,7 @@ internal sealed class WidgetLayerRow : ContentView
     {
         photo.Source = path; name.MaxLines = 2; name.LineBreakMode = LineBreakMode.TailTruncation;
         var thumbnail = ClipboardEditorControls.Field(photo, 0); thumbnail.WidthRequest = thumbnail.HeightRequest = 48;
+        thumbnail.VerticalOptions = LayoutOptions.Center;
         var title = new VerticalStackLayout { Spacing = 2, VerticalOptions = LayoutOptions.Center,
             InputTransparent = true, Children = { name, SettingsControls.Text("Image", 12, secondary: true) } };
         tap = SettingsControls.TapTarget("Select " + layer.Name, "SelectWidgetLayer" + layer.Id.ToString("N"));
@@ -40,10 +41,9 @@ internal sealed class WidgetLayerRow : ContentView
             if (IsEnabled && ValidDrag(args.Data.Properties, dragScope) && args.Data.Properties["WidgetLayerId"] is Guid source) reorder(source, layer.Id);
         };
         GestureRecognizers.Add(drop);
-        visible.SetDynamicResource(Switch.OnColorProperty, "Accent");
         SemanticProperties.SetDescription(visible, "Show " + layer.Name);
         visible.Toggled += (_, args) => { if (!updating && IsEnabled) show(layer.Id, args.Value); };
-        more = new ClipboardIconButton(StudioSymbol.More, "Layer actions"); more.Describe("Layer actions", layer.Name);
+        more = new ClipboardIconButton(StudioSymbol.More, "Layer actions") { VerticalOptions = LayoutOptions.Center }; more.Describe("Layer actions", layer.Name);
         more.Clicked += (_, _) => { if (IsEnabled) menu(layer.Id); };
         var row = new Grid { ColumnSpacing = 4, ColumnDefinitions = { new(44), new(GridLength.Star), new(GridLength.Auto), new(48) } };
         row.Add(drag); row.Add(selection, 1); row.Add(visible, 2); row.Add(more, 3);

@@ -72,7 +72,8 @@ internal sealed class WidgetEditorPage : ContentPage
         backgroundStatus.SetDynamicResource(Label.TextColorProperty, "AccentText");
         backgroundStatus.HorizontalTextAlignment = TextAlignment.End; backgroundStatus.VerticalTextAlignment = TextAlignment.Center;
         var nameHeading = new Grid { ColumnSpacing = 8, ColumnDefinitions = { new(GridLength.Star), new(GridLength.Star) } };
-        nameHeading.Add(SettingsControls.Text("Widget name", 14, secondary: true)); nameHeading.Add(backgroundStatus, 1);
+        var nameLabel = SettingsControls.Text("Widget name", 14, secondary: true); nameLabel.VerticalOptions = LayoutOptions.Center;
+        nameHeading.Add(nameLabel); nameHeading.Add(backgroundStatus, 1);
         form.Children.Add(Card(new VerticalStackLayout { Spacing = 10, Children =
         {
             nameHeading, ClipboardEditorControls.Field(name, new Thickness(12, 0)), SettingsControls.Text("Widget size", 14, secondary: true), sizes,
@@ -104,7 +105,8 @@ internal sealed class WidgetEditorPage : ContentPage
 
         addPhoto = AsyncAction("Add photo layer", StudioSymbol.Photo, "AddWidgetPhoto", PickPhotoAsync);
         var layerHeading = new Grid { ColumnDefinitions = { new(GridLength.Star), new(GridLength.Auto) } };
-        layerHeading.Add(SettingsControls.Text("Layers", 21, bold: true)); layerHeading.Add(layersCount, 1);
+        var layerLabel = SettingsControls.Text("Layers", 21, bold: true); layerLabel.VerticalOptions = LayoutOptions.Center;
+        layerHeading.Add(layerLabel); layerHeading.Add(layersCount, 1);
         layersCount.VerticalTextAlignment = TextAlignment.Center;
         form.Children.Add(Card(new VerticalStackLayout { Spacing = 12, Children = { layerHeading, addPhoto, layerList } }));
         precise.Children.Add(selectedTitle);
@@ -119,7 +121,9 @@ internal sealed class WidgetEditorPage : ContentPage
         solid = new ClipboardEditorActionButton("Use solid colour", ClipboardEditorControls.Icon(StudioSymbol.Opacity), "SolidWidgetBackground", accentCaption: true);
         solid.Clicked += (_, _) => { if (CanEdit) SetTransparent(false); };
         var backgroundHeading = new Grid { ColumnSpacing = 8, ColumnDefinitions = { new(GridLength.Star), new(GridLength.Auto) } };
-        backgroundHeading.Add(SettingsControls.Text("Background", 21, bold: true)); backgroundHeading.Add(chooseBackground, 1);
+        var backgroundLabel = SettingsControls.Text("Background", 21, bold: true); backgroundLabel.VerticalOptions = LayoutOptions.Center;
+        chooseBackground.VerticalOptions = LayoutOptions.Center;
+        backgroundHeading.Add(backgroundLabel); backgroundHeading.Add(chooseBackground, 1);
         form.Children.Add(Card(new VerticalStackLayout { Spacing = 10, Children = { backgroundHeading, backgroundMode, backgroundHelp, solid, background } }));
         status.IsVisible = false; form.Children.Add(status); form.Children.Add(save);
         form.Children.Add(SettingsControls.Text("Save, then open Widget slots in My Widgets and assign this design to a matching slot. Add Control Studio → Studio 1–10 on your Home Screen. iOS schedules updates.", 12, secondary: true));

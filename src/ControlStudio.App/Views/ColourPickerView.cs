@@ -14,7 +14,7 @@ internal sealed class ColourPickerView : ContentView
 {
     private readonly IColourPicker picker;
     private readonly List<ColourChoice> choices = [];
-    private readonly Switch custom = new() { HorizontalOptions = LayoutOptions.End };
+    private readonly Switch custom = SettingsControls.RowSwitch();
     private readonly Slider hue = new() { Minimum = 0, Maximum = 360, MinimumTrackColor = Colors.Transparent, MaximumTrackColor = Colors.Transparent, ThumbColor = Colors.White, HeightRequest = 30 };
     private readonly HexColorEntry hex = new()
     {
@@ -55,7 +55,6 @@ internal sealed class ColourPickerView : ContentView
         var spectrum = new LinearGradientBrush(new GradientStopCollection { new(Colors.Magenta, 0), new(Colors.Cyan, .33f), new(Colors.Lime, .5f), new(Colors.Yellow, .67f), new(Colors.Orange, .83f), new(Colors.Magenta, 1) }, new Point(0, 0), new Point(1, 1));
         var customChoice = new ColourChoice("Custom colour", spectrum, prefix + "Custom", async () => await PickAsync(), true);
         choices.Add(customChoice); palette.Add(customChoice, 5);
-        custom.SetDynamicResource(Switch.OnColorProperty, "Accent");
         custom.AutomationId = Id("CustomColourEnabled", "CustomEnabled"); SemanticProperties.SetDescription(custom, $"Enable custom {colourName.ToLowerInvariant()} colour editing");
         custom.Toggled += (_, args) =>
         {

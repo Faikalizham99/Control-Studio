@@ -34,7 +34,7 @@ internal sealed class WidgetSlotsPage : WidgetSlotPageBase
         refresh.Clicked += async (_, _) => await RefreshSlotsAsync();
         status.IsVisible = false; xlHint.IsVisible = initialSize == WidgetSize.ExtraLargePortrait;
         var icon = ClipboardEditorControls.Icon(StudioSymbol.Layers, size: 36);
-        var well = WidgetStudioStyle.Card(icon, 10, 17); well.WidthRequest = well.HeightRequest = 64;
+        var well = WidgetStudioStyle.Card(icon, 10, 17); well.WidthRequest = well.HeightRequest = 64; well.VerticalOptions = LayoutOptions.Center;
         well.SetDynamicResource(BackgroundProperty, "AccentSelectionBrush");
         var title = SettingsControls.Text("A place for every design", 19, bold: true);
         SemanticProperties.SetHeadingLevel(title, SemanticHeadingLevel.Level2);
