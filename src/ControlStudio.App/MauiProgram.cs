@@ -23,6 +23,7 @@ public static class MauiProgram
             handlers.AddHandler<ClipboardArrangeView, ClipboardArrangeViewHandler>();
             handlers.AddHandler<WidgetCanvasView, WidgetCanvasGestureHandler>();
             handlers.AddHandler<WidgetCompositeView, WidgetCompositeHandler>();
+            handlers.AddHandler<WidgetLayerList, WidgetLayerListHandler>();
         });
         builder.Logging.AddProvider(new DeviceLoggerProvider());
         builder.Services.AddSingleton<AppearancePreferences>();

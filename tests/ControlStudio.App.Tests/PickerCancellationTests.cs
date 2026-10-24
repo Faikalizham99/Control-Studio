@@ -33,6 +33,50 @@ public sealed class PickerCancellationTests : IDisposable
     private static WidgetEditorPage Editor(Store store, string source = "Photo Library", ColourPicker? colours = null)
         => new(store, colours ?? new(), NullLogger.Instance, WidgetDesignRules.New() with { Layers = [Photo()] }, choosePhotoSource: () => Task.FromResult<string?>(source));
     [Fact]
+    public void LayerDragCommitsOnlyOnDropKeepsStableRowsAndSavesTheVisualStackOrder()
+    {
+        var first = Photo(); var second = Photo() with { Name = "Second" }; var third = Photo() with { Name = "Third" };
+        var original = WidgetDesignRules.New() with { Layers = [first, second, third] }; var store = new Store();
+        var page = new WidgetEditorPage(store, new ColourPicker(), NullLogger.Instance, original); Open(page);
+        var list = Descendants(page).OfType<WidgetLayerList>().Single(); var rows = list.Rows.ToArray();
+        var positions = rows.Select((row, index) => new WidgetLayerPosition(row.LayerId, index * 72, 64)).ToArray();
+        var composition = Descendants(page).OfType<WidgetCompositeView>().Single();
+        var drag = list.BeginReorder(positions, third.Id)!; Assert.NotNull(drag);
+        Assert.True(list.IsEnabled); Assert.False(composition.IsEnabled);
+        Assert.False(Button(page, "SaveWidgetDesign").IsEnabled); Assert.False(Button(page, "AddWidgetPhoto").IsEnabled); Assert.False(Button(page, "BackFromWidgetEditor").IsEnabled);
+        var rowButtons = Descendants(list).OfType<Button>().ToArray(); Assert.All(rowButtons, button => Assert.False(button.IsEnabled));
+        drag.Move(300); Assert.Equal(original.Layers, composition.Design!.Layers);
+        ((IButtonController)Button(page, "SaveWidgetDesign")).SendClicked(); Assert.Equal(0, store.Saves);
+        list.CompleteReorder(drag);
+        Assert.Equal(new[] { third.Id, first.Id, second.Id }, composition.Design!.Layers.Select(x => x.Id));
+        Assert.Equal(new[] { second.Id, first.Id, third.Id }, list.Rows.Select(x => x.LayerId));
+        Assert.Equal(new[] { first, second, third }, original.Layers);
+        Assert.Equal(rows.OrderBy(x => x.LayerId), list.Rows.OrderBy(x => x.LayerId));
+        Assert.All(rowButtons, button => Assert.True(button.IsEnabled));
+        Assert.True(Button(page, "SaveWidgetDesign").IsEnabled); Assert.True(composition.IsEnabled);
+        ((IButtonController)Button(page, "SaveWidgetDesign")).SendClicked();
+        Assert.Equal(new[] { third.Id, first.Id, second.Id }, store.Saved!.Layers.Select(x => x.Id));
+    }
+    [Fact]
+    public void LayerDragCancelsOnBackgroundOrPageDisappearanceAndCannotCommitAfterwards()
+    {
+        var first = Photo(); var second = Photo() with { Name = "Second" }; var original = WidgetDesignRules.New() with { Layers = [first, second] };
+        var page = new WidgetEditorPage(new Store(), new ColourPicker(), NullLogger.Instance, original); Open(page);
+        var list = Descendants(page).OfType<WidgetLayerList>().Single();
+        WidgetLayerDragPlan Begin()
+        {
+            var positions = list.Rows.Select((row, index) => new WidgetLayerPosition(row.LayerId, index * 72, 64)).ToArray();
+            return list.BeginReorder(positions, second.Id)!;
+        }
+        var drag = Begin(); drag.Move(300); ((IWindow)host.App.Windows[0]).Deactivated();
+        Assert.False(list.IsReordering); list.CompleteReorder(drag); ((IWindow)host.App.Windows[0]).Activated();
+        Assert.Equal(original.Layers, Descendants(page).OfType<WidgetCompositeView>().Single().Design!.Layers);
+        Assert.True(Button(page, "SaveWidgetDesign").IsEnabled);
+        drag = Begin(); drag.Move(300); ((IPageController)page).SendDisappearing(); Assert.False(list.IsReordering);
+        list.CompleteReorder(drag); ((IPageController)page).SendAppearing();
+        Assert.True(Button(page, "SaveWidgetDesign").IsEnabled); Assert.Equal(new[] { second.Id, first.Id }, list.Rows.Select(x => x.LayerId));
+    }
+    [Fact]
     public void SingleRowToolsKeepAdjustmentPanelsOpenAndClearTheirHighlightOnDoneOrBackground()
     {
         var page = Editor(new Store()); Open(page);

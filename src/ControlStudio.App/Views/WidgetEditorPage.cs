@@ -18,7 +18,7 @@ internal sealed class WidgetEditorPage : ContentPage
     private readonly ProfileNameEntry name = new() { MaxLength = 60, Placeholder = "My widget", BackgroundColor = Colors.Transparent, FontSize = 17, HeightRequest = 44 };
     private readonly WidgetSegments sizes;
     private readonly VerticalStackLayout form = new() { Padding = new Thickness(16, 8, 16, 28), Spacing = 14 };
-    private readonly VerticalStackLayout layerList = new() { Spacing = 8 };
+    private readonly WidgetLayerList layerList = new();
     private readonly VerticalStackLayout precise = new() { Spacing = 6, IsVisible = false };
     private readonly ScrollView scroll = new();
     private readonly Border precisionCard;
@@ -48,7 +48,7 @@ internal sealed class WidgetEditorPage : ContentPage
     private bool updating, busy, saved, departed, closing;
     private Window? observedWindow;
     private bool Foreground => EditorPageActivity.IsForeground(this);
-    private bool CanEdit => Foreground && !busy && !saved && !departed && !background.IsBusy && !canvas.IsInteracting;
+    private bool CanEdit => Foreground && !busy && !saved && !departed && !background.IsBusy && !canvas.IsInteracting && !layerList.IsReordering;
 
     public WidgetEditorPage(IWidgetEditorStore studio, IColourPicker colourPicker, ILogger logger, WidgetDesign? original = null, WidgetSize initialSize = WidgetSize.Small, Func<Task<string?>>? choosePhotoSource = null)
     {
@@ -79,6 +79,9 @@ internal sealed class WidgetEditorPage : ContentPage
         });
         sizes.Update(Array.IndexOf(WidgetDesignRules.SupportedSizes.ToArray(), draft.Size));
         background = new ColourPickerView(colourPicker, "WidgetBackground", "Background"); background.SetSelection(draft.BackgroundHex);
+        layerList.CanStart = () => CanEdit;
+        layerList.InteractionChanged += (_, _) => RefreshActions();
+        layerList.Reordered += ReorderLayers;
         background.ColourChanged += (_, args) => { draft = draft with { BackgroundHex = args.Hex }; UpdateCanvas(); };
         background.BusyChanged += (_, _) => RefreshActions();
         backgroundStatus.SetDynamicResource(Label.TextColorProperty, "AccentText");
@@ -189,7 +192,7 @@ internal sealed class WidgetEditorPage : ContentPage
     private void ToggleTool(VisualElement panel) { var show = !panel.IsVisible; CloseTools(); panel.IsVisible = show; }
     private void SelectLayer(Guid id)
     {
-        if (busy || saved || departed) return;
+        if (busy || saved || departed || layerList.IsReordering) return;
         if (selected != id) CloseTools(); selected = id; RefreshLayers();
     }
     private void ReplaceLayer(WidgetLayer layer) => draft = draft with { Layers = draft.Layers.Select(x => x.Id == layer.Id ? layer : x).ToArray() };
@@ -237,9 +240,10 @@ internal sealed class WidgetEditorPage : ContentPage
     private void UpdateCanvas() => canvas.Update(draft, selected);
     private void RefreshLayers()
     {
+        layerList.CancelReorder();
         layersCount.Text = $"{draft.Layers.Count} {(draft.Layers.Count == 1 ? "layer" : "layers")}";
         foreach (var id in rows.Keys.Where(id => !draft.Layers.Any(x => x.Id == id)).ToArray())
-        { layerList.Children.Remove(rows[id]); rows[id].ReleaseSource(); rows.Remove(id); }
+        { layerList.Items.Remove(rows[id]); rows[id].ReleaseSource(); rows.Remove(id); }
         var index = 0;
         foreach (var layer in draft.Layers.Reverse())
         {
@@ -252,14 +256,19 @@ internal sealed class WidgetEditorPage : ContentPage
                         var current = draft.Layers.FirstOrDefault(x => x.Id == id); if (current is null) return;
                         ReplaceLayer(current with { Visible = visible }); RefreshLayers();
                     }, id => { if (CanEdit) { selected = id; RefreshLayers(); _ = RunAsync(LayerMenuAsync); } },
-                    (source, target) => { if (CanEdit) { draft = draft with { Layers = WidgetLayerEdits.Reorder(draft.Layers, source, target) }; RefreshLayers(); } });
-                rows.Add(layer.Id, row); layerList.Children.Add(row);
+                    ReorderLayers);
+                rows.Add(layer.Id, row); layerList.Items.Add(row);
             }
-            var currentIndex = layerList.Children.IndexOf(row);
-            if (currentIndex != index) { layerList.Children.RemoveAt(currentIndex); layerList.Children.Insert(index, row); }
+            var currentIndex = layerList.Items.IndexOf(row);
+            if (currentIndex != index) { layerList.Items.RemoveAt(currentIndex); layerList.Items.Insert(index, row); }
             row.Update(layer, selected == layer.Id); index++;
         }
         RefreshControls(); RefreshActions(); UpdateCanvas();
+    }
+    private void ReorderLayers(Guid source, Guid target)
+    {
+        if (!CanEdit) return;
+        draft = draft with { Layers = WidgetLayerEdits.Reorder(draft.Layers, source, target) }; RefreshLayers();
     }
     private void RefreshControls()
     {
@@ -387,9 +396,13 @@ internal sealed class WidgetEditorPage : ContentPage
         // Availability follows operation state. Native picker dismissal can briefly report an
         // inactive application; persisting that snapshot in IsEnabled can lock the whole editor.
         // Execution still checks the current navigation owner and MAUI window activation.
-        var canNavigate = !busy && !departed && !background.IsBusy && !canvas.IsInteracting;
+        var canInteract = !busy && !departed && !background.IsBusy && !canvas.IsInteracting;
+        var canNavigate = canInteract && !layerList.IsReordering;
         form.IsEnabled = !busy && !saved && !departed && !background.IsBusy;
-        save.IsEnabled = sizes.IsEnabled = layerList.IsEnabled = canNavigate && !saved;
+        // The list must stay enabled until its native drag recognizer finishes.
+        layerList.IsEnabled = canInteract && !saved;
+        save.IsEnabled = sizes.IsEnabled = name.IsEnabled = background.IsEnabled = precise.IsEnabled = canNavigate && !saved;
+        canvas.IsEnabled = !layerList.IsReordering;
         back.IsEnabled = cancel.IsEnabled = canNavigate;
         addPhoto.IsEnabled = canNavigate && !saved && draft.Layers.Count < WidgetDesignRules.MaximumLayers;
         var hasLayer = draft.Layers.Any(x => x.Id == selected);
@@ -436,7 +449,7 @@ internal sealed class WidgetEditorPage : ContentPage
         catch (Exception ex) { logger.LogWarning("Widget editor dismissal failed. ErrorType={ErrorType}", ex.GetType().Name); ShowStatus("Your widget is saved. Tap Back to return."); }
     }
     private async void WindowActivated(object? sender, EventArgs args) { RefreshActions(); if (Foreground && !saved && !busy) ResumeCanvas(); if (saved && !busy) await TryCloseSavedAsync(); }
-    private void WindowDeactivated(object? sender, EventArgs args) { canvas.EndInteraction(true); canvas.SuspendComposition(); CloseTools(); RefreshActions(); }
+    private void WindowDeactivated(object? sender, EventArgs args) { layerList.CancelReorder(); canvas.EndInteraction(true); canvas.SuspendComposition(); CloseTools(); RefreshActions(); }
     protected override async void OnAppearing()
     {
         base.OnAppearing();
@@ -454,18 +467,18 @@ internal sealed class WidgetEditorPage : ContentPage
     }
     protected override void OnDisappearing()
     {
-        canvas.EndInteraction(true); CloseTools(); RefreshActions();
+        layerList.CancelReorder(); canvas.EndInteraction(true); CloseTools(); RefreshActions();
         // A native picker can cover this page without removing it from MAUI navigation.
         // Keep activation recovery subscribed until this editor actually leaves the stack.
         base.OnDisappearing();
     }
-    protected override bool OnBackButtonPressed() => busy || background.IsBusy || canvas.IsInteracting || base.OnBackButtonPressed();
+    protected override bool OnBackButtonPressed() => busy || background.IsBusy || canvas.IsInteracting || layerList.IsReordering || base.OnBackButtonPressed();
     protected override void OnNavigatedFrom(NavigatedFromEventArgs args)
     {
         base.OnNavigatedFrom(args);
         if (!Navigation.NavigationStack.Contains(this))
         {
-            departed = true; StopObservingWindow(); RefreshActions();
+            departed = true; layerList.CancelReorder(); StopObservingWindow(); RefreshActions();
             canvas.ReleaseSources(); foreach (var row in rows.Values) row.ReleaseSource(); if (!busy) _ = CleanupAsync();
         }
     }

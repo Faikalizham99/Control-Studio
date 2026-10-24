@@ -23,6 +23,12 @@ public sealed class WidgetLayerRowTests : IDisposable
         visible.IsToggled = true; Assert.Equal(1, changes);
         var tap = Assert.IsType<Button>(Assert.IsType<Grid>(selectGrid.Children[1]).Children[0]);
         Assert.Contains("Renamed", SemanticProperties.GetDescription(tap)); ((IButtonController)tap).SendClicked(); Assert.Equal(layer.Id, selected);
+        // The editor refreshes the model after accepting the preceding visibility change.
+        row.Update(layer with { Name = "Renamed", Visible = true }, true);
+        selected = null; row.SetReordering(true); visible.IsToggled = false; ((IButtonController)tap).SendClicked();
+        Assert.Equal(1, changes); Assert.Null(selected); Assert.False(visible.IsEnabled); Assert.False(tap.IsEnabled);
+        row.SetReordering(false); Assert.True(visible.IsToggled); Assert.True(visible.IsEnabled); Assert.True(tap.IsEnabled);
+        Assert.Equal(1, changes); ((IButtonController)tap).SendClicked(); Assert.Equal(layer.Id, selected);
         row.ReleaseSource(); Assert.Null(image.Source);
     }
     public void Dispose() => host.Dispose();

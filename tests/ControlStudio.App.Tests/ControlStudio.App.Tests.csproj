@@ -26,6 +26,7 @@
     <Compile Include="../../src/ControlStudio.App/Views/WidgetEditorToolbar.cs" Link="Views/WidgetEditorToolbar.cs" />
     <Compile Include="../../src/ControlStudio.App/Views/WidgetCheckerboard.cs" Link="Views/WidgetCheckerboard.cs" />
     <Compile Include="../../src/ControlStudio.App/Views/WidgetLayerRow.cs" Link="Views/WidgetLayerRow.cs" />
+    <Compile Include="../../src/ControlStudio.App/Views/WidgetLayerList.cs" Link="Views/WidgetLayerList.cs" />
     <Compile Include="../../src/ControlStudio.App/Views/WidgetRenderPreview.cs" Link="Views/WidgetRenderPreview.cs" />
     <Compile Include="../../src/ControlStudio.App/Views/WidgetStudioControls.cs" Link="Views/WidgetStudioControls.cs" />
     <Compile Include="../../src/ControlStudio.App/Views/DashboardStyle.cs" Link="Views/DashboardStyle.cs" />

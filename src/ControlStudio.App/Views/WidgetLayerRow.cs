@@ -12,22 +12,28 @@ internal sealed class WidgetLayerRow : ContentView
     private readonly Border surface;
     private readonly Button tap;
     private readonly ClipboardIconButton more;
-    private bool updating;
+    public Guid LayerId { get; }
+    public View DragHandle { get; }
+    private bool updating, reordering, layerVisible;
     public WidgetLayerRow(WidgetLayer layer, string? path, string dragScope, Action<Guid> select,
         Action<Guid, bool> show, Action<Guid> menu, Action<Guid, Guid> reorder)
     {
+        LayerId = layer.Id;
         photo.Source = path; name.MaxLines = 2; name.LineBreakMode = LineBreakMode.TailTruncation;
         var thumbnail = ClipboardEditorControls.Field(photo, 0); thumbnail.WidthRequest = thumbnail.HeightRequest = 48;
         thumbnail.VerticalOptions = LayoutOptions.Center;
         var title = new VerticalStackLayout { Spacing = 2, VerticalOptions = LayoutOptions.Center,
             InputTransparent = true, Children = { name, detail } };
         tap = SettingsControls.TapTarget("Select " + layer.Name, "SelectWidgetLayer" + layer.Id.ToString("N"));
-        tap.Clicked += (_, _) => { if (IsEnabled) select(layer.Id); };
+        tap.Clicked += (_, _) => { if (IsEnabled && !reordering) select(layer.Id); };
         var selection = new Grid { ColumnSpacing = 8, ColumnDefinitions = { new(48), new(GridLength.Star) } };
         var labels = new Grid { Children = { tap, title } }; selection.Add(thumbnail); selection.Add(labels, 1);
         AutomationProperties.SetIsInAccessibleTree(title, false); AutomationProperties.SetIsInAccessibleTree(thumbnail, false);
         var drag = new Grid { WidthRequest = 44, HeightRequest = 48, VerticalOptions = LayoutOptions.Start, Children = { ClipboardEditorControls.Icon(StudioSymbol.Drag, size: 18) } };
-        SemanticProperties.SetDescription(drag, "Reorder " + layer.Name); SemanticProperties.SetHint(drag, "Drag to another layer. Move forward and backward are also in the layer menu.");
+        DragHandle = drag;
+        SemanticProperties.SetDescription(drag, "Reorder " + layer.Name); SemanticProperties.SetHint(drag, "Touch and hold, then drag to another position. Move forward and backward are also in the layer menu.");
+        // iOS handles the entire row snapshot and animated gap in WidgetLayerListHandler.
+#if !IOS
         var start = new DragGestureRecognizer();
         start.DragStarting += (_, args) =>
         {
@@ -42,10 +48,11 @@ internal sealed class WidgetLayerRow : ContentView
             if (IsEnabled && ValidDrag(args.Data.Properties, dragScope) && args.Data.Properties["WidgetLayerId"] is Guid source) reorder(source, layer.Id);
         };
         GestureRecognizers.Add(drop);
+#endif
         SemanticProperties.SetDescription(visible, "Show " + layer.Name);
-        visible.Toggled += (_, args) => { if (!updating && IsEnabled) show(layer.Id, args.Value); };
+        visible.Toggled += (_, args) => { if (!updating && IsEnabled && !reordering) show(layer.Id, args.Value); };
         more = new ClipboardIconButton(StudioSymbol.More, "Layer actions") { VerticalOptions = LayoutOptions.Center }; more.Describe("Layer actions", layer.Name);
-        more.Clicked += (_, _) => { if (IsEnabled) menu(layer.Id); };
+        more.Clicked += (_, _) => { if (IsEnabled && !reordering) menu(layer.Id); };
         var actions = new ActionButtonRow(visible, more);
         var header = new CardActionHeader(selection, actions);
         var row = new Grid { ColumnSpacing = ActionSpacing.Gap, ColumnDefinitions = { new(44), new(GridLength.Star) } };
@@ -56,14 +63,20 @@ internal sealed class WidgetLayerRow : ContentView
     private static bool ValidDrag(DataPackagePropertySetView properties, string scope) => properties.TryGetValue("WidgetLayerScope", out var value) && value is string text && text == scope;
     public void Update(WidgetLayer layer, bool selected)
     {
-        updating = true; name.Text = layer.Name; visible.IsToggled = layer.Visible; updating = false;
+        updating = true; name.Text = layer.Name; visible.IsToggled = layerVisible = layer.Visible; updating = false;
         detail.Text = layer.BlendMode == WidgetBlendMode.Normal ? "Image" : "Image · " + WidgetBlending.Name(layer.BlendMode);
         surface.StrokeThickness = selected ? 2 : 1;
         if (selected) surface.SetDynamicResource(Border.StrokeProperty, "AccentText");
         else { surface.RemoveDynamicResource(Border.StrokeProperty); SettingsControls.SurfaceStroke(surface); }
         SemanticProperties.SetDescription(tap, "Select " + layer.Name + (selected ? ", selected" : "") + (layer.Visible ? "" : ", hidden"));
         more.Describe("Layer actions", layer.Name);
+        SemanticProperties.SetDescription(DragHandle, "Reorder " + layer.Name);
         SemanticProperties.SetDescription(visible, "Show " + layer.Name);
+    }
+    public void SetReordering(bool value)
+    {
+        reordering = value; tap.IsEnabled = visible.IsEnabled = more.IsEnabled = !value;
+        if (!value) { updating = true; visible.IsToggled = layerVisible; updating = false; }
     }
     public void ReleaseSource() => photo.Source = null;
 }
