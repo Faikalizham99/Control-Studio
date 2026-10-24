@@ -22,13 +22,13 @@ internal static class WidgetStudioStyle
             Gradient("#B8C7E0", "#CDD2E1"), Gradient("#52617A", "#252D40"));
         return border;
     }
-    public static View Header(string text, View back, View? trailing = null)
+    public static View Header(string text, View back, View? trailing = null, double trailingWidth = 48)
     {
         var title = SettingsControls.Text(text, 17, bold: true);
         title.VerticalOptions = LayoutOptions.Center; title.HorizontalTextAlignment = TextAlignment.Center;
         title.MaxLines = 2; SemanticProperties.SetHeadingLevel(title, SemanticHeadingLevel.Level1);
         var row = new Grid { Padding = new Thickness(18, 6, 18, 8), ColumnSpacing = ActionSpacing.Gap,
-            ColumnDefinitions = { new(48), new(GridLength.Star), new(48) } };
+            ColumnDefinitions = { new(48), new(GridLength.Star), new(trailingWidth) } };
         back.HorizontalOptions = LayoutOptions.Start; back.VerticalOptions = LayoutOptions.Center; row.Add(back); row.Add(title, 1);
         if (trailing is not null) { trailing.HorizontalOptions = LayoutOptions.End; trailing.VerticalOptions = LayoutOptions.Center; row.Add(trailing, 2); }
         return row;

@@ -29,6 +29,7 @@
     <Compile Include="../../src/ControlStudio.App/Views/WidgetLayerList.cs" Link="Views/WidgetLayerList.cs" />
     <Compile Include="../../src/ControlStudio.App/Views/WidgetRenderPreview.cs" Link="Views/WidgetRenderPreview.cs" />
     <Compile Include="../../src/ControlStudio.App/Views/WidgetStudioControls.cs" Link="Views/WidgetStudioControls.cs" />
+    <Compile Include="../../src/ControlStudio.App/Views/WidgetRefreshButton.cs" Link="Views/WidgetRefreshButton.cs" />
     <Compile Include="../../src/ControlStudio.App/Views/DashboardStyle.cs" Link="Views/DashboardStyle.cs" />
     <Compile Include="../../src/ControlStudio.App/Views/WidgetStudioPage.cs" Link="Views/WidgetStudioPage.cs" />
     <Compile Include="../../src/ControlStudio.App/IWidgetSlotStore.cs" Link="IWidgetSlotStore.cs" />

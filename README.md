@@ -1,5 +1,7 @@
 # Control Studio
 
+An **unreleased My Widgets enhancement** moves Refresh into the fixed top-right header beside Add and removes the bottom button. It includes a progress indicator, repeat-tap protection and accessible result announcements. Automated checks and managed iOS compilation pass; physical iPhone layout checks remain pending. See [behaviour and verification](docs/widget-refresh-header.md).
+
 An **unreleased layer-drag enhancement** lifts the whole photo-layer row, slides neighbours aside, scrolls near list edges and settles on drop. Cancellation preserves the original order, and Reduced Motion uses direct movement. Automated order/persistence/lifecycle checks and managed iOS compilation pass; animation and touch behaviour still need an iPhone check. See [behaviour and review](docs/widget-layer-reordering.md).
 
 Version **0.2.29 (31)** replaces the two-row tool grid with one scrolling icon toolbar, adds icons to all five blend groups and adds rendered examples to all 14 blend modes. Active tools follow the accent colour, Delete stays red, and adjustment panels remain open while comparing settings. It also includes the action-spacing fixes below. All 241 app tests, 32 packaging checks and managed iOS compilation pass; native thumbnail rendering and iPhone UI checks remain pending. The owner authorized committing, pushing main and pushing the new version tag, and will monitor the IPA build. See [behaviour, rendering and verification](docs/widget-editor-tools.md).

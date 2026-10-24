@@ -16,7 +16,7 @@ internal sealed class WidgetsPage : WidgetStudioPage
     private bool previewsActive, updatingPreviews;
     private readonly WidgetAddButton add = new();
     private readonly PageActionButton back = new("", "BackFromWidgets", ProfileSymbol.Back);
-    private readonly ClipboardEditorActionButton refresh = new("Refresh widgets", ClipboardEditorControls.Icon(StudioSymbol.Refresh), "RefreshWidgetDesigns");
+    private readonly WidgetRefreshButton refresh = new();
     private readonly ClipboardEditorActionButton widgetSlots = new("Widget slots", ClipboardEditorControls.Icon(StudioSymbol.Widgets), "OpenWidgetSlots", primary: true);
     private readonly Label status = SettingsControls.Text("", 13, secondary: true);
     private readonly WidgetSegments sizes;
@@ -32,7 +32,7 @@ internal sealed class WidgetsPage : WidgetStudioPage
         xlHint.IsVisible = false;
         add.Clicked += async (_, _) => await RunAsync((_, _) => Navigation.PushAsync(new WidgetEditorPage(studio, colourPicker, Logger, initialSize: SelectedSize)));
         back.Clicked += async (_, _) => await RunAsync((_, _) => Navigation.PopAsync());
-        refresh.Clicked += async (_, _) => await ReloadAsync();
+        refresh.Clicked += async (_, _) => await RefreshWidgetsAsync();
         widgetSlots.Clicked += async (_, _) => await RunAsync((_, _) => Navigation.PushAsync(new WidgetSlotsPage(new AppleWidgetSlotStore(studio), Logger, SelectedSize)));
         var heading = SettingsControls.Text("Your widget designs", 22, bold: true);
         SemanticProperties.SetHeadingLevel(heading, SemanticHeadingLevel.Level2);
@@ -42,15 +42,34 @@ internal sealed class WidgetsPage : WidgetStudioPage
         } };
         status.IsVisible = false;
         body = new VerticalStackLayout { Padding = new Thickness(20, 14, 28, 24), Spacing = 16, MaximumWidthRequest = 800,
-            HorizontalOptions = LayoutOptions.Fill, Children = { headingBlock, designs, status, refresh } };
+            HorizontalOptions = LayoutOptions.Fill, Children = { headingBlock, designs, status } };
         scroll.Content = body;
         scroll.Scrolled += (_, _) => UpdateVisiblePreviews();
         scroll.SizeChanged += (_, _) => UpdateVisiblePreviews();
         body.SizeChanged += (_, _) => UpdateVisiblePreviews();
         var layout = new Grid { RowDefinitions = { new(GridLength.Auto), new(GridLength.Star) } };
-        layout.Add(WidgetStudioStyle.Header(Title, back, add));
-        layout.Add(scroll, 0, 1); Content = layout;
+        var headerActions = new HorizontalStackLayout { Spacing = ActionSpacing.Gap, WidthRequest = 104,
+            MinimumWidthRequest = 104, Children = { refresh, add } };
+        layout.Add(WidgetStudioStyle.Header(Title, back, headerActions, trailingWidth: 104));
+        layout.Add(scroll, 0, 1); Content = layout; SetActionsEnabled(false);
     }
+    private Task RefreshWidgetsAsync() => RunAsync(async (token, version) =>
+    {
+        refresh.IsRefreshing = true;
+        try
+        {
+            await LoadAsync(token, version);
+            if (IsForeground(version)) Announce(status.IsVisible ? status.Text : studio.Repository.HasSavedLibrary
+                ? "Widget refresh requested. iOS decides when it appears." : "No saved widgets to refresh yet.");
+        }
+        catch (Exception ex)
+        {
+            if (IsForeground(version) && !token.IsCancellationRequested)
+                Announce(ex is IOException ? ex.Message : "This action could not finish. Try Refresh again.");
+            throw;
+        }
+        finally { refresh.IsRefreshing = false; }
+    });
     private void FilterChanged() { xlHint.IsVisible = SelectedSize == WidgetSize.ExtraLargePortrait; ShowDesigns(); }
     protected override async Task LoadAsync(CancellationToken token, int version)
     {
@@ -147,6 +166,7 @@ internal sealed class WidgetsPage : WidgetStudioPage
     protected override void OnAppearing() { previewsActive = true; base.OnAppearing(); UpdateVisiblePreviews(); }
     protected override void OnDisappearing()
     {
+        refresh.IsRefreshing = false;
         previewsActive = false;
         // The next appearance reloads the library and builds fresh controls.
         // A render replaced/deleted in the editor must never be requested again.
