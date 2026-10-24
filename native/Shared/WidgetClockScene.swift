@@ -1,0 +1,101 @@
+import Foundation
+
+struct WidgetLayerMarker: Decodable, Equatable {
+    let kind: String?
+    let visible: Bool?
+    let opacity: Double?
+    var liveClock: Bool { kind == "clock" && visible != false && (opacity ?? 1) > 0 }
+}
+struct WidgetClockFrame: Decodable, Equatable {
+    let x: Double, y: Double, width: Double, height: Double
+    var valid: Bool { x.isFinite && y.isFinite && width.isFinite && height.isFinite
+        && (-4...4).contains(x) && (-4...4).contains(y) && (0.05...4).contains(width) && (0.05...4).contains(height) }
+}
+struct WidgetClockStyle: Decodable, Equatable {
+    let twentyFourHour: Bool
+    let showSeconds: Bool
+    let font: String
+    let colourHex: String
+    let fontScale: Double
+    let alignment: String
+    var valid: Bool {
+        ["system", "rounded", "monospaced", "serif"].contains(font) && ["left", "centre", "right"].contains(alignment)
+            && fontScale.isFinite && (0.2...1).contains(fontScale) && rgb != nil
+    }
+    func formatStyle(timeZone: TimeZone = .autoupdatingCurrent) -> Date.VerbatimFormatStyle {
+        // An explicit hour cycle preserves the chosen 12/24-hour setting even when
+        // the device's locale or system clock preference uses the other cycle.
+        let pattern: Date.FormatString
+        switch (twentyFourHour, showSeconds) {
+        case (true, true): pattern = "\(hour: .twoDigits(clock: .twentyFourHour, hourCycle: .zeroBased)):\(minute: .twoDigits):\(second: .twoDigits)"
+        case (true, false): pattern = "\(hour: .twoDigits(clock: .twentyFourHour, hourCycle: .zeroBased)):\(minute: .twoDigits)"
+        case (false, true): pattern = "\(hour: .defaultDigits(clock: .twelveHour, hourCycle: .oneBased)):\(minute: .twoDigits):\(second: .twoDigits) \(dayPeriod: .standard(.abbreviated))"
+        case (false, false): pattern = "\(hour: .defaultDigits(clock: .twelveHour, hourCycle: .oneBased)):\(minute: .twoDigits) \(dayPeriod: .standard(.abbreviated))"
+        }
+        return Date.VerbatimFormatStyle(format: pattern, locale: Locale(identifier: "en_US_POSIX"), timeZone: timeZone, calendar: Calendar(identifier: .gregorian))
+    }
+    var rgb: (Double, Double, Double)? {
+        guard colourHex.utf8.count == 7, colourHex.first == "#", colourHex.dropFirst().utf8.allSatisfy({ (48...57).contains($0) || (65...70).contains($0) }),
+            let value = UInt32(colourHex.dropFirst(), radix: 16) else { return nil }
+        return (Double((value >> 16) & 255) / 255, Double((value >> 8) & 255) / 255, Double(value & 255) / 255)
+    }
+}
+struct WidgetLiveClock: Decodable, Equatable {
+    let id: String
+    let name: String
+    let kind: String
+    let frame: WidgetClockFrame
+    let visible: Bool
+    let opacity: Double
+    let clock: WidgetClockStyle
+    var valid: Bool { UUID(uuidString: id) != nil && id != "00000000-0000-0000-0000-000000000000" && kind == "clock"
+        && !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && name.utf16.count <= 40
+        && frame.valid && visible && opacity.isFinite && opacity > 0 && opacity <= 1 && clock.valid }
+}
+struct WidgetClockScenePart: Decodable, Equatable {
+    let imageIndex: Int?
+    let clock: WidgetLiveClock?
+}
+struct WidgetClockScene: Decodable, Equatable {
+    let schemaVersion: Int
+    let width: Double
+    let height: Double
+    let parts: [WidgetClockScenePart]
+    var valid: Bool {
+        guard schemaVersion == 1, width.isFinite, height.isFinite, (50...600).contains(width), (50...1100).contains(height),
+            !parts.isEmpty, parts.count <= 8 else { return false }
+        var clocks = Set<String>()
+        for (index, part) in parts.enumerated() {
+            if let image = part.imageIndex { if image != index || part.clock != nil { return false } }
+            else if let clock = part.clock { if !clock.valid || !clocks.insert(clock.id).inserted { return false } }
+            else { return false }
+        }
+        return !clocks.isEmpty
+    }
+}
+
+extension WidgetDesignStore {
+    func scene(for design: WidgetDesignSummary) throws -> (WidgetClockScene, [Int: Data]) {
+        guard Self.validKey(design.renderKey) else { throw WidgetDesignError.invalidCatalog }
+        let folder = directory.appendingPathComponent("renders")
+        let scene = try JSONDecoder().decode(WidgetClockScene.self, from: boundedData(folder.appendingPathComponent(design.renderKey + ".scene.json"), maximum: 32_768))
+        guard scene.valid else { throw WidgetDesignError.invalidCatalog }
+        if let saved = design.canvasDimensions {
+            guard abs(saved.width - scene.width) < 0.001, abs(saved.height - scene.height) < 0.001 else { throw WidgetDesignError.invalidCatalog }
+        }
+        var images: [Int: Data] = [:]; var pixels: UInt64 = 0; var encodedBytes = 0
+        for part in scene.parts {
+            if let index = part.imageIndex {
+                let bytes = try boundedData(folder.appendingPathComponent(design.renderKey + ".part-\(index).png"), maximum: 4_000_000)
+                guard bytes.count >= 24, Array(bytes.prefix(8)) == [137,80,78,71,13,10,26,10] else { throw WidgetDesignError.imageUnavailable }
+                let w = bytes[16..<20].reduce(UInt64(0)) { ($0 << 8) | UInt64($1) }
+                let h = bytes[20..<24].reduce(UInt64(0)) { ($0 << 8) | UInt64($1) }
+                guard (1...1024).contains(w), (1...1024).contains(h), abs(Double(w) / Double(h) - scene.width / scene.height) < 0.02 else { throw WidgetDesignError.imageUnavailable }
+                pixels += w * h; guard pixels <= 3_000_000 else { throw WidgetDesignError.imageUnavailable }
+                encodedBytes += bytes.count; guard encodedBytes <= 4_000_000 else { throw WidgetDesignError.imageUnavailable }
+                images[index] = bytes
+            }
+        }
+        return (scene, images)
+    }
+}

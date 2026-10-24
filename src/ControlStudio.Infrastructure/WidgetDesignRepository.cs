@@ -18,6 +18,13 @@ public sealed class WidgetDesignRepository
     public bool HasSavedLibrary => File.Exists(CatalogPath);
     public string? AssetPath(string key) => ImagePath("photos", key);
     public string? RenderPath(string key) => ImagePath("renders", key);
+    public string? ScenePath(string key) => SceneArtifact(key, ".scene.json");
+    public string? SceneImagePath(string key, int index) => index is >= 0 and < WidgetDesignRules.MaximumLayers ? SceneArtifact(key, $".part-{index}.png") : null;
+    private string? SceneArtifact(string key, string suffix)
+    {
+        if (!WidgetDesignRules.ValidKey(key)) return null;
+        var path = Path.Combine(directory, "renders", key + suffix); return File.Exists(path) ? path : null;
+    }
     public DateTimeOffset? RenderUpdatedAt(string key)
     {
         var path = RenderPath(key); if (path is null) return null;
@@ -83,11 +90,17 @@ public sealed class WidgetDesignRepository
         var key = Guid.NewGuid().ToString("N");
         await WriteImageAsync("photos", key, png, token); return key;
     }
-    public async Task<WidgetDesign> SaveAsync(WidgetDesign draft, byte[] render, CancellationToken token = default, byte[]? thumbnail = null)
+    public async Task<WidgetDesign> SaveAsync(WidgetDesign draft, byte[] render, CancellationToken token = default, byte[]? thumbnail = null, WidgetSceneExport? scene = null)
     {
         WidgetDesignRules.Validate(draft); ValidatePng(render);
         if (!WidgetDesignRules.IsSupported(draft.Size)) throw new IOException("Open this saved design in the editor and save it in a supported iPhone size.");
         if (thumbnail is not null) ValidatePng(thumbnail);
+        if (WidgetScenes.IsLive(draft))
+        {
+            if (scene is null) throw new IOException("The live clock scene is missing. Save this design from the widget editor.");
+            ValidateScene(scene, draft);
+        }
+        else if (scene is not null) throw new IOException("This design does not need a live clock scene.");
         await gate.WaitAsync(token);
         try
         {
@@ -100,7 +113,7 @@ public sealed class WidgetDesignRepository
             if (index < 0 && designs.Count >= WidgetDesignRules.MaximumDesigns) throw new IOException("You can save up to 50 widgets. Delete one before adding another.");
             if (designs.Any(x => x.Id != draft.Id && x.Size == draft.Size && string.Equals(x.Name.Trim(), draft.Name.Trim(), StringComparison.OrdinalIgnoreCase)))
                 throw new IOException($"A {WidgetDesignRules.SizeName(draft.Size)} widget already uses this name. Choose another name.");
-            foreach (var layer in draft.Layers)
+            foreach (var layer in draft.Layers.Where(x => x.Kind == WidgetLayerKind.Photo))
                 if (AssetPath(layer.AssetKey) is null) throw new IOException("A photo is missing. Remove that layer or choose the photo again.");
             var saved = draft with { Name = draft.Name.Trim(), Layers = draft.Layers.ToArray(), RenderKey = Guid.NewGuid().ToString("N"), Revision = checked(draft.Revision + 1) };
             if (index < 0) designs.Add(saved); else designs[index] = saved;
@@ -108,10 +121,20 @@ public sealed class WidgetDesignRepository
             {
                 await WriteImageAsync("renders", saved.RenderKey, render, token);
                 if (thumbnail is not null) await WriteImageAsync("renders", saved.RenderKey + ".thumb", thumbnail, token);
+                if (scene is not null)
+                {
+                    foreach (var (partIndex, bytes) in scene.Images) await WriteImageAsync("renders", saved.RenderKey + $".part-{partIndex}", bytes, token);
+                    await AtomicWriteAsync(Path.Combine(directory, "renders", saved.RenderKey + ".scene.json"), JsonSerializer.SerializeToUtf8Bytes(scene.Scene, WidgetDesignRules.JsonContext.WidgetScene), token);
+                }
                 var slots = library.Slots.Where(x => x.DesignId != saved.Id || x.Size == saved.Size).ToArray();
                 await WriteCatalogAsync(new(2, designs, slots), token);
             }
-            catch { TryRemove(RenderPath(saved.RenderKey)); TryRemove(ThumbnailPath(saved.RenderKey)); throw; }
+            catch
+            {
+                TryRemove(RenderPath(saved.RenderKey)); TryRemove(ThumbnailPath(saved.RenderKey)); TryRemove(ScenePath(saved.RenderKey));
+                for (var part = 0; part < WidgetDesignRules.MaximumLayers; part++) TryRemove(SceneImagePath(saved.RenderKey, part));
+                throw;
+            }
             // Keep sources/renders referenced by other designs. Cleanup is best effort after commit.
             RemoveUnusedSources(oldAssets, designs);
             CollectUnreferenced(designs); return saved;
@@ -164,10 +187,10 @@ public sealed class WidgetDesignRepository
         var folder = Path.Combine(directory, "renders");
         try
         {
-            foreach (var path in Directory.EnumerateFiles(folder, "*.png"))
+            foreach (var path in Directory.EnumerateFiles(folder))
             {
-                var key = Path.GetFileNameWithoutExtension(path); if (key.EndsWith(".thumb", StringComparison.Ordinal)) key = key[..^6];
-                if (!renders.Contains(key)) TryRemove(path);
+                var key = Path.GetFileName(path).Split('.')[0];
+                if (WidgetDesignRules.ValidKey(key) && !renders.Contains(key)) TryRemove(path);
             }
         }
         catch (IOException) { } catch (UnauthorizedAccessException) { }
@@ -204,6 +227,26 @@ public sealed class WidgetDesignRepository
         var height = System.Buffers.Binary.BinaryPrimitives.ReadInt32BigEndian(png[20..24]);
         if (width is < 1 or > WidgetDesignRules.MaximumImageEdge || height is < 1 or > WidgetDesignRules.MaximumImageEdge)
             throw new IOException("This widget image exceeds the supported dimensions.");
+    }
+    public static void ValidateScene(WidgetSceneExport export, WidgetDesign design)
+    {
+        WidgetScenes.Validate(export.Scene, design);
+        if (JsonSerializer.SerializeToUtf8Bytes(export.Scene, WidgetDesignRules.JsonContext.WidgetScene).Length > WidgetScenes.MaximumBytes)
+            throw new IOException("The live widget scene is too large.");
+        var indices = export.Scene.Parts.Where(x => x.ImageIndex is not null).Select(x => x.ImageIndex!.Value).ToHashSet();
+        if (export.Images is null || !indices.SetEquals(export.Images.Keys)) throw new IOException("A live widget photo group is missing.");
+        long pixels = 0;
+        long encodedBytes = 0;
+        foreach (var image in export.Images.Values)
+        {
+            ValidatePng(image);
+            encodedBytes += image.Length;
+            var width = System.Buffers.Binary.BinaryPrimitives.ReadInt32BigEndian(image.AsSpan(16, 4));
+            var height = System.Buffers.Binary.BinaryPrimitives.ReadInt32BigEndian(image.AsSpan(20, 4));
+            if (Math.Abs((double)width / height - export.Scene.Width / export.Scene.Height) >= .02) throw new IOException("A live widget photo group has invalid proportions.");
+            pixels += (long)width * height;
+        }
+        if (pixels > WidgetScenes.MaximumPixels || encodedBytes > WidgetScenes.MaximumImageBytes) throw new IOException("This live widget contains too much photo detail. Try fewer photo groups.");
     }
     private static void TryRemove(string? path)
     {

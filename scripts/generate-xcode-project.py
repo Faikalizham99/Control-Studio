@@ -25,9 +25,11 @@ def generate():
                              path="Shared/CounterAppearance.swift", sourceTree="<group>")
     widget_store = add("widget-design-store", "PBXFileReference", lastKnownFileType="sourcecode.swift",
                        path="Shared/WidgetDesignStore.swift", sourceTree="<group>")
+    clock_scene = add("widget-clock-scene", "PBXFileReference", lastKnownFileType="sourcecode.swift",
+                      path="Shared/WidgetClockScene.swift", sourceTree="<group>")
     privacy = add("privacy-manifest", "PBXFileReference", lastKnownFileType="text.xml",
                   path="PrivacyInfo.xcprivacy", sourceTree="<group>")
-    targets, products, children = [], [], [source, group_source, counter_appearance, widget_store, privacy]
+    targets, products, children = [], [], [source, group_source, counter_appearance, widget_store, clock_scene, privacy]
     for name, suffix, kind in [
         ("ControlStudioWidgets", "widgets", "app-extension"),
         ("ControlStudioIntents", "intents", "extensionkit-extension"),
@@ -38,7 +40,7 @@ def generate():
         product = add(name + "-product", "PBXFileReference", explicitFileType=f"wrapper.{kind}",
                       path=name + ".appex", sourceTree="BUILT_PRODUCTS_DIR", includeInIndex=0)
         products.append(product)
-        build_files = [add(name + "-" + ref, "PBXBuildFile", fileRef=ref) for ref in [source, group_source, widget_store, file]]
+        build_files = [add(name + "-" + ref, "PBXBuildFile", fileRef=ref) for ref in [source, group_source, widget_store, clock_scene, file]]
         if name == "ControlStudioWidgets":
             build_files.append(add("counter-appearance-build", "PBXBuildFile", fileRef=counter_appearance))
             design_view = add("widget-slots-view", "PBXFileReference", lastKnownFileType="sourcecode.swift",

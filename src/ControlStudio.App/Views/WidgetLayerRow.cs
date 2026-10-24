@@ -21,8 +21,10 @@ internal sealed class WidgetLayerRow : ContentView
     {
         LayerId = layer.Id;
         photo.Source = path; name.MaxLines = 2; name.LineBreakMode = LineBreakMode.TailTruncation;
-        var thumbnail = ClipboardEditorControls.Field(photo, 0); thumbnail.WidthRequest = thumbnail.HeightRequest = 48;
+        var thumbnail = ClipboardEditorControls.Field(layer.Kind == WidgetLayerKind.Clock ? ClipboardEditorControls.Icon(StudioSymbol.Clock, size: 28) : photo, 0); thumbnail.WidthRequest = thumbnail.HeightRequest = 48;
         thumbnail.VerticalOptions = LayoutOptions.Center;
+        var thumbnailTap = new TapGestureRecognizer(); thumbnailTap.Tapped += (_, _) => { if (IsEnabled && !reordering) select(layer.Id); };
+        thumbnail.GestureRecognizers.Add(thumbnailTap);
         var title = new VerticalStackLayout { Spacing = 2, VerticalOptions = LayoutOptions.Center,
             InputTransparent = true, Children = { name, detail } };
         tap = SettingsControls.TapTarget("Select " + layer.Name, "SelectWidgetLayer" + layer.Id.ToString("N"));
@@ -67,9 +69,11 @@ internal sealed class WidgetLayerRow : ContentView
     public void Update(WidgetLayer layer, bool selected)
     {
         updating = true; name.Text = layer.Name; visible.IsToggled = layerVisible = layer.Visible; updating = false;
-        detail.Text = "Image" + (layer.Locked ? " · Locked" : "") + (layer.BlendMode == WidgetBlendMode.Normal ? "" : " · " + WidgetBlending.Name(layer.BlendMode));
+        var kind = layer.Kind == WidgetLayerKind.Clock ? "clock" : "photo";
+        detail.Text = (layer.Kind == WidgetLayerKind.Clock ? "Clock" : "Image") + (layer.Locked ? " · Locked" : "")
+            + (layer.Clock is { } options ? (options.TwentyFourHour ? " · 24-hour" : " · 12-hour") : layer.BlendMode == WidgetBlendMode.Normal ? "" : " · " + WidgetBlending.Name(layer.BlendMode));
         placementLock.Symbol = layer.Locked ? StudioSymbol.Lock : StudioSymbol.Unlock;
-        placementLock.Describe(layer.Locked ? "Unlock photo layer" : "Lock photo layer", layer.Name + (layer.Locked ? ", locked" : ", unlocked"));
+        placementLock.Describe((layer.Locked ? "Unlock " : "Lock ") + kind + " layer", layer.Name + (layer.Locked ? ", locked" : ", unlocked"));
         surface.StrokeThickness = selected ? 2 : 1;
         if (selected) surface.SetDynamicResource(Border.StrokeProperty, "AccentText");
         else { surface.RemoveDynamicResource(Border.StrokeProperty); SettingsControls.SurfaceStroke(surface); }

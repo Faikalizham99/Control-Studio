@@ -33,6 +33,113 @@ public sealed class PickerCancellationTests : IDisposable
     private static WidgetEditorPage Editor(Store store, string source = "Photo Library", ColourPicker? colours = null)
         => new(store, colours ?? new(), NullLogger.Instance, WidgetDesignRules.New() with { Layers = [Photo()] }, choosePhotoSource: () => Task.FromResult<string?>(source));
     [Fact]
+    public async Task ClockPickerResultDuringDeactivationIsKeptWithoutRestartingThePreview()
+    {
+        var pending = new TaskCompletionSource<string>(); var colours = new ColourPicker { Pick = (_, _) => pending.Task };
+        var page = new WidgetEditorPage(new Store(), colours, NullLogger.Instance, chooseLayerType: () => Task.FromResult<string?>("Clock")); Open(page); await page.AddLayerAsync();
+        var picker = Descendants(page).OfType<ColourPickerView>().Single(x => x.AutomationId == "ClockTextColourPicker");
+        var composition = Descendants(page).OfType<WidgetCompositeView>().Single(); var picking = picker.PickAsync();
+        ((IWindow)host.App.Windows[0]).Deactivated(); Assert.Null(composition.Design);
+        pending.SetResult("#34ABEF"); await picking; Assert.Null(composition.Design);
+        ((IWindow)host.App.Windows[0]).Activated(); Assert.Equal("#34ABEF", composition.Design!.Layers.Single().Clock!.ColourHex);
+        Assert.True(Button(page, "SaveWidgetDesign").IsEnabled);
+    }
+    [Fact]
+    public async Task PendingClockHexIsValidatedBeforeSavingOrChangingSelection()
+    {
+        var photo = Photo(); var store = new Store();
+        var page = new WidgetEditorPage(store, new ColourPicker(), NullLogger.Instance, WidgetDesignRules.New() with { Layers = [photo] }, chooseLayerType: () => Task.FromResult<string?>("Clock")); Open(page); await page.AddLayerAsync();
+        var controls = Descendants(page).OfType<WidgetClockControls>().Single(); var hex = Descendants(controls).OfType<HexColorEntry>().Single();
+        hex.Text = "#bad"; ((IButtonController)Button(page, "SaveWidgetDesign")).SendClicked(); Assert.Equal(0, store.Saves);
+        Assert.True(Button(page, "SaveWidgetDesign").IsEnabled);
+        ((IButtonController)Button(page, "SelectWidgetLayer" + photo.Id.ToString("N"))).SendClicked(); Assert.True(controls.IsVisible);
+        hex.Text = "#12ABEF"; ((IButtonController)Button(page, "SaveWidgetDesign")).SendClicked();
+        Assert.Equal("#12ABEF", store.Saved!.Layers.Last().Clock!.ColourHex); Assert.Null(store.Saved.Layers[0].Clock);
+    }
+    [Fact]
+    public async Task PhotoChoiceCancellationRestoresTheEditorAndClockChoiceCanFollowIt()
+    {
+        var choice = "Photo"; var sources = 0; var store = new Store(); var photo = Photo(); WidgetEditorPage? page = null;
+        page = new WidgetEditorPage(store, new ColourPicker(), NullLogger.Instance, WidgetDesignRules.New() with { Layers = [photo] },
+            chooseLayerType: () => Task.FromResult<string?>(choice), choosePhotoSource: () => { sources++; ((IPageController)page!).SendDisappearing(); return Task.FromResult<string?>("Cancel"); }); Open(page);
+        await page.AddLayerAsync(); Assert.Equal(1, sources); Assert.Equal(0, store.Picks); Assert.True(Button(page, "SaveWidgetDesign").IsEnabled);
+        choice = "Clock"; await page.AddLayerAsync(); Assert.Equal(1, sources);
+        Assert.Equal(new[] { WidgetLayerKind.Photo, WidgetLayerKind.Clock }, Descendants(page).OfType<WidgetCompositeView>().Single().Design!.Layers.Select(x => x.Kind));
+    }
+    [Fact]
+    public async Task SharedLayerLimitPreventsOpeningTheChooserAtEightLayers()
+    {
+        var choices = 0; var store = new Store(); var original = WidgetDesignRules.New() with { Layers = Enumerable.Range(0, 8).Select(_ => WidgetClocks.New()).ToArray() };
+        var page = new WidgetEditorPage(store, new ColourPicker(), NullLogger.Instance, original, chooseLayerType: () => { choices++; return Task.FromResult<string?>("Clock"); }); Open(page);
+        Assert.False(Button(page, "AddWidgetPhoto").IsEnabled); await page.AddLayerAsync(); Assert.Equal(0, choices);
+        Assert.Equal(8, Descendants(page).OfType<WidgetCompositeView>().Single().Design!.Layers.Count); Assert.Equal(0, store.Picks);
+    }
+    [Fact]
+    public async Task ClockChooserAddsNoPhotoAndClockSettingsPersistAlongsideThePhoto()
+    {
+        var photo = Photo(); var store = new Store(); var original = WidgetDesignRules.New() with { Layers = [photo] };
+        var page = new WidgetEditorPage(store, new ColourPicker(), NullLogger.Instance, original, chooseLayerType: () => Task.FromResult<string?>("Clock")); Open(page);
+        await page.AddLayerAsync(); Assert.Equal(0, store.Picks); Assert.Equal(0, store.Saves);
+        var composition = Descendants(page).OfType<WidgetCompositeView>().Single(); var clock = composition.Design!.Layers.Last();
+        Assert.Equal(WidgetLayerKind.Clock, clock.Kind); Assert.Equal("Clock 1", clock.Name);
+        var controls = Descendants(page).OfType<WidgetClockControls>().Single(); Assert.True(controls.IsVisible);
+        void Click(string id) => ((IButtonController)Button(page, id)).SendClicked();
+        Click("ClockFormat0"); Click("ClockFont2"); Click("ClockAlignment2");
+        Descendants(controls).OfType<Switch>().Single(x => x.AutomationId == "ClockShowSeconds").IsToggled = false;
+        Descendants(controls).OfType<Slider>().Single(x => x.AutomationId == "ClockTextSize").Value = .5;
+        Descendants(controls).OfType<Slider>().Single(x => x.AutomationId == "ClockOpacity").Value = .7;
+        Click("ClockTextPurple");
+        clock = composition.Design.Layers.Last();
+        Assert.False(clock.Clock!.TwentyFourHour); Assert.False(clock.Clock.ShowSeconds); Assert.Equal(WidgetClockFont.Monospaced, clock.Clock.Font);
+        Assert.Equal(WidgetClockAlignment.Right, clock.Clock.Alignment); Assert.Equal(.5, clock.Clock.FontScale); Assert.Equal(.7, clock.Opacity);
+        Assert.Equal(ControlStudio.Core.AppearanceValues.Presets[1], clock.Clock.ColourHex);
+        Assert.False(Button(page, "ClipboardRotateselectedphoto").IsEnabled); Click("WidgetRotateRight"); Assert.Equal(0, composition.Design.Layers.Last().QuarterTurns);
+        Click("SelectWidgetLayer" + photo.Id.ToString("N")); Assert.False(controls.IsVisible); Assert.True(Button(page, "ClipboardRotateselectedphoto").IsEnabled);
+        Click("SelectWidgetLayer" + clock.Id.ToString("N")); Assert.True(controls.IsVisible); Click("SaveWidgetDesign");
+        Assert.Equal(clock, store.Saved!.Layers.Last()); Assert.Equal(photo, store.Saved.Layers[0]); Assert.Single(original.Layers);
+    }
+    [Theory]
+    [InlineData("Cancel")] [InlineData(null)]
+    public async Task CancellingLayerChooserDoesNotAlterPhotosOrDisableTheEditor(string? choice)
+    {
+        var store = new Store(); var photo = Photo(); var original = WidgetDesignRules.New() with { Layers = [photo] };
+        var page = new WidgetEditorPage(store, new ColourPicker(), NullLogger.Instance, original, chooseLayerType: () => Task.FromResult(choice)); Open(page);
+        await page.AddLayerAsync(); Assert.Equal(0, store.Picks); Assert.Equal(0, store.Saves);
+        Assert.Equal(original.Layers, Descendants(page).OfType<WidgetCompositeView>().Single().Design!.Layers);
+        Assert.True(Button(page, "AddWidgetPhoto").IsEnabled); Assert.True(Button(page, "SaveWidgetDesign").IsEnabled);
+    }
+    [Fact]
+    public async Task ClockCanMoveLockDeselectAndReorderWithPhotosWithoutLosingItsSettings()
+    {
+        var store = new Store(); var photo = Photo(); var original = WidgetDesignRules.New() with { Layers = [photo] };
+        var page = new WidgetEditorPage(store, new ColourPicker(), NullLogger.Instance, original, chooseLayerType: () => Task.FromResult<string?>("Clock")); Open(page); await page.AddLayerAsync();
+        var canvas = Descendants(page).OfType<WidgetCanvasView>().Single(); var composition = Descendants(page).OfType<WidgetCompositeView>().Single();
+        var clock = composition.Design!.Layers.Last(); ((IView)canvas.PhotoSurface).Arrange(new Rect(0, 0, 170, 170));
+        Assert.True(canvas.BeginInteraction(85, 85, false)); canvas.Pan(17, -17); canvas.EndInteraction(false);
+        var moved = composition.Design.Layers.Last(); Assert.Equal(clock.Frame.X + .1, moved.Frame.X, 8);
+        var control = Descendants(page).OfType<ClipboardIconButton>().Single(x => x.AutomationId == "WidgetLayerLock" + clock.Id.ToString("N"));
+        var toggle = Descendants(control).OfType<Button>().Single(); ((IButtonController)toggle).SendClicked();
+        Assert.Contains("Unlock clock layer", SemanticProperties.GetDescription(toggle)); Assert.False(canvas.BeginInteraction(102, 68, false));
+        var surface = Assert.IsType<WidgetEditorSurface>(page.Content); Assert.True(surface.DeselectFromBlankSpace());
+        Assert.False(Descendants(page).OfType<WidgetClockControls>().Single().IsVisible);
+        ((IButtonController)Button(page, "SelectWidgetLayer" + clock.Id.ToString("N"))).SendClicked();
+        var list = Descendants(page).OfType<WidgetLayerList>().Single(); var positions = list.Rows.Select((row, index) => new WidgetLayerPosition(row.LayerId, index * 72, 64)).ToArray();
+        var drag = list.BeginReorder(positions, clock.Id)!; drag.Move(500); list.CompleteReorder(drag);
+        Assert.Equal(clock.Id, composition.Design.Layers[0].Id); Assert.True(composition.Design.Layers[0].Locked); Assert.Equal(clock.Clock, composition.Design.Layers[0].Clock);
+        ((IButtonController)Button(page, "SaveWidgetDesign")).SendClicked(); Assert.Equal(clock.Id, store.Saved!.Layers[0].Id);
+    }
+    [Fact]
+    public async Task ClockColourPickerCancellationAndFailureRestoreActionsAndKeepItsClock()
+    {
+        var pending = new TaskCompletionSource<string>(); var colours = new ColourPicker { Pick = (_, _) => pending.Task };
+        var store = new Store(); var page = new WidgetEditorPage(store, colours, NullLogger.Instance, chooseLayerType: () => Task.FromResult<string?>("Clock")); Open(page); await page.AddLayerAsync();
+        var composition = Descendants(page).OfType<WidgetCompositeView>().Single(); var clock = composition.Design!.Layers.Single();
+        var picker = Descendants(page).OfType<ColourPickerView>().Single(x => x.AutomationId == "ClockTextColourPicker");
+        var picking = picker.PickAsync(); Assert.False(Button(page, "SaveWidgetDesign").IsEnabled); ((IPageController)page).SendDisappearing();
+        pending.SetException(new IOException("picker dismissed")); await picking;
+        Assert.True(Button(page, "SaveWidgetDesign").IsEnabled); Assert.True(Button(page, "AddWidgetPhoto").IsEnabled); Assert.Equal(clock, composition.Design!.Layers.Single());
+    }
+    [Fact]
     public void PhotoLockBlocksPlacementKeepsAppearanceEditableAndPersistsOnlyWhenSaved()
     {
         var photo = Photo(); var original = WidgetDesignRules.New() with { Layers = [photo] }; var store = new Store();
@@ -346,7 +453,7 @@ public sealed class PickerCancellationTests : IDisposable
     {
         var pending = new TaskCompletionSource<string>(); var colours = new ColourPicker { Pick = (_, _) => pending.Task };
         var page = Editor(new Store(), colours: colours); Open(page);
-        var picker = Descendants(page).OfType<ColourPickerView>().Single();
+        var picker = Descendants(page).OfType<ColourPickerView>().Single(x => x.AutomationId == "WidgetBackgroundColourPicker");
         var picking = picker.PickAsync(); Assert.True(picker.IsBusy); Assert.False(Button(page, "SaveWidgetDesign").IsEnabled);
         ((IPageController)page).SendDisappearing();
         if (fail) pending.SetException(new IOException("picker unavailable")); else pending.SetResult("#12ABEF");

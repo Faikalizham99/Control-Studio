@@ -8,6 +8,7 @@ internal sealed class WidgetEditorPage : ContentPage
 {
     private readonly IWidgetEditorStore studio;
     private readonly Func<Task<string?>> choosePhotoSource;
+    private readonly Func<Task<string?>> chooseLayerType;
     private readonly ILogger logger;
     private WidgetDesign draft;
     private Guid? selected;
@@ -44,16 +45,19 @@ internal sealed class WidgetEditorPage : ContentPage
     private readonly VerticalStackLayout flipMenu = new() { Spacing = 8, IsVisible = false };
     private readonly VerticalStackLayout opacityMenu = new() { Spacing = 4, IsVisible = false };
     private readonly ColourPickerView background;
+    private readonly WidgetClockControls clockControls;
+    private readonly List<View> photoOnlyPrecision = [];
     private readonly List<(string Title, Slider Slider, Label Label)> sliders = [];
     private bool updating, busy, saved, departed, closing;
     private Window? observedWindow;
     private bool Foreground => EditorPageActivity.IsForeground(this);
-    private bool CanEdit => Foreground && !busy && !saved && !departed && !background.IsBusy && !canvas.IsInteracting && !layerList.IsReordering;
+    private bool CanEdit => Foreground && !busy && !saved && !departed && !background.IsBusy && !clockControls.IsBusy && !canvas.IsInteracting && !layerList.IsReordering;
 
-    public WidgetEditorPage(IWidgetEditorStore studio, IColourPicker colourPicker, ILogger logger, WidgetDesign? original = null, WidgetSize initialSize = WidgetSize.Small, Func<Task<string?>>? choosePhotoSource = null)
+    public WidgetEditorPage(IWidgetEditorStore studio, IColourPicker colourPicker, ILogger logger, WidgetDesign? original = null, WidgetSize initialSize = WidgetSize.Small, Func<Task<string?>>? choosePhotoSource = null, Func<Task<string?>>? chooseLayerType = null)
     {
         this.studio = studio; this.logger = logger;
         this.choosePhotoSource = choosePhotoSource ?? (() => DisplayActionSheetAsync("Add photo layer", "Cancel", null, "Photo Library", "Files"));
+        this.chooseLayerType = chooseLayerType ?? (() => DisplayActionSheetAsync("Add layer", "Cancel", null, "Photo", "Clock"));
         draft = WidgetDesignRules.ForEditing(original ?? (WidgetDesignRules.New() with { Size = initialSize, TransparentBackground = OperatingSystem.IsIOSVersionAtLeast(26) }));
         ApplyCanvasSizing();
         Title = original is null ? "New widget" : "Edit widget"; AutomationId = "WidgetEditorPage"; WidgetStudioStyle.Page(this);
@@ -79,6 +83,15 @@ internal sealed class WidgetEditorPage : ContentPage
         });
         sizes.Update(Array.IndexOf(WidgetDesignRules.SupportedSizes.ToArray(), draft.Size));
         background = new ColourPickerView(colourPicker, "WidgetBackground", "Background"); background.SetSelection(draft.BackgroundHex);
+        clockControls = new(colourPicker);
+        clockControls.BusyChanged += (_, _) => RefreshActions();
+        clockControls.Changed += changed =>
+        {
+            if (saved || departed || canvas.IsInteracting || layerList.IsReordering) return;
+            var current = draft.Layers.FirstOrDefault(x => x.Id == changed.Id && x.Kind == WidgetLayerKind.Clock); if (current is null) return;
+            ReplaceLayer(current with { Clock = changed.Clock, Opacity = changed.Opacity }); RefreshControls();
+            if (Foreground) UpdateCanvas(); else canvas.SuspendComposition();
+        };
         layerList.CanStart = () => CanEdit;
         layerList.InteractionChanged += (_, _) => RefreshActions();
         layerList.Reordered += ReorderLayers;
@@ -126,19 +139,22 @@ internal sealed class WidgetEditorPage : ContentPage
             new WidgetCanvasViewport(canvas, logger), tools, rotateMenu, flipMenu, opacityMenu, blendMenu
         } }));
 
-        addPhoto = AsyncAction("Add photo layer", StudioSymbol.Photo, "AddWidgetPhoto", PickPhotoAsync);
+        form.Children.Add(clockControls);
+        addPhoto = AsyncAction("Add layer", StudioSymbol.Plus, "AddWidgetPhoto", ChooseLayerAsync);
         var layerHeading = new Grid { ColumnDefinitions = { new(GridLength.Star), new(GridLength.Auto) } };
         var layerLabel = SettingsControls.Text("Layers", 21, bold: true); layerLabel.VerticalOptions = LayoutOptions.Center;
         layerHeading.Add(layerLabel); layerHeading.Add(layersCount, 1);
         layersCount.VerticalTextAlignment = TextAlignment.Center;
         form.Children.Add(Card(new VerticalStackLayout { Spacing = 12, Children = { layerHeading, addPhoto, layerList } }));
         precise.Children.Add(selectedTitle);
-        precise.Children.Add(SettingsControls.Text("Full photo keeps the entire image visible. Turn it off to crop inside the layer frame. Moving past the widget edges hides content in either mode.", 12, secondary: true));
+        var photoHelp = SettingsControls.Text("Full photo keeps the entire image visible. Turn it off to crop inside the layer frame. Moving past the widget edges hides content in either mode.", 12, secondary: true);
+        precise.Children.Add(photoHelp); photoOnlyPrecision.Add(photoHelp);
         var fitLabel = SettingsControls.Text("Show full photo", 14); fitLabel.VerticalOptions = LayoutOptions.Center;
         SemanticProperties.SetDescription(fullPhoto, "Show the full photo without cropping inside its layer");
-        fullPhoto.Toggled += (_, args) => { if (!updating && CanEdit) EditLayer(layer => layer with { FitPhoto = args.Value }, closeTools: false); };
+        fullPhoto.Toggled += (_, args) => { if (!updating && CanEdit && draft.Layers.Any(x => x.Id == selected && x.Kind == WidgetLayerKind.Photo)) EditLayer(layer => layer with { FitPhoto = args.Value }, closeTools: false); };
         var fitRow = new Grid { ColumnDefinitions = { new(GridLength.Star), new(GridLength.Auto) }, ColumnSpacing = 8 };
         fitRow.Add(fitLabel); fitRow.Add(fullPhoto, 1); precise.Children.Add(fitRow);
+        photoOnlyPrecision.Add(fitRow);
         precise.Children.Add(MenuAction("Centre on widget", StudioSymbol.Widgets, () => EditLayer(WidgetLayerEdits.Center, closeTools: false)));
         AddSlider("Horizontal position", -WidgetDesignRules.MaximumLayerOffset, WidgetDesignRules.MaximumLayerOffset);
         AddSlider("Vertical position", -WidgetDesignRules.MaximumLayerOffset, WidgetDesignRules.MaximumLayerOffset);
@@ -164,7 +180,7 @@ internal sealed class WidgetEditorPage : ContentPage
         var layout = new Grid { RowDefinitions = { new(GridLength.Auto), new(GridLength.Star) } };
         scroll.Content = form; layout.Add(ClipboardEditorControls.Header(Title, back, cancel)); layout.Add(scroll, 0, 1);
         Content = new WidgetEditorSurface(layout, () => CanEdit && selected is not null, ClearLayerSelection,
-            canvas, tools, rotateMenu, flipMenu, opacityMenu, blendMenu, layerList, precise, background);
+            canvas, tools, rotateMenu, flipMenu, opacityMenu, blendMenu, layerList, precise, background, clockControls);
         selected = draft.Layers.LastOrDefault()?.Id; RefreshBackground(); RefreshLayers();
     }
     private static Border Card(View content) => ClipboardEditorControls.Surface(content, 22, 14);
@@ -195,16 +211,18 @@ internal sealed class WidgetEditorPage : ContentPage
     private void SelectLayer(Guid id)
     {
         if (busy || saved || departed || layerList.IsReordering) return;
+        if (!CommitClockColour()) return;
         if (selected != id) CloseTools(); selected = id; RefreshLayers();
     }
     private void ClearLayerSelection()
     {
-        if (!CanEdit || selected is null) return;
+        if (!CanEdit || selected is null || !CommitClockColour()) return;
         CloseTools(); precise.IsVisible = false; selected = null; name.Unfocus(); RefreshLayers();
     }
     private void ToggleLayerLock(Guid id)
     {
         if (!CanEdit) return;
+        if (!CommitClockColour()) return;
         var layer = draft.Layers.FirstOrDefault(x => x.Id == id); if (layer is null) return;
         if (selected == id) { CloseTools(); precise.IsVisible = false; }
         ReplaceLayer(layer with { Locked = !layer.Locked }); RefreshLayers();
@@ -225,7 +243,7 @@ internal sealed class WidgetEditorPage : ContentPage
         var label = SettingsControls.Text(title, 13); var slider = new Slider { Minimum = minimum, Maximum = maximum, MinimumHeightRequest = 44 };
         slider.SetDynamicResource(Slider.MinimumTrackColorProperty, "AccentText"); SemanticProperties.SetDescription(slider, title + " for selected photo");
         var index = sliders.Count; sliders.Add((title, slider, label)); precise.Children.Add(label); precise.Children.Add(slider);
-        slider.ValueChanged += (_, args) => { if (!updating && CanEdit) ApplySlider(index, args.NewValue); };
+        slider.ValueChanged += (_, args) => { if (!updating && CanEdit && slider.IsEnabled) ApplySlider(index, args.NewValue); };
     }
     private void ApplySlider(int index, double value) => EditLayer(layer =>
     {
@@ -265,13 +283,13 @@ internal sealed class WidgetEditorPage : ContentPage
         {
             if (!rows.TryGetValue(layer.Id, out var row))
             {
-                row = new WidgetLayerRow(layer, studio.AssetPath(layer.AssetKey), dragScope, SelectLayer,
+                row = new WidgetLayerRow(layer, layer.Kind == WidgetLayerKind.Photo ? studio.AssetPath(layer.AssetKey) : null, dragScope, SelectLayer,
                     (id, visible) =>
                     {
                         if (!CanEdit) return;
                         var current = draft.Layers.FirstOrDefault(x => x.Id == id); if (current is null) return;
                         ReplaceLayer(current with { Visible = visible }); RefreshLayers();
-                    }, id => { if (CanEdit) { selected = id; RefreshLayers(); _ = RunAsync(LayerMenuAsync); } },
+                    }, id => { if (CanEdit && CommitClockColour()) { selected = id; RefreshLayers(); _ = RunAsync(LayerMenuAsync); } },
                     ReorderLayers, ToggleLayerLock);
                 rows.Add(layer.Id, row); layerList.Items.Add(row);
             }
@@ -292,23 +310,28 @@ internal sealed class WidgetEditorPage : ContentPage
         try
         {
             var layer = draft.Layers.FirstOrDefault(x => x.Id == selected);
-            blendMenu.Update(layer);
+            clockControls.Update(layer);
+            var isPhoto = layer?.Kind == WidgetLayerKind.Photo;
+            tools.IsVisible = isPhoto;
+            blendMenu.Update(isPhoto ? layer : null);
+            foreach (var view in photoOnlyPrecision) view.IsVisible = isPhoto;
             if (layer is not null) blendTool.Describe("Blend", layer.Name + ", " + WidgetBlending.Name(layer.BlendMode));
             if (layer is null) { precise.IsVisible = false; opacityCaption.Text = "Photo opacity"; return; }
-            selectedTitle.Text = layer.Name + " · Size, position & crop"; opacityCaption.Text = $"Photo opacity · {layer.Opacity:P0}"; opacity.Value = layer.Opacity;
+            selectedTitle.Text = layer.Name + (isPhoto ? " · Size, position & crop" : " · Size & position"); opacityCaption.Text = $"Photo opacity · {layer.Opacity:P0}"; opacity.Value = layer.Opacity;
             opacityTool.Describe("Photo opacity", $"{layer.Opacity:P0}");
             fullPhoto.IsToggled = layer.FitPhoto;
             var values = new[] { layer.Frame.X, layer.Frame.Y, layer.Frame.Width, layer.Frame.Height, layer.Zoom, layer.CropX, layer.CropY };
             for (var i = 0; i < sliders.Count; i++)
             {
                 sliders[i].Slider.Value = values[i]; sliders[i].Label.Text = i == 4 ? $"{sliders[i].Title} · {values[i]:0.00}×" : $"{sliders[i].Title} · {values[i]:P0}";
+                sliders[i].Slider.IsVisible = sliders[i].Label.IsVisible = i < 4 || isPhoto;
             }
             sliders[0].Slider.IsEnabled = sliders[1].Slider.IsEnabled = true;
-            sliders[4].Slider.IsEnabled = !layer.FitPhoto;
+            sliders[4].Slider.IsEnabled = isPhoto && !layer.FitPhoto;
             var bounds = WidgetDesignRules.Canvas(draft); var width = layer.Frame.Width * bounds.Width; var height = layer.Frame.Height * bounds.Height;
             var placement = WidgetPhotoGeometry.Image(layer, width, height);
-            sliders[5].Slider.IsEnabled = !layer.FitPhoto && placement.Width > width + .001;
-            sliders[6].Slider.IsEnabled = !layer.FitPhoto && placement.Height > height + .001;
+            sliders[5].Slider.IsEnabled = isPhoto && !layer.FitPhoto && placement.Width > width + .001;
+            sliders[6].Slider.IsEnabled = isPhoto && !layer.FitPhoto && placement.Height > height + .001;
         }
         finally { updating = false; }
     }
@@ -316,22 +339,27 @@ internal sealed class WidgetEditorPage : ContentPage
     {
         var layer = draft.Layers.FirstOrDefault(x => x.Id == selected); if (layer is null) return;
         var index = draft.Layers.ToList().FindIndex(x => x.Id == layer.Id);
-        var choices = new List<string> { "Rename", layer.Locked ? "Unlock photo" : "Lock photo", "Deselect photo" };
-        if (!layer.Locked) choices.AddRange(["Size, position & crop", "Centre on widget", layer.FitPhoto ? "Crop to frame" : "Show full photo"]);
+        var choices = new List<string> { "Rename", layer.Locked ? "Unlock layer" : "Lock layer", "Deselect layer" };
+        if (!layer.Locked)
+        {
+            choices.Add(layer.Kind == WidgetLayerKind.Photo ? "Size, position & crop" : "Size & position"); choices.Add("Centre on widget");
+            if (layer.Kind == WidgetLayerKind.Photo) choices.Add(layer.FitPhoto ? "Crop to frame" : "Show full photo");
+        }
         if (index < draft.Layers.Count - 1) choices.Add("Move forward"); if (index > 0) choices.Add("Move backward");
         var choice = await DisplayActionSheetAsync(layer.Name, "Cancel", "Delete layer", choices.ToArray());
         if (!Foreground || departed) return;
         switch (choice)
         {
-            case "Lock photo": ReplaceLayer(layer with { Locked = true }); precise.IsVisible = false; break;
-            case "Unlock photo": ReplaceLayer(layer with { Locked = false }); break;
-            case "Deselect photo": selected = null; precise.IsVisible = false; break;
+            case "Lock layer": ReplaceLayer(layer with { Locked = true }); precise.IsVisible = false; break;
+            case "Unlock layer": ReplaceLayer(layer with { Locked = false }); break;
+            case "Deselect layer": selected = null; precise.IsVisible = false; break;
             case "Rename":
                 var title = await DisplayPromptAsync("Layer name", "Use up to 40 characters.", initialValue: layer.Name, maxLength: 40);
                 if (!Foreground || departed || title is null) return;
                 var changed = layer with { Name = title.Trim() }; var next = draft with { Layers = draft.Layers.Select(x => x.Id == layer.Id ? changed : x).ToArray() };
                 WidgetDesignRules.Validate(next); draft = next; break;
             case "Size, position & crop":
+            case "Size & position":
                 precise.IsVisible = true;
                 var animate = false;
 #if IOS
@@ -354,6 +382,27 @@ internal sealed class WidgetEditorPage : ContentPage
         if (index >= 0 && target >= 0 && target < layers.Count) draft = draft with { Layers = WidgetLayerEdits.Reorder(layers, layers[index].Id, layers[target].Id) };
     }
     internal Task AddPhotoAsync() => RunAsync(PickPhotoAsync);
+    internal Task AddLayerAsync() => RunAsync(ChooseLayerAsync);
+    private async Task ChooseLayerAsync()
+    {
+        if (!CommitClockColour() || draft.Layers.Count >= WidgetDesignRules.MaximumLayers) return;
+        name.Unfocus(); var choice = await chooseLayerType();
+        if (!Foreground || departed) return;
+        if (choice == "Photo") await PickPhotoAsync();
+        else if (choice == "Clock")
+        {
+            if (OperatingSystem.IsIOS() && !OperatingSystem.IsIOSVersionAtLeast(18)) { ShowStatus("Live clocks require iOS 18 or later."); return; }
+            var ordinal = 1; while (draft.Layers.Any(x => x.Name == "Clock " + ordinal)) ordinal++;
+            var colour = Application.Current?.Resources.TryGetValue("Accent", out var accent) == true && accent is Color value ? AppearanceColors.ToRgbHex(value) : "#007AFF";
+            var layer = WidgetClocks.New("Clock " + ordinal, colour);
+            draft = draft with { Layers = draft.Layers.Append(layer).ToArray() }; selected = layer.Id; RefreshLayers();
+        }
+    }
+    private bool CommitClockColour()
+    {
+        if (clockControls.CommitPendingColour()) return true;
+        ShowStatus("Enter a valid clock text colour before continuing."); return false;
+    }
     private async Task PickPhotoAsync()
     {
         if (draft.Layers.Count >= WidgetDesignRules.MaximumLayers) return;
@@ -369,7 +418,7 @@ internal sealed class WidgetEditorPage : ContentPage
     private async Task RemoveLayerAsync()
     {
         var layer = draft.Layers.FirstOrDefault(x => x.Id == selected); if (layer is null) return;
-        if (!await DisplayAlertAsync("Delete photo layer?", "Remove this layer from your widget draft? Your original photo is kept.", "Delete", "Cancel") || !Foreground || departed) return;
+        if (!await DisplayAlertAsync("Delete layer?", layer.Kind == WidgetLayerKind.Photo ? "Remove this layer from your widget draft? Your original photo is kept." : "Remove this clock from your widget draft?", "Delete", "Cancel") || !Foreground || departed) return;
         CloseTools(); draft = draft with { Layers = draft.Layers.Where(x => x.Id != layer.Id).ToArray() }; selected = draft.Layers.LastOrDefault()?.Id; RefreshLayers();
         if (ownedPhotos.Contains(layer.AssetKey) && !draft.Layers.Any(x => x.AssetKey == layer.AssetKey))
         {
@@ -400,8 +449,10 @@ internal sealed class WidgetEditorPage : ContentPage
     }
     private async Task SaveAsync()
     {
+        if (!CommitClockColour()) return;
         if (!draft.TransparentBackground && !background.CommitPendingHex()) { ShowStatus("Enter a valid background colour before saving."); return; }
         name.Unfocus(); draft = draft with { Name = name.Text?.Trim() ?? "", PreserveCanvas = true };
+        ShowStatus("Saving widget…");
         // Export owns its own compositor on a worker thread. Release the preview's
         // buffers first rather than retaining two eight-layer compositions at once.
         canvas.SuspendComposition();
@@ -416,9 +467,9 @@ internal sealed class WidgetEditorPage : ContentPage
         // Availability follows operation state. Native picker dismissal can briefly report an
         // inactive application; persisting that snapshot in IsEnabled can lock the whole editor.
         // Execution still checks the current navigation owner and MAUI window activation.
-        var canInteract = !busy && !departed && !background.IsBusy && !canvas.IsInteracting;
+        var canInteract = !busy && !departed && !background.IsBusy && !clockControls.IsBusy && !canvas.IsInteracting;
         var canNavigate = canInteract && !layerList.IsReordering;
-        form.IsEnabled = !busy && !saved && !departed && !background.IsBusy;
+        form.IsEnabled = !busy && !saved && !departed && !background.IsBusy && !clockControls.IsBusy;
         // The list must stay enabled until its native drag recognizer finishes.
         layerList.IsEnabled = canInteract && !saved;
         save.IsEnabled = sizes.IsEnabled = name.IsEnabled = background.IsEnabled = canNavigate && !saved;
@@ -426,8 +477,8 @@ internal sealed class WidgetEditorPage : ContentPage
         back.IsEnabled = cancel.IsEnabled = canNavigate;
         addPhoto.IsEnabled = canNavigate && !saved && draft.Layers.Count < WidgetDesignRules.MaximumLayers;
         var layer = draft.Layers.FirstOrDefault(x => x.Id == selected);
-        opacityTool.IsEnabled = deleteTool.IsEnabled = blendTool.IsEnabled = blendMenu.IsEnabled = tools.IsEnabled = canNavigate && !saved && layer is not null;
-        resetTool.IsEnabled = rotateTool.IsEnabled = flipTool.IsEnabled = canNavigate && !saved && layer is { Locked: false };
+        opacityTool.IsEnabled = deleteTool.IsEnabled = blendTool.IsEnabled = blendMenu.IsEnabled = tools.IsEnabled = canNavigate && !saved && layer?.Kind == WidgetLayerKind.Photo;
+        resetTool.IsEnabled = rotateTool.IsEnabled = flipTool.IsEnabled = rotateMenu.IsEnabled = flipMenu.IsEnabled = canNavigate && !saved && layer is { Kind: WidgetLayerKind.Photo, Locked: false };
         precise.IsEnabled = canNavigate && !saved && layer is { Locked: false };
     }
     private async Task RunAsync(Func<Task> operation)
@@ -470,7 +521,7 @@ internal sealed class WidgetEditorPage : ContentPage
         try { await CloseSavedAsync(); }
         catch (Exception ex) { logger.LogWarning("Widget editor dismissal failed. ErrorType={ErrorType}", ex.GetType().Name); ShowStatus("Your widget is saved. Tap Back to return."); }
     }
-    private async void WindowActivated(object? sender, EventArgs args) { RefreshActions(); if (Foreground && !saved && !busy) ResumeCanvas(); if (saved && !busy) await TryCloseSavedAsync(); }
+    private async void WindowActivated(object? sender, EventArgs args) { TimeZoneInfo.ClearCachedData(); RefreshActions(); if (Foreground && !saved && !busy) ResumeCanvas(); if (saved && !busy) await TryCloseSavedAsync(); }
     private void WindowDeactivated(object? sender, EventArgs args) { layerList.CancelReorder(); canvas.EndInteraction(true); canvas.SuspendComposition(); CloseTools(); RefreshActions(); }
     protected override async void OnAppearing()
     {
@@ -489,12 +540,12 @@ internal sealed class WidgetEditorPage : ContentPage
     }
     protected override void OnDisappearing()
     {
-        layerList.CancelReorder(); canvas.EndInteraction(true); CloseTools(); RefreshActions();
+        layerList.CancelReorder(); canvas.EndInteraction(true); canvas.SuspendComposition(); CloseTools(); RefreshActions();
         // A native picker can cover this page without removing it from MAUI navigation.
         // Keep activation recovery subscribed until this editor actually leaves the stack.
         base.OnDisappearing();
     }
-    protected override bool OnBackButtonPressed() => busy || background.IsBusy || canvas.IsInteracting || layerList.IsReordering || base.OnBackButtonPressed();
+    protected override bool OnBackButtonPressed() => busy || background.IsBusy || clockControls.IsBusy || canvas.IsInteracting || layerList.IsReordering || base.OnBackButtonPressed();
     protected override void OnNavigatedFrom(NavigatedFromEventArgs args)
     {
         base.OnNavigatedFrom(args);

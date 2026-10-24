@@ -79,6 +79,8 @@ struct WidgetDesignSummary: Decodable, Equatable {
     let preserveCanvas: Bool?
     let backgroundHex: String?
     let canvasDimensions: WidgetCanvasDimensions?
+    var layers: [WidgetLayerMarker]? = nil
+    var hasLiveClock: Bool { layers?.contains(where: { $0.liveClock }) ?? false }
     var canvasBackgroundRGB: (red: Double, green: Double, blue: Double)? {
         guard let hex = backgroundHex, hex.utf8.count == 7, hex.first == "#",
               hex.dropFirst().utf8.allSatisfy({ (48...57).contains($0) || (65...70).contains($0) }),
@@ -152,7 +154,7 @@ struct WidgetDesignStore {
         for design in catalog.designs {
             guard UUID(uuidString: design.id) != nil, design.id != "00000000-0000-0000-0000-000000000000",
                 Self.validKey(design.renderKey), design.revision >= 0,
-                !design.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, design.name.utf16.count <= 60
+                !design.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, design.name.utf16.count <= 60, (design.layers?.count ?? 0) <= 8
                 else { throw WidgetDesignError.invalidCatalog }
         }
         return catalog.designs.filter { $0.size.isSupported }
@@ -167,7 +169,7 @@ struct WidgetDesignStore {
         guard (1...1024).contains(width), (1...1024).contains(height) else { throw WidgetDesignError.imageUnavailable }
         return data
     }
-    private func boundedData(_ url: URL, maximum: Int) throws -> Data {
+    func boundedData(_ url: URL, maximum: Int) throws -> Data {
         let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
         guard let size = attributes[.size] as? NSNumber, size.intValue <= maximum else { throw WidgetDesignError.invalidCatalog }
         let data = try Data(contentsOf: url)

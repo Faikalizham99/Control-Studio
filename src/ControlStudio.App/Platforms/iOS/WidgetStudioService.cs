@@ -84,7 +84,7 @@ public sealed class WidgetStudioService : IWidgetEditorStore
         try
         {
             var render = await Task.Run(() => Render(draft));
-            var saved = await Repository.SaveAsync(draft, render.Full, thumbnail: render.Thumbnail);
+            var saved = await Repository.SaveAsync(draft, render.Full, thumbnail: render.Thumbnail, scene: render.Scene);
             return new(saved, await PublishCoreAsync());
         }
         finally { gate.Release(); }
@@ -114,7 +114,7 @@ public sealed class WidgetStudioService : IWidgetEditorStore
         try { await publisher.PublishAsync(); if (slot is { } number) ReloadSlotNative(number); else ReloadNative(); return true; }
         catch (Exception ex) { logger.LogWarning("Widget publication failed. ErrorType={ErrorType}", ex.GetType().Name); return false; }
     }
-    private (byte[] Full, byte[] Thumbnail) Render(WidgetDesign design)
+    private (byte[] Full, byte[] Thumbnail, WidgetSceneExport? Scene) Render(WidgetDesign design)
     {
         using var pool = new NSAutoreleasePool();
         using var compositor = new WidgetPhotoCompositor(Repository.AssetPath);
@@ -129,6 +129,6 @@ public sealed class WidgetStudioService : IWidgetEditorStore
         using var smallRenderer = new UIGraphicsImageRenderer(new CGSize(smallWidth, smallHeight), format);
         using var small = smallRenderer.CreateImage(_ => rendered.Draw(new CGRect(0, 0, smallWidth, smallHeight)));
         using var thumb = small.AsPNG() ?? throw new IOException("The widget thumbnail could not be rendered.");
-        return (png.ToArray(), thumb.ToArray());
+        return (png.ToArray(), thumb.ToArray(), WidgetScenes.IsLive(design) ? compositor.Scene(design) : null);
     }
 }

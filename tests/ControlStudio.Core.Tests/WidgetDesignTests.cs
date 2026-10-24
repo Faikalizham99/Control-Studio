@@ -49,7 +49,7 @@ public sealed class WidgetDesignTests
         WidgetDesignRules.Validate(design with { Layers = Enumerable.Range(0, 8).Select(_ => Photo()).ToArray() });
         Assert.Throws<IOException>(() => WidgetDesignRules.Validate(design with { Layers = Enumerable.Range(0, 9).Select(_ => Photo()).ToArray() }));
         var json = JsonSerializer.Serialize(design with { Layers = [Photo()] }, WidgetDesignRules.Json);
-        Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<WidgetDesign>(json.Replace("\"photo\"", "\"clock\""), WidgetDesignRules.Json));
+        Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<WidgetDesign>(json.Replace("\"photo\"", "\"futureLayer\""), WidgetDesignRules.Json));
         Assert.Throws<IOException>(() => WidgetDesignRules.Validate(new WidgetCatalog(2, [design])));
     }
     [Theory]

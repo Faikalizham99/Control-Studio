@@ -6,12 +6,12 @@ namespace ControlStudio.Core.Widgets;
 // ExtraLarge is retained only to decode retired saved libraries. It cannot be
 // created, rendered, assigned or published. Keep serialized IDs stable.
 public enum WidgetSize { Small, Medium, Large, ExtraLarge, ExtraLargePortrait }
-public enum WidgetLayerKind { Photo }
+public enum WidgetLayerKind { Photo, Clock }
 public sealed record WidgetFrame(double X = 0, double Y = 0, double Width = 1, double Height = 1);
 public sealed record WidgetLayer(Guid Id, string Name, string AssetKey, int PixelWidth, int PixelHeight,
     WidgetFrame Frame, double Zoom = 1, double CropX = .5, double CropY = .5, bool Visible = true,
     WidgetLayerKind Kind = WidgetLayerKind.Photo, int QuarterTurns = 0, bool FlipHorizontal = false, bool FlipVertical = false, double Opacity = 1,
-    bool FitPhoto = false, WidgetBlendMode BlendMode = WidgetBlendMode.Normal, bool Locked = false);
+    bool FitPhoto = false, WidgetBlendMode BlendMode = WidgetBlendMode.Normal, bool Locked = false, WidgetClockOptions? Clock = null);
 public sealed record WidgetDesign(Guid Id, string Name, WidgetSize Size, string BackgroundHex,
     IReadOnlyList<WidgetLayer> Layers, string RenderKey, int Revision = 0, bool TransparentBackground = false, bool PreserveCanvas = false,
     WidgetCanvasSize? CanvasDimensions = null);
@@ -24,6 +24,7 @@ public sealed record WidgetCatalog(int SchemaVersion, IReadOnlyList<WidgetDesign
 [JsonSerializable(typeof(WidgetSlotCatalog))]
 [JsonSerializable(typeof(WidgetLibraryCatalog))]
 [JsonSerializable(typeof(WidgetDisplayMeasurement))]
+[JsonSerializable(typeof(WidgetScene))]
 public partial class WidgetJsonContext : JsonSerializerContext;
 
 public static class WidgetDesignRules
@@ -47,6 +48,8 @@ public static class WidgetDesignRules
         json.Converters.Add(new JsonStringEnumConverter<WidgetSize>(JsonNamingPolicy.CamelCase, false));
         json.Converters.Add(new JsonStringEnumConverter<WidgetLayerKind>(JsonNamingPolicy.CamelCase, false));
         json.Converters.Add(new JsonStringEnumConverter<WidgetBlendMode>(JsonNamingPolicy.CamelCase, false));
+        json.Converters.Add(new JsonStringEnumConverter<WidgetClockFont>(JsonNamingPolicy.CamelCase, false));
+        json.Converters.Add(new JsonStringEnumConverter<WidgetClockAlignment>(JsonNamingPolicy.CamelCase, false));
         return json;
     }
     public static WidgetDesign New() => new(Guid.NewGuid(), "My widget", WidgetSize.Small, "#101116", [], Guid.NewGuid().ToString("N"), TransparentBackground: true, PreserveCanvas: true);
@@ -78,17 +81,26 @@ public static class WidgetDesignRules
         if (design.CanvasDimensions is { } dimensions && !WidgetCanvasSizes.Valid(design.Size, dimensions))
             throw new IOException("The saved widget dimensions are invalid. Its data was not changed.");
         if (design.Layers is null || design.Layers.Count > MaximumLayers || design.Layers.Select(x => x?.Id).Distinct().Count() != design.Layers.Count)
-            throw new IOException($"A widget can contain up to {MaximumLayers} photo layers.");
+            throw new IOException($"A widget can contain up to {MaximumLayers} layers.");
         foreach (var layer in design.Layers)
         {
-            if (layer is null || layer.Id == Guid.Empty || layer.Kind != WidgetLayerKind.Photo || !ValidKey(layer.AssetKey)
+            if (layer is null || layer.Id == Guid.Empty || !Enum.IsDefined(layer.Kind)
                 || string.IsNullOrWhiteSpace(layer.Name) || layer.Name.Length > 40 || layer.Name.Any(char.IsControl)
                 || layer.PixelWidth is < 1 or > MaximumImageEdge || layer.PixelHeight is < 1 or > MaximumImageEdge
                 || layer.Frame is not { } f || !Range(f.X, -MaximumLayerOffset, MaximumLayerOffset) || !Range(f.Y, -MaximumLayerOffset, MaximumLayerOffset)
                 || !Range(f.Width, MinimumLayerSize, MaximumLayerSize) || !Range(f.Height, MinimumLayerSize, MaximumLayerSize)
                 || !Range(layer.Zoom, 1, 4) || !Range(layer.CropX, 0, 1) || !Range(layer.CropY, 0, 1)
                 || layer.QuarterTurns is < 0 or > 3 || !Range(layer.Opacity, 0, 1) || !Enum.IsDefined(layer.BlendMode))
-                throw new IOException("A photo layer is invalid. Its data was not changed.");
+                throw new IOException("A widget layer is invalid. Its data was not changed.");
+            if (layer.Kind == WidgetLayerKind.Photo)
+            {
+                if (!ValidKey(layer.AssetKey) || layer.Clock is not null) throw new IOException("A photo layer is invalid. Its data was not changed.");
+            }
+            else if (layer.AssetKey != "" || layer.PixelWidth != 1 || layer.PixelHeight != 1 || layer.Clock is null
+                || layer.Zoom != 1 || layer.CropX != .5 || layer.CropY != .5 || layer.QuarterTurns != 0
+                || layer.FlipHorizontal || layer.FlipVertical || layer.FitPhoto || layer.BlendMode != WidgetBlendMode.Normal)
+                throw new IOException("A clock layer is invalid. Its data was not changed.");
+            else WidgetClocks.Validate(layer.Clock);
         }
     }
     public static void Validate(WidgetCatalog catalog)

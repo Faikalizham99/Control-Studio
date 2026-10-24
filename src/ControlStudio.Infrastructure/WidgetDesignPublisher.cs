@@ -42,6 +42,31 @@ public sealed class WidgetDesignPublisher(WidgetDesignRepository repository, Fun
                 var bytes = await File.ReadAllBytesAsync(path, token); WidgetDesignRepository.ValidatePng(bytes);
                 var target = Path.Combine(directory, "renders", design.RenderKey + ".png");
                 if (!File.Exists(target)) await WidgetDesignRepository.AtomicWriteAsync(target, bytes, token);
+                if (WidgetScenes.IsLive(design))
+                {
+                    var scenePath = repository.ScenePath(design.RenderKey) ?? throw new IOException("A live widget scene is missing. Open its editor and save again.");
+                    if (new FileInfo(scenePath).Length > WidgetScenes.MaximumBytes) throw new IOException("The live widget scene is too large.");
+                    var sceneBytes = await File.ReadAllBytesAsync(scenePath, token);
+                    if (sceneBytes.Length > WidgetScenes.MaximumBytes) throw new IOException("The live widget scene is too large.");
+                    var scene = JsonSerializer.Deserialize(sceneBytes, WidgetDesignRules.JsonContext.WidgetScene) ?? throw new IOException("The live widget scene is invalid.");
+                    WidgetScenes.Validate(scene, design);
+                    var images = new Dictionary<int, byte[]>();
+                    foreach (var part in scene.Parts)
+                        if (part.ImageIndex is { } index)
+                        {
+                            var imagePath = repository.SceneImagePath(design.RenderKey, index) ?? throw new IOException("A live widget photo group is missing.");
+                            if (new FileInfo(imagePath).Length > WidgetDesignRules.MaximumImageBytes) throw new IOException("A live widget photo group is too large.");
+                            images[index] = await File.ReadAllBytesAsync(imagePath, token);
+                        }
+                    WidgetDesignRepository.ValidateScene(new(scene, images), design);
+                    foreach (var (index, image) in images)
+                    {
+                        var imageTarget = Path.Combine(directory, "renders", design.RenderKey + $".part-{index}.png");
+                        if (!File.Exists(imageTarget)) await WidgetDesignRepository.AtomicWriteAsync(imageTarget, image, token);
+                    }
+                    var sceneTarget = Path.Combine(directory, "renders", design.RenderKey + ".scene.json");
+                    if (!File.Exists(sceneTarget)) await WidgetDesignRepository.AtomicWriteAsync(sceneTarget, sceneBytes, token);
+                }
             }
             var catalog = new WidgetCatalog(1, designs); WidgetDesignRules.Validate(catalog);
             await WidgetDesignRepository.AtomicWriteAsync(manifest, JsonSerializer.SerializeToUtf8Bytes(catalog, WidgetDesignRules.JsonContext.WidgetCatalog), token);
@@ -57,8 +82,8 @@ public sealed class WidgetDesignPublisher(WidgetDesignRepository repository, Fun
             try
             {
                 if (Directory.Exists(folder))
-                    foreach (var path in Directory.EnumerateFiles(folder, "*.png"))
-                        if (!current.Contains(Path.GetFileNameWithoutExtension(path)) && File.GetLastWriteTimeUtc(path) < DateTime.UtcNow.AddDays(-7))
+                    foreach (var path in Directory.EnumerateFiles(folder))
+                        if (!current.Contains(Path.GetFileName(path).Split('.')[0]) && File.GetLastWriteTimeUtc(path) < DateTime.UtcNow.AddDays(-7))
                             try { File.Delete(path); } catch (IOException) { } catch (UnauthorizedAccessException) { }
             }
             catch (IOException) { } catch (UnauthorizedAccessException) { }

@@ -140,7 +140,9 @@ internal sealed class WidgetsPage : WidgetStudioPage
             previews.Add((preview, image));
             preview.SizeChanged += (_, _) => UpdateVisiblePreviews();
             SemanticProperties.SetDescription(tap, $"{design.Name}. {WidgetSizeLabel(design.Size)} widget preview. Open editor.");
-            designs.Children.Add(WidgetStudioStyle.Card(new VerticalStackLayout { Spacing = 14, Children = { header, preview } }));
+            var cardBody = new VerticalStackLayout { Spacing = 14, Children = { header, preview } };
+            if (WidgetScenes.IsLive(design)) cardBody.Children.Add(SettingsControls.Text("Saved preview. The clock runs in the editor and on your Home Screen.", 12, secondary: true));
+            designs.Children.Add(WidgetStudioStyle.Card(cardBody));
         }
         UpdateVisiblePreviews();
     }

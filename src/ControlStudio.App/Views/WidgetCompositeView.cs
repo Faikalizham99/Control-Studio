@@ -9,5 +9,7 @@ internal sealed class WidgetCompositeView(Func<string, string?> assetPath) : Vie
     public WidgetDesign? Design { get => (WidgetDesign?)GetValue(DesignProperty); set => SetValue(DesignProperty, value); }
     public Func<string, string?> AssetPath { get; } = assetPath;
     public event EventHandler<string>? RenderFailed;
+    internal event EventHandler<DateTimeOffset>? ClockTicked;
+    internal void TickClock(DateTimeOffset time) => ClockTicked?.Invoke(this, time);
     internal void Failed(string message) => RenderFailed?.Invoke(this, message);
 }

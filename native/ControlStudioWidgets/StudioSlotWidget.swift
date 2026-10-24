@@ -11,6 +11,8 @@ struct StudioSlotEntry: TimelineEntry {
     var preserveCanvas = false
     var canvasBackground: Color = .clear
     var canvasDimensions: WidgetCanvasDimensions? = nil
+    var scene: WidgetClockScene? = nil
+    var sceneImages: [Int: UIImage] = [:]
     var message = "Assign a saved design to this slot in Control Studio, under Studio → My Widgets → Widget slots."
 }
 
@@ -75,9 +77,19 @@ struct StudioSlotProvider: TimelineProvider {
                 return StudioSlotEntry(date: .now, slot: slot,
                     message: "Assign a \(size.title) design to slot \(slot) in Control Studio → Studio → My Widgets → Widget slots.")
             }
-            guard let image = UIImage(data: try store.imageData(for: design)) else { throw WidgetDesignError.imageUnavailable }
             let rgb = design.canvasBackgroundRGB
             let background = rgb.map { Color(red: $0.red, green: $0.green, blue: $0.blue) } ?? Color(uiColor: .systemBackground)
+            if design.hasLiveClock {
+                guard #available(iOS 18.0, *) else { return StudioSlotEntry(date: .now, slot: slot, message: "Live clocks require iOS 18 or later.") }
+                let (scene, data) = try store.scene(for: design)
+                var images: [Int: UIImage] = [:]
+                for (index, bytes) in data {
+                    guard let image = UIImage(data: bytes) else { throw WidgetDesignError.imageUnavailable }; images[index] = image
+                }
+                return StudioSlotEntry(date: .now, slot: slot, name: design.name, transparentBackground: design.transparentBackground ?? false,
+                    preserveCanvas: true, canvasBackground: background, canvasDimensions: design.canvasDimensions, scene: scene, sceneImages: images)
+            }
+            guard let image = UIImage(data: try store.imageData(for: design)) else { throw WidgetDesignError.imageUnavailable }
             return StudioSlotEntry(date: .now, slot: slot, image: image, name: design.name,
                 transparentBackground: design.transparentBackground ?? false, preserveCanvas: design.preserveCanvas ?? false, canvasBackground: background,
                 canvasDimensions: design.canvasDimensions)
@@ -93,7 +105,10 @@ struct StudioSlotView: View {
     let entry: StudioSlotEntry
     var body: some View {
         Group {
-            if let image = entry.image {
+            if #available(iOS 18.0, *), let scene = entry.scene {
+                StudioClockSceneView(scene: scene, images: entry.sceneImages, background: entry.transparentBackground ? .clear : entry.canvasBackground)
+                    .accessibilityLabel("Studio \(entry.slot): \(entry.name)")
+            } else if let image = entry.image {
                 GeometryReader { geometry in
                     // Correct only integer-PNG rounding when the saved point canvas
                     // matches this actual widget. Older/different-device canvases keep fit.
@@ -116,7 +131,7 @@ struct StudioSlotView: View {
             }
         }
         .containerBackground(for: .widget) {
-            if entry.image != nil && entry.transparentBackground { Color.clear }
+            if (entry.image != nil || entry.scene != nil) && entry.transparentBackground { Color.clear }
             else { Color(uiColor: .systemBackground) }
         }
     }
@@ -124,6 +139,53 @@ struct StudioSlotView: View {
         if #available(iOS 18.0, *) { Image(uiImage: image).resizable().widgetAccentedRenderingMode(.fullColor) }
         else { Image(uiImage: image).resizable() }
     }
+}
+
+@available(iOS 18.0, *)
+private struct StudioClockSceneView: View {
+    let scene: WidgetClockScene
+    let images: [Int: UIImage]
+    let background: Color
+    var body: some View {
+        GeometryReader { geometry in
+            let scale = min(geometry.size.width / scene.width, geometry.size.height / scene.height)
+            let width = scene.width * scale; let height = scene.height * scale
+            ZStack(alignment: .topLeading) {
+                background
+                ForEach(Array(scene.parts.enumerated()), id: \.offset) { _, part in
+                    if let index = part.imageIndex, let image = images[index] {
+                        Image(uiImage: image).resizable().widgetAccentedRenderingMode(.fullColor).frame(width: width, height: height)
+                    } else if let layer = part.clock {
+                        liveText(layer.clock)
+                            .font(font(layer.clock.font, size: min(1024, layer.frame.height * height * layer.clock.fontScale)))
+                            .monospacedDigit().lineLimit(1).minimumScaleFactor(0.01)
+                            .foregroundStyle(colour(layer.clock)).multilineTextAlignment(textAlignment(layer.clock.alignment))
+                            .frame(width: layer.frame.width * width, height: layer.frame.height * height, alignment: alignment(layer.clock.alignment))
+                            .clipped().opacity(layer.opacity).offset(x: layer.frame.x * width, y: layer.frame.y * height)
+                    }
+                }
+            }.frame(width: width, height: height, alignment: .topLeading).clipped().position(x: geometry.size.width / 2, y: geometry.size.height / 2)
+        }
+    }
+    private func liveText(_ clock: WidgetClockStyle) -> Text {
+        if #available(iOS 18.0, *) {
+            return Text(.currentDate, format: clock.formatStyle())
+        }
+        return Text("iOS 18+")
+    }
+    private func font(_ name: String, size: CGFloat) -> Font {
+        switch name {
+        case "rounded": return .custom("ArialRoundedMTBold", size: size)
+        case "monospaced": return .custom("Menlo-Bold", size: size)
+        case "serif": return .custom("Georgia-Bold", size: size)
+        default: return .system(size: size, weight: .semibold)
+        }
+    }
+    private func colour(_ clock: WidgetClockStyle) -> Color {
+        let rgb = clock.rgb ?? (1,1,1); return Color(red: rgb.0, green: rgb.1, blue: rgb.2)
+    }
+    private func alignment(_ name: String) -> Alignment { name == "left" ? .leading : name == "right" ? .trailing : .center }
+    private func textAlignment(_ name: String) -> TextAlignment { name == "left" ? .leading : name == "right" ? .trailing : .center }
 }
 
 @MainActor

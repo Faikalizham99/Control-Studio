@@ -18,7 +18,7 @@ internal sealed class WidgetPhotoCompositor : IDisposable
     private readonly CIContext context;
     private readonly Dictionary<Guid, Raster> rasters = [];
     private readonly Dictionary<string, UIImage> sources = [];
-    private sealed record Raster(WidgetLayer Layer, CGSize Size, UIImage Image, CIImage Input) : IDisposable
+    private sealed record Raster(WidgetLayer Layer, CGSize Size, UIImage Image, CIImage Input, string ClockText = "") : IDisposable
     {
         public void Dispose() { Input.Dispose(); Image.Dispose(); }
     }
@@ -28,18 +28,18 @@ internal sealed class WidgetPhotoCompositor : IDisposable
         try { context = CIContext.FromOptions(new CIContextOptions { WorkingColorSpace = colorSpace, OutputColorSpace = colorSpace, CacheIntermediates = false }); }
         catch { colorSpace.Dispose(); throw; }
     }
-    public UIImage Render(WidgetDesign design)
+    public UIImage Render(WidgetDesign design, DateTimeOffset? time = null, int maximumEdge = WidgetDesignRules.MaximumImageEdge)
     {
         WidgetDesignRules.Validate(design);
         using var pool = new NSAutoreleasePool();
         var canvas = WidgetDesignRules.Canvas(design);
-        var scale = Math.Min(2, WidgetDesignRules.MaximumImageEdge / Math.Max(canvas.Width, canvas.Height));
+        var scale = Math.Min(2, Math.Clamp(maximumEdge, 128, WidgetDesignRules.MaximumImageEdge) / Math.Max(canvas.Width, canvas.Height));
         var size = new CGSize(Math.Floor(canvas.Width * scale), Math.Floor(canvas.Height * scale));
         var bounds = new CGRect(CGPoint.Empty, size);
         // Keep only visible layers. Changing blend mode/order/background reuses rasterized transforms.
         foreach (var id in rasters.Keys.Where(id => !design.Layers.Any(x => x.Id == id && x.Visible && x.Opacity > 0)).ToArray())
         { rasters[id].Dispose(); rasters.Remove(id); }
-        foreach (var key in sources.Keys.Where(key => !design.Layers.Any(x => x.AssetKey == key && x.Visible && x.Opacity > 0)).ToArray())
+        foreach (var key in sources.Keys.Where(key => !design.Layers.Any(x => x.Kind == WidgetLayerKind.Photo && x.AssetKey == key && x.Visible && x.Opacity > 0)).ToArray())
         { sources[key].Dispose(); sources.Remove(key); }
         var intermediates = new List<CIImage>();
         try
@@ -47,13 +47,34 @@ internal sealed class WidgetPhotoCompositor : IDisposable
             using var color = design.TransparentBackground ? new CIColor(0, 0, 0, 0) : Background(design.BackgroundHex);
             using var infinite = new CIImage(color);
             var result = infinite.ImageByCroppingToRect(bounds); intermediates.Add(result);
-            foreach (var layer in design.Layers.Where(x => x.Visible && x.Opacity > 0))
+            var timestamp = time ?? DateTimeOffset.Now;
+            var steps = WidgetScenes.Steps(design);
+            for (var index = 0; index < steps.Count; index++)
             {
-                var input = Rasterize(layer, size);
-                var kernel = Kernel(layer.BlendMode);
-                var blended = kernel.Apply(input, result) ?? throw new IOException("This photo blend could not be rendered.");
-                intermediates.Add(blended);
-                result = blended.ImageByCroppingToRect(bounds); intermediates.Add(result);
+                var step = steps[index];
+                if (step.Clock is { } clock)
+                {
+                    var input = Rasterize(clock, size, timestamp);
+                    result = CIBlendKernel.SourceOver.Apply(input, result) ?? throw new IOException("This clock could not be rendered.");
+                    intermediates.Add(result);
+                }
+                else
+                {
+                    CIImage group;
+                    if (index == 0) group = result;
+                    else
+                    {
+                        using var clear = new CIColor(0, 0, 0, 0); using var infiniteClear = new CIImage(clear);
+                        group = infiniteClear.ImageByCroppingToRect(bounds); intermediates.Add(group);
+                    }
+                    foreach (var layer in step.Photos)
+                    {
+                        var blended = Kernel(layer.BlendMode).Apply(Rasterize(layer, size, timestamp), group) ?? throw new IOException("This photo blend could not be rendered.");
+                        intermediates.Add(blended); group = blended.ImageByCroppingToRect(bounds); intermediates.Add(group);
+                    }
+                    result = index == 0 ? group : CIBlendKernel.SourceOver.Apply(group, result) ?? throw new IOException("This photo group could not be rendered.");
+                    if (index != 0) intermediates.Add(result);
+                }
             }
             using var bitmap = context.CreateCGImage(result, bounds, CIFormat.Rgba8, colorSpace)
                 ?? throw new IOException("The widget preview could not be rendered.");
@@ -61,14 +82,46 @@ internal sealed class WidgetPhotoCompositor : IDisposable
         }
         finally { foreach (var image in intermediates) image.Dispose(); }
     }
+    public WidgetSceneExport Scene(WidgetDesign design)
+    {
+        var steps = WidgetScenes.Steps(design); var manifest = WidgetScenes.Manifest(design);
+        for (var edge = WidgetDesignRules.MaximumImageEdge; edge >= 128; edge = (int)(edge * .8))
+        {
+            var images = new Dictionary<int, byte[]>(); long pixels = 0, bytes = 0;
+            for (var index = 0; index < steps.Count; index++)
+            {
+                if (steps[index].Clock is not null) continue;
+                using var image = Render(design with { Layers = steps[index].Photos, TransparentBackground = index != 0 || design.TransparentBackground }, maximumEdge: edge);
+                using var png = image.AsPNG() ?? throw new IOException("A photo group could not be prepared.");
+                pixels += (long)image.CGImage!.Width * (long)image.CGImage.Height; bytes += (long)png.Length;
+                images.Add(index, png.ToArray());
+            }
+            if (pixels <= WidgetScenes.MaximumPixels && bytes <= WidgetScenes.MaximumImageBytes) return new(manifest, images);
+        }
+        throw new IOException("This live widget contains too much photo detail. Try fewer photo groups.");
+    }
     private static CIColor Background(string hex) => new(Convert.ToInt32(hex.Substring(1, 2), 16) / 255f,
         Convert.ToInt32(hex.Substring(3, 2), 16) / 255f, Convert.ToInt32(hex.Substring(5, 2), 16) / 255f, 1);
-    private CIImage Rasterize(WidgetLayer layer, CGSize size)
+    private CIImage Rasterize(WidgetLayer layer, CGSize size, DateTimeOffset time)
     {
         var geometry = layer with { Name = "", BlendMode = WidgetBlendMode.Normal, Locked = false };
-        if (rasters.TryGetValue(layer.Id, out var cached) && cached.Layer == geometry && cached.Size == size) return cached.Input;
+        var clockText = layer.Clock is { } clock ? WidgetClocks.Text(clock, time) : "";
+        if (rasters.TryGetValue(layer.Id, out var cached) && cached.Layer == geometry && cached.Size == size && cached.ClockText == clockText) return cached.Input;
         // Evict before allocating a replacement; a gesture never accumulates old full-canvas buffers.
         if (cached is not null) { cached.Dispose(); rasters.Remove(layer.Id); }
+        if (layer.Kind == WidgetLayerKind.Clock)
+        {
+            using var clockFormat = UIGraphicsImageRendererFormat.DefaultFormat; clockFormat.Scale = 1; clockFormat.Opaque = false;
+            using var clockRenderer = new UIGraphicsImageRenderer(size, clockFormat);
+            var clockRaster = clockRenderer.CreateImage(context =>
+            {
+                context.CGContext.ClipToRect(new CGRect(CGPoint.Empty, size));
+                var frame = new CGRect(layer.Frame.X * size.Width, layer.Frame.Y * size.Height, layer.Frame.Width * size.Width, layer.Frame.Height * size.Height);
+                AppleWidgetClockDrawing.Draw(layer, clockText, frame, context.CGContext);
+            });
+            try { var input = CIImage.FromCGImage(clockRaster.CGImage!); rasters.Add(layer.Id, new(geometry, size, clockRaster, input, clockText)); return input; }
+            catch { clockRaster.Dispose(); throw; }
+        }
         if (!sources.TryGetValue(layer.AssetKey, out var source))
         {
             var sourcePath = path(layer.AssetKey) ?? throw new IOException("A photo is missing. Remove its layer or choose it again.");

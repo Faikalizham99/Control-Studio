@@ -2,7 +2,7 @@ using Microsoft.Maui.Graphics;
 
 namespace ControlStudio.App.Views;
 
-internal enum StudioSymbol { Widgets, Clipboard, Counter, Bars, Calendar, Photo, Text, Link, Chevron, Edit, Delete, Open, Preview, Tag, Expand, Clear, EyeOff, Pin, PinFilled, Check, LayerUp, LayerDown, Plus, Hash, Refresh, RotateLeft, RotateRight, Flip, Opacity, Drag, More, Search, Layers, Blend, Lock, Unlock }
+internal enum StudioSymbol { Widgets, Clipboard, Counter, Bars, Calendar, Photo, Text, Link, Chevron, Edit, Delete, Open, Preview, Tag, Expand, Clear, EyeOff, Pin, PinFilled, Check, LayerUp, LayerDown, Plus, Hash, Refresh, RotateLeft, RotateRight, Flip, Opacity, Drag, More, Search, Layers, Blend, Lock, Unlock, Clock }
 
 internal sealed class StudioGlyph : GraphicsView, IDrawable
 {
@@ -165,6 +165,7 @@ internal sealed class StudioGlyph : GraphicsView, IDrawable
             else shackle.CurveTo(8, 1, 16, 1, 17, 6);
             canvas.DrawPath(shackle); canvas.DrawCircle(12, 15, 1); canvas.DrawLine(12, 16, 12, 18);
         }
+        else if (symbol == StudioSymbol.Clock) { canvas.DrawCircle(12, 12, 9); Lines(canvas, 12, 6, 12, 12, 16, 14); }
         else if (symbol == StudioSymbol.Search) { canvas.DrawCircle(10, 10, 6); canvas.DrawLine(14.5f, 14.5f, 21, 21); }
         else if (symbol == StudioSymbol.Layers)
         {

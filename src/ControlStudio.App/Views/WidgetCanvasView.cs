@@ -56,6 +56,13 @@ internal sealed class WidgetCanvasView : ContentView
         this.path = path; this.select = select; this.change = change; this.deselect = deselect;
         HeightRequest = WidthRequest = 170; HorizontalOptions = LayoutOptions.Center; AutomationId = "WidgetCanvas";
         composite = new WidgetCompositeView(path) { InputTransparent = true };
+        composite.ClockTicked += (_, time) =>
+        {
+            if (design is null) return;
+            foreach (var layer in design.Layers.Where(x => x.Kind == WidgetLayerKind.Clock))
+                if (photos.TryGetValue(layer.Id, out var view)) view.Clock.Text = WidgetClocks.Text(layer.Clock!, time);
+            if (design.Layers.FirstOrDefault(x => x.Id == selected) is { Kind: WidgetLayerKind.Clock } active) ghost.Clock.Text = WidgetClocks.Text(active.Clock!, time);
+        };
         renderError.IsVisible = false; renderError.Margin = 12; renderError.InputTransparent = true;
         renderError.HorizontalTextAlignment = renderError.VerticalTextAlignment = TextAlignment.Center;
         composite.RenderFailed += (_, message) => { renderError.Text = message; renderError.IsVisible = true; RenderFailed?.Invoke(this, message); };
@@ -79,7 +86,7 @@ internal sealed class WidgetCanvasView : ContentView
         SettingsControls.SurfaceStroke(border); Content = border;
         canvas.SizeChanged += (_, _) => { EndInteraction(true); ArrangePhotos(); };
         widgetBorder.SizeChanged += (_, _) => ArrangePhotos();
-        SemanticProperties.SetHint(this, "Tap a photo to select it, or empty space to deselect. Locked photos cannot be moved or resized; unlock them in Layers. Drag past the widget edges to hide part of an unlocked photo. The faint outside area is not saved.");
+        SemanticProperties.SetHint(this, "Tap a layer to select it, or empty space to deselect. Locked layers cannot be moved or resized; unlock them in Layers. Drag past the widget edges to hide part of an unlocked layer. The faint outside area is not saved.");
     }
     protected override void OnParentSet()
     {
@@ -123,7 +130,7 @@ internal sealed class WidgetCanvasView : ContentView
 #if IOS
                 photo = new PhotoView(null);
 #else
-                photo = new PhotoView(path(layer.AssetKey));
+                photo = new PhotoView(layer.Kind == WidgetLayerKind.Photo ? path(layer.AssetKey) : null);
 #endif
                 photos.Add(layer.Id, photo); canvas.Children.Add(photo.Frame);
             }
@@ -133,8 +140,9 @@ internal sealed class WidgetCanvasView : ContentView
         }
         FitCanvas();
         var active = value.Layers.FirstOrDefault(x => x.Id == selectedId && x.Visible);
-        SemanticProperties.SetDescription(this, $"{WidgetDesignRules.SizeName(value.Size)} widget preview. {value.Layers.Count(x => x.Visible)} visible photo layers."
-            + (active is null ? " No photo selected." : $" Selected {active.Name}." + (active.Locked ? " Locked. Unlock in Layers to move or resize." : "")));
+        var mixed = value.Layers.Any(x => x.Kind == WidgetLayerKind.Clock);
+        SemanticProperties.SetDescription(this, $"{WidgetDesignRules.SizeName(value.Size)} widget preview. {value.Layers.Count(x => x.Visible)} visible {(mixed ? "layers" : "photo layers")}."
+            + (active is null ? mixed ? " No layer selected." : " No photo selected." : $" Selected {active.Name}." + (active.Locked ? " Locked. Unlock in Layers to move or resize." : "")));
     }
     private void ArrangePhotos()
     {
@@ -156,7 +164,7 @@ internal sealed class WidgetCanvasView : ContentView
         else
         {
 #if IOS
-            if (ghostAsset != active.AssetKey || ghost.Image.Source is null) ghost.Image.Source = path(active.AssetKey);
+            if (active.Kind == WidgetLayerKind.Photo && (ghostAsset != active.AssetKey || ghost.Image.Source is null)) ghost.Image.Source = path(active.AssetKey);
             ghostAsset = active.AssetKey;
 #else
             // One selected-layer ghost reuses the existing source, rather than duplicating every layer.
@@ -170,6 +178,13 @@ internal sealed class WidgetCanvasView : ContentView
     }
     private static void Configure(PhotoView photo, WidgetLayer layer)
     {
+        photo.Image.IsVisible = layer.Kind == WidgetLayerKind.Photo; photo.Clock.IsVisible = layer.Kind == WidgetLayerKind.Clock;
+        if (layer.Clock is { } clock)
+        {
+            photo.Clock.Text = WidgetClocks.Text(clock, DateTimeOffset.Now); photo.Clock.TextColor = Color.FromArgb(clock.ColourHex);
+            photo.Clock.Opacity = layer.Opacity; photo.Clock.FontFamily = clock.Font switch { WidgetClockFont.Rounded => "ArialRoundedMTBold", WidgetClockFont.Monospaced => "Menlo-Bold", WidgetClockFont.Serif => "Georgia-Bold", _ => null };
+            photo.Clock.HorizontalTextAlignment = clock.Alignment switch { WidgetClockAlignment.Left => TextAlignment.Start, WidgetClockAlignment.Right => TextAlignment.End, _ => TextAlignment.Center };
+        }
         photo.Image.Opacity = layer.Opacity; photo.Image.Rotation = layer.QuarterTurns * 90;
         var odd = layer.QuarterTurns % 2 != 0;
         photo.Image.ScaleX = (odd ? layer.FlipVertical : layer.FlipHorizontal) ? -1 : 1;
@@ -179,6 +194,11 @@ internal sealed class WidgetCanvasView : ContentView
     {
         var width = layer.Frame.Width * canvas.Width; var height = layer.Frame.Height * canvas.Height;
         AbsoluteLayout.SetLayoutBounds(photo.Frame, new Rect(x + layer.Frame.X * canvas.Width, y + layer.Frame.Y * canvas.Height, width, height));
+        if (layer.Clock is { } clock)
+        {
+            photo.Clock.FontSize = Math.Max(.5, Math.Min(height * clock.FontScale, width / Math.Max(1, photo.Clock.Text.Length * .65)));
+            AbsoluteLayout.SetLayoutBounds(photo.Clock, new Rect(0, 0, width, height)); return;
+        }
         var placement = WidgetPhotoGeometry.Image(layer, width, height); var odd = layer.QuarterTurns % 2 != 0;
         var imageWidth = odd ? placement.Height : placement.Width; var imageHeight = odd ? placement.Width : placement.Height;
         AbsoluteLayout.SetLayoutBounds(photo.Image, new Rect(placement.X + (placement.Width - imageWidth) / 2,
@@ -253,10 +273,12 @@ internal sealed class WidgetCanvasView : ContentView
     {
         public AbsoluteLayout Frame { get; } = new() { IsClippedToBounds = true, InputTransparent = true };
         public Image Image { get; } = new() { Aspect = Aspect.Fill, InputTransparent = true };
+        public Label Clock { get; } = new() { IsVisible = false, InputTransparent = true, MaxLines = 1, FontAutoScalingEnabled = false,
+            VerticalTextAlignment = TextAlignment.Center, FontAttributes = FontAttributes.Bold };
         public PhotoView(string? path)
         {
             Image.Source = path;
-            Frame.Children.Add(Image); AutomationProperties.SetIsInAccessibleTree(Frame, false);
+            Frame.Children.Add(Image); Frame.Children.Add(Clock); AutomationProperties.SetIsInAccessibleTree(Frame, false);
         }
     }
     private sealed class SelectionOverlay : GraphicsView, IDrawable

@@ -7,6 +7,7 @@ public static class WidgetLayerEdits
     public static WidgetLayer Reset(WidgetLayer layer, WidgetSize size, WidgetCanvasSize? dimensions = null)
     {
         if (layer.Locked) return layer;
+        if (layer.Kind == WidgetLayerKind.Clock) return layer with { Frame = new(.05, .35, .9, .3), Opacity = 1 };
         var canvas = dimensions is null ? WidgetDesignRules.Canvas(size) : (Width: dimensions.Width, Height: dimensions.Height);
         var width = .8; var height = width * canvas.Width * layer.PixelHeight / layer.PixelWidth / canvas.Height;
         if (height > .8) { height = .8; width = height * canvas.Height * layer.PixelWidth / layer.PixelHeight / canvas.Width; }
@@ -40,7 +41,7 @@ public static class WidgetLayerEdits
     }
     public static WidgetLayer Rotate(WidgetLayer layer, int turns, WidgetSize? size = null, WidgetCanvasSize? dimensions = null)
     {
-        if (layer.Locked) return layer;
+        if (layer.Locked || layer.Kind == WidgetLayerKind.Clock) return layer;
         var rotated = layer with { QuarterTurns = ((layer.QuarterTurns + turns % 4) % 4 + 4) % 4 };
         if (!layer.FitPhoto || size is null || turns % 2 == 0) return rotated;
         var canvas = dimensions is null ? WidgetDesignRules.Canvas(size.Value) : (Width: dimensions.Width, Height: dimensions.Height); var f = layer.Frame;
