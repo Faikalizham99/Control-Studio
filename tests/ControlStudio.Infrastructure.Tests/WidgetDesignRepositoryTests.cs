@@ -12,6 +12,23 @@ public sealed class WidgetDesignRepositoryTests : IDisposable
     private WidgetDesignRepository Repository() => new(Private);
     private static byte[] Png => Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aZXsAAAAASUVORK5CYII=");
     [Fact]
+    public async Task LayerBlendModesSurviveReopenPublicationAndRejectedSave()
+    {
+        var repo = Repository(); var draft = await PhotoDraft();
+        var bottom = draft.Layers[0] with { BlendMode = WidgetBlendMode.Multiply, Opacity = .6 };
+        var top = bottom with { Id = Guid.NewGuid(), Name = "Top", BlendMode = WidgetBlendMode.LighterColor, Visible = false };
+        var saved = await repo.SaveAsync(draft with { Layers = [bottom, top] }, Png);
+        await repo.AssignSlotAsync(saved.Size, 2, saved.Id);
+        Assert.Equal(saved.Layers, Assert.Single(await Repository().ReadAsync()).Layers);
+        var before = await File.ReadAllBytesAsync(Path.Combine(Private, "catalog.json"));
+        await Assert.ThrowsAsync<IOException>(() => repo.SaveAsync(saved with { Layers = [bottom with { BlendMode = (WidgetBlendMode)999 }] }, Png));
+        Assert.Equal(before, await File.ReadAllBytesAsync(Path.Combine(Private, "catalog.json")));
+        await new WidgetDesignPublisher(Repository(), () => Shared).PublishAsync();
+        var published = JsonSerializer.Deserialize(await File.ReadAllBytesAsync(Path.Combine(Shared, "catalog.json")), WidgetDesignRules.JsonContext.WidgetCatalog)!;
+        Assert.Equal(saved.Layers, Assert.Single(published.Designs).Layers);
+        Assert.Equal(saved.Id, Assert.Single((await Repository().ReadLibraryAsync()).Slots).DesignId);
+    }
+    [Fact]
     public async Task OffCanvasPhotoAndFitChoiceSurviveSaveReopenAndSlotPublication()
     {
         var repo = Repository(); var draft = await PhotoDraft();

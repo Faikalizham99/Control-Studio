@@ -116,59 +116,18 @@ public sealed class WidgetStudioService : IWidgetEditorStore
     private (byte[] Full, byte[] Thumbnail) Render(WidgetDesign design)
     {
         using var pool = new NSAutoreleasePool();
-        var canvas = WidgetDesignRules.Canvas(design.Size);
-        var scale = Math.Min(2, WidgetDesignRules.MaximumImageEdge / Math.Max(canvas.Width, canvas.Height));
-        var width = Math.Floor(canvas.Width * scale); var height = Math.Floor(canvas.Height * scale);
+        using var compositor = new WidgetPhotoCompositor(Repository.AssetPath);
+        using var rendered = compositor.Render(design);
+        using var png = rendered.AsPNG() ?? throw new IOException("The widget preview could not be rendered.");
+        if (png.Length > WidgetDesignRules.MaximumImageBytes) throw new IOException("This widget is too detailed. Try fewer photos.");
+        var width = rendered.Size.Width; var height = rendered.Size.Height;
+        var smallScale = Math.Min(1, 256 / Math.Max(width, height));
+        var smallWidth = Math.Max(1, Math.Floor(width * smallScale)); var smallHeight = Math.Max(1, Math.Floor(height * smallScale));
         using var format = UIGraphicsImageRendererFormat.DefaultFormat;
         format.Scale = 1; format.Opaque = !design.TransparentBackground; format.PreferredRange = UIGraphicsImageRendererFormatRange.Standard;
-        using var renderer = new UIGraphicsImageRenderer(new CGSize(width, height), format);
-        var sources = new List<(UIImage Image, CGRect Frame, WidgetImageRect Placement)>();
-        try
-        {
-            foreach (var layer in design.Layers.Where(x => x.Visible))
-            {
-                var path = Repository.AssetPath(layer.AssetKey) ?? throw new IOException("A photo is missing. Remove its layer or choose it again.");
-                var image = UIImage.FromFile(path) ?? throw new IOException("A widget photo could not be opened.");
-                if (image.CGImage?.Width != layer.PixelWidth || image.CGImage?.Height != layer.PixelHeight)
-                { image.Dispose(); throw new IOException("A widget photo is invalid. Remove its layer and choose it again."); }
-                var frame = new CGRect(layer.Frame.X * width, layer.Frame.Y * height, layer.Frame.Width * width, layer.Frame.Height * height);
-                var placement = WidgetPhotoGeometry.Image(layer, (double)frame.Width, (double)frame.Height);
-                sources.Add((image, frame, placement));
-            }
-            // Validate/decode sources before entering UIKit's drawing callback; no file I/O or managed validation throws there.
-            using var fill = Color.FromArgb(design.BackgroundHex).ToCGColor();
-            using var rendered = renderer.CreateImage(context =>
-            {
-                var graphics = context.CGContext;
-                // The workspace ghost never enters this render; clip all off-canvas layer content.
-                graphics.ClipToRect(new CGRect(0, 0, width, height));
-                if (design.TransparentBackground) graphics.ClearRect(new CGRect(0, 0, width, height));
-                else { graphics.SetFillColor(fill); graphics.FillRect(new CGRect(0, 0, width, height)); }
-                var index = 0;
-                foreach (var layer in design.Layers.Where(x => x.Visible))
-                {
-                    var source = sources[index++];
-                    graphics.SaveState(); graphics.ClipToRect(source.Frame);
-                    graphics.TranslateCTM((nfloat)(source.Frame.X + source.Placement.X + source.Placement.Width / 2),
-                        (nfloat)(source.Frame.Y + source.Placement.Y + source.Placement.Height / 2));
-                    graphics.RotateCTM((nfloat)(layer.QuarterTurns * Math.PI / 2));
-                    var odd = layer.QuarterTurns % 2 != 0;
-                    graphics.ScaleCTM((odd ? layer.FlipVertical : layer.FlipHorizontal) ? -1 : 1, (odd ? layer.FlipHorizontal : layer.FlipVertical) ? -1 : 1);
-                    var imageWidth = odd ? source.Placement.Height : source.Placement.Width;
-                    var imageHeight = odd ? source.Placement.Width : source.Placement.Height;
-                    source.Image.Draw(new CGRect(-imageWidth / 2, -imageHeight / 2, imageWidth, imageHeight), CGBlendMode.Normal, (nfloat)layer.Opacity);
-                    graphics.RestoreState();
-                }
-            });
-            using var png = rendered.AsPNG() ?? throw new IOException("The widget preview could not be rendered.");
-            if (png.Length > WidgetDesignRules.MaximumImageBytes) throw new IOException("This widget is too detailed. Try fewer photos.");
-            var smallScale = Math.Min(1, 256 / Math.Max(width, height));
-            var smallWidth = Math.Max(1, Math.Floor(width * smallScale)); var smallHeight = Math.Max(1, Math.Floor(height * smallScale));
-            using var smallRenderer = new UIGraphicsImageRenderer(new CGSize(smallWidth, smallHeight), format);
-            using var small = smallRenderer.CreateImage(_ => rendered.Draw(new CGRect(0, 0, smallWidth, smallHeight)));
-            using var thumb = small.AsPNG() ?? throw new IOException("The widget thumbnail could not be rendered.");
-            return (png.ToArray(), thumb.ToArray());
-        }
-        finally { foreach (var source in sources) source.Image.Dispose(); }
+        using var smallRenderer = new UIGraphicsImageRenderer(new CGSize(smallWidth, smallHeight), format);
+        using var small = smallRenderer.CreateImage(_ => rendered.Draw(new CGRect(0, 0, smallWidth, smallHeight)));
+        using var thumb = small.AsPNG() ?? throw new IOException("The widget thumbnail could not be rendered.");
+        return (png.ToArray(), thumb.ToArray());
     }
 }

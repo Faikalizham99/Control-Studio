@@ -11,7 +11,7 @@ public sealed record WidgetFrame(double X = 0, double Y = 0, double Width = 1, d
 public sealed record WidgetLayer(Guid Id, string Name, string AssetKey, int PixelWidth, int PixelHeight,
     WidgetFrame Frame, double Zoom = 1, double CropX = .5, double CropY = .5, bool Visible = true,
     WidgetLayerKind Kind = WidgetLayerKind.Photo, int QuarterTurns = 0, bool FlipHorizontal = false, bool FlipVertical = false, double Opacity = 1,
-    bool FitPhoto = false);
+    bool FitPhoto = false, WidgetBlendMode BlendMode = WidgetBlendMode.Normal);
 public sealed record WidgetDesign(Guid Id, string Name, WidgetSize Size, string BackgroundHex,
     IReadOnlyList<WidgetLayer> Layers, string RenderKey, int Revision = 0, bool TransparentBackground = false, bool PreserveCanvas = false);
 public sealed record WidgetCatalog(int SchemaVersion, IReadOnlyList<WidgetDesign> Designs);
@@ -44,6 +44,7 @@ public static class WidgetDesignRules
         var json = new JsonSerializerOptions(JsonSerializerDefaults.Web) { UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow, MaxDepth = 16 };
         json.Converters.Add(new JsonStringEnumConverter<WidgetSize>(JsonNamingPolicy.CamelCase, false));
         json.Converters.Add(new JsonStringEnumConverter<WidgetLayerKind>(JsonNamingPolicy.CamelCase, false));
+        json.Converters.Add(new JsonStringEnumConverter<WidgetBlendMode>(JsonNamingPolicy.CamelCase, false));
         return json;
     }
     public static WidgetDesign New() => new(Guid.NewGuid(), "My widget", WidgetSize.Small, "#101116", [], Guid.NewGuid().ToString("N"), TransparentBackground: true, PreserveCanvas: true);
@@ -80,7 +81,7 @@ public static class WidgetDesignRules
                 || layer.Frame is not { } f || !Range(f.X, -MaximumLayerOffset, MaximumLayerOffset) || !Range(f.Y, -MaximumLayerOffset, MaximumLayerOffset)
                 || !Range(f.Width, MinimumLayerSize, MaximumLayerSize) || !Range(f.Height, MinimumLayerSize, MaximumLayerSize)
                 || !Range(layer.Zoom, 1, 4) || !Range(layer.CropX, 0, 1) || !Range(layer.CropY, 0, 1)
-                || layer.QuarterTurns is < 0 or > 3 || !Range(layer.Opacity, 0, 1))
+                || layer.QuarterTurns is < 0 or > 3 || !Range(layer.Opacity, 0, 1) || !Enum.IsDefined(layer.BlendMode))
                 throw new IOException("A photo layer is invalid. Its data was not changed.");
         }
     }

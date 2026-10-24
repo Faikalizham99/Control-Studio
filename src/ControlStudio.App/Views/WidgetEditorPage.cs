@@ -36,7 +36,8 @@ internal sealed class WidgetEditorPage : ContentPage
     private readonly ClipboardEditorActionButton back = new("", new ProfileGlyph(ProfileSymbol.Back), "BackFromWidgetEditor");
     private readonly ClipboardEditorActionButton addPhoto;
     private readonly ClipboardEditorActionButton solid;
-    private readonly ClipboardIconButton resetTool, rotateTool, flipTool, opacityTool, deleteTool;
+    private readonly ClipboardIconButton resetTool, rotateTool, flipTool, opacityTool, deleteTool, blendTool;
+    private readonly WidgetBlendPanel blendMenu;
     private readonly VerticalStackLayout rotateMenu = new() { Spacing = 8, IsVisible = false };
     private readonly VerticalStackLayout flipMenu = new() { Spacing = 8, IsVisible = false };
     private readonly VerticalStackLayout opacityMenu = new() { Spacing = 4, IsVisible = false };
@@ -59,6 +60,12 @@ internal sealed class WidgetEditorPage : ContentPage
         {
             if (saved || departed || busy) return;
             ReplaceLayer(layer); RefreshControls(); UpdateCanvas();
+        });
+        canvas.RenderFailed += (_, message) => ShowStatus(message);
+        blendMenu = new WidgetBlendPanel(mode =>
+        {
+            if (!CanEdit) return;
+            EditLayer(layer => layer with { BlendMode = mode }, closeTools: false);
         });
         canvas.InteractionChanged += (_, _) => { if (canvas.IsInteracting) CloseTools(); RefreshActions(); };
         sizes = new WidgetSegments(["Small", "Medium", "Large", "XL"], "EditorWidgetSize", index =>
@@ -87,10 +94,18 @@ internal sealed class WidgetEditorPage : ContentPage
         rotateTool = Tool(StudioSymbol.RotateLeft, "Rotate selected photo", () => ToggleTool(rotateMenu));
         flipTool = Tool(StudioSymbol.Flip, "Flip selected photo", () => ToggleTool(flipMenu));
         opacityTool = Tool(StudioSymbol.Opacity, "Adjust photo opacity", () => ToggleTool(opacityMenu));
+        blendTool = Tool(StudioSymbol.Blend, "Blend selected photo", () =>
+        {
+            var show = !blendMenu.IsVisible; CloseTools();
+            if (show && draft.Layers.FirstOrDefault(x => x.Id == selected) is { } layer) blendMenu.Show(layer);
+        });
+        blendTool.AutomationId = "WidgetBlendTool";
         deleteTool = Tool(StudioSymbol.Delete, "Delete selected photo", () => _ = RunAsync(RemoveLayerAsync), destructive: true);
-        var tools = new Grid { ColumnSpacing = 4 };
-        var toolViews = new[] { ToolCell(resetTool, "Reset"), ToolCell(rotateTool, "Rotate"), ToolCell(flipTool, "Flip"), ToolCell(opacityTool, opacityCaption), ToolCell(deleteTool, "Delete", true) };
-        for (var i = 0; i < toolViews.Length; i++) { tools.ColumnDefinitions.Add(new(GridLength.Star)); tools.Add(toolViews[i], i); }
+        var tools = new Grid { ColumnSpacing = 4, RowSpacing = 10,
+            ColumnDefinitions = { new(GridLength.Star), new(GridLength.Star), new(GridLength.Star) },
+            RowDefinitions = { new(GridLength.Auto), new(GridLength.Auto) } };
+        var toolViews = new[] { ToolCell(resetTool, "Reset"), ToolCell(rotateTool, "Rotate"), ToolCell(flipTool, "Flip"), ToolCell(blendTool, "Blend"), ToolCell(opacityTool, opacityCaption), ToolCell(deleteTool, "Delete", true) };
+        for (var i = 0; i < toolViews.Length; i++) tools.Add(toolViews[i], i % 3, i / 3);
         rotateMenu.Children.Add(MenuAction("Rotate Left", StudioSymbol.RotateLeft, () => EditLayer(layer => WidgetLayerEdits.Rotate(layer, -1, draft.Size), closeTools: false)));
         rotateMenu.Children.Add(MenuAction("Rotate Right", StudioSymbol.RotateRight, () => EditLayer(layer => WidgetLayerEdits.Rotate(layer, 1, draft.Size), closeTools: false)));
         flipMenu.Children.Add(MenuAction("Flip horizontally", StudioSymbol.Flip, () => EditLayer(layer => layer with { FlipHorizontal = !layer.FlipHorizontal }, closeTools: false)));
@@ -102,7 +117,7 @@ internal sealed class WidgetEditorPage : ContentPage
         {
             SettingsControls.Text("Live preview", 22, bold: true), SettingsControls.Text("Pinch to resize • Drag past the widget edges to crop", 12, secondary: true),
             SettingsControls.Text("The faint outside area is for editing only. Recover an off-screen photo with Centre on widget in its layer menu.", 12, secondary: true),
-            canvas, tools, rotateMenu, flipMenu, opacityMenu
+            canvas, tools, rotateMenu, flipMenu, opacityMenu, blendMenu
         } }));
 
         addPhoto = AsyncAction("Add photo layer", StudioSymbol.Photo, "AddWidgetPhoto", PickPhotoAsync);
@@ -147,7 +162,7 @@ internal sealed class WidgetEditorPage : ContentPage
     private static Border Card(View content) => ClipboardEditorControls.Surface(content, 22, 14);
     private ClipboardIconButton Tool(StudioSymbol symbol, string title, Action action, bool destructive = false)
     {
-        var button = new ClipboardIconButton(symbol, title, destructive); button.Clicked += (_, _) => { if (CanEdit) action(); }; return button;
+        var button = new ClipboardIconButton(symbol, title, destructive: destructive); button.Clicked += (_, _) => { if (CanEdit) action(); }; return button;
     }
     private static View ToolCell(View button, string text, bool destructive = false) => ToolCell(button, SettingsControls.Text(text, 11), destructive);
     private static View ToolCell(View button, Label label, bool destructive = false)
@@ -167,7 +182,7 @@ internal sealed class WidgetEditorPage : ContentPage
         var button = new ClipboardEditorActionButton(text, ClipboardEditorControls.Icon(symbol, size: 18), id, accentCaption: true);
         button.Clicked += async (_, _) => await RunAsync(action); return button;
     }
-    private void CloseTools() { rotateMenu.IsVisible = flipMenu.IsVisible = opacityMenu.IsVisible = false; }
+    private void CloseTools() { rotateMenu.IsVisible = flipMenu.IsVisible = opacityMenu.IsVisible = blendMenu.IsVisible = false; }
     private void ToggleTool(VisualElement panel) { var show = !panel.IsVisible; CloseTools(); panel.IsVisible = show; }
     private void SelectLayer(Guid id)
     {
@@ -178,7 +193,10 @@ internal sealed class WidgetEditorPage : ContentPage
     private void EditLayer(Func<WidgetLayer, WidgetLayer> transform, bool closeTools = true)
     {
         var layer = draft.Layers.FirstOrDefault(x => x.Id == selected); if (layer is null) return;
-        if (closeTools) CloseTools(); ReplaceLayer(transform(layer)); RefreshControls(); UpdateCanvas();
+        if (closeTools) CloseTools(); var changed = transform(layer); if (changed == layer) return;
+        ReplaceLayer(changed);
+        if (layer.BlendMode != changed.BlendMode && rows.TryGetValue(layer.Id, out var row)) row.Update(changed, true);
+        RefreshControls(); UpdateCanvas();
     }
     private void AddSlider(string title, double minimum, double maximum)
     {
@@ -232,6 +250,8 @@ internal sealed class WidgetEditorPage : ContentPage
         try
         {
             var layer = draft.Layers.FirstOrDefault(x => x.Id == selected);
+            blendMenu.Update(layer);
+            if (layer is not null) blendTool.Describe("Blend", layer.Name + ", " + WidgetBlending.Name(layer.BlendMode));
             if (layer is null) { precise.IsVisible = false; opacityCaption.Text = "Opacity"; return; }
             selectedTitle.Text = layer.Name + " · Size, position & crop"; opacityCaption.Text = $"Opacity · {layer.Opacity:P0}"; opacity.Value = layer.Opacity;
             fullPhoto.IsToggled = layer.FitPhoto;
@@ -335,6 +355,9 @@ internal sealed class WidgetEditorPage : ContentPage
     {
         if (!draft.TransparentBackground && !background.CommitPendingHex()) { ShowStatus("Enter a valid background colour before saving."); return; }
         name.Unfocus(); draft = draft with { Name = name.Text?.Trim() ?? "", PreserveCanvas = true };
+        // Export owns its own compositor on a worker thread. Release the preview's
+        // buffers first rather than retaining two eight-layer compositions at once.
+        canvas.SuspendComposition();
         var result = await studio.SaveAsync(draft); draft = result.Design; saved = true; await CleanupAsync();
         if (!Foreground || departed) return;
         if (!result.Published) await DisplayAlertAsync("Saved on this device", "Your design is saved, but the Home Screen update could not be published. Check App Group signing in Settings, then tap Refresh widgets in My Widgets.", "OK");
@@ -352,7 +375,7 @@ internal sealed class WidgetEditorPage : ContentPage
         back.IsEnabled = cancel.IsEnabled = canNavigate;
         addPhoto.IsEnabled = canNavigate && !saved && draft.Layers.Count < WidgetDesignRules.MaximumLayers;
         var hasLayer = draft.Layers.Any(x => x.Id == selected);
-        resetTool.IsEnabled = rotateTool.IsEnabled = flipTool.IsEnabled = opacityTool.IsEnabled = deleteTool.IsEnabled = canNavigate && !saved && hasLayer;
+        resetTool.IsEnabled = rotateTool.IsEnabled = flipTool.IsEnabled = opacityTool.IsEnabled = deleteTool.IsEnabled = blendTool.IsEnabled = blendMenu.IsEnabled = canNavigate && !saved && hasLayer;
     }
     private async Task RunAsync(Func<Task> operation)
     {
@@ -361,7 +384,12 @@ internal sealed class WidgetEditorPage : ContentPage
         try { await operation(); }
         catch (Exception ex)
         { logger.LogWarning("Widget editor operation failed. ErrorType={ErrorType}", ex.GetType().Name); if (!departed) ShowStatus(ex is IOException ? ex.Message : "The widget could not be updated. Try again."); }
-        finally { busy = false; RefreshActions(); if (departed) await CleanupAsync(); }
+        finally
+        {
+            busy = false; RefreshActions();
+            if (departed) await CleanupAsync();
+            else if (!saved && Foreground) UpdateCanvas();
+        }
     }
     private void ShowStatus(string message)
     {
@@ -389,8 +417,8 @@ internal sealed class WidgetEditorPage : ContentPage
         try { await CloseSavedAsync(); }
         catch (Exception ex) { logger.LogWarning("Widget editor dismissal failed. ErrorType={ErrorType}", ex.GetType().Name); ShowStatus("Your widget is saved. Tap Back to return."); }
     }
-    private async void WindowActivated(object? sender, EventArgs args) { RefreshActions(); if (saved && !busy) await TryCloseSavedAsync(); }
-    private void WindowDeactivated(object? sender, EventArgs args) { canvas.EndInteraction(true); CloseTools(); RefreshActions(); }
+    private async void WindowActivated(object? sender, EventArgs args) { RefreshActions(); if (Foreground && !saved && !busy) UpdateCanvas(); if (saved && !busy) await TryCloseSavedAsync(); }
+    private void WindowDeactivated(object? sender, EventArgs args) { canvas.EndInteraction(true); canvas.SuspendComposition(); CloseTools(); RefreshActions(); }
     protected override async void OnAppearing()
     {
         base.OnAppearing();
@@ -399,7 +427,7 @@ internal sealed class WidgetEditorPage : ContentPage
             StopObservingWindow(); observedWindow = Window;
             if (observedWindow is not null) { observedWindow.Activated += WindowActivated; observedWindow.Deactivated += WindowDeactivated; }
         }
-        RefreshActions(); if (saved && !busy) await TryCloseSavedAsync();
+        RefreshActions(); if (Foreground && !saved && !busy) UpdateCanvas(); if (saved && !busy) await TryCloseSavedAsync();
     }
     private void StopObservingWindow()
     {

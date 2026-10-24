@@ -13,6 +13,11 @@ internal sealed class WidgetCanvasView : ContentView
     private readonly AbsoluteLayout canvas = new() { IsClippedToBounds = true, InputTransparent = true };
     private readonly PhotoView ghost = new(null);
     private readonly Border widgetBorder;
+    private readonly WidgetCompositeView composite;
+    private readonly Label renderError = SettingsControls.Text("", 13);
+#if IOS
+    private string? ghostAsset;
+#endif
     private readonly WidgetCheckerboard checker = new();
     private readonly SelectionOverlay handles = new();
     private readonly Dictionary<Guid, PhotoView> photos = [];
@@ -43,12 +48,25 @@ internal sealed class WidgetCanvasView : ContentView
         return new(x, y);
     }
     public event EventHandler? InteractionChanged;
+    public event EventHandler<string>? RenderFailed;
 
     public WidgetCanvasView(Func<string, string?> path, Action<Guid> select, Action<WidgetLayer>? change = null)
     {
         this.path = path; this.select = select; this.change = change;
         HeightRequest = WidthRequest = 170; HorizontalOptions = LayoutOptions.Center; AutomationId = "WidgetCanvas";
-        widgetBorder = new Border { Content = new Grid { Children = { checker, canvas } },
+        composite = new WidgetCompositeView(path) { InputTransparent = true };
+        renderError.IsVisible = false; renderError.Margin = 12; renderError.InputTransparent = true;
+        renderError.HorizontalTextAlignment = renderError.VerticalTextAlignment = TextAlignment.Center;
+        composite.RenderFailed += (_, message) => { renderError.Text = message; renderError.IsVisible = true; RenderFailed?.Invoke(this, message); };
+        AutomationProperties.SetIsInAccessibleTree(composite, false);
+#if IOS
+        // Keep the geometry surface arranged for gestures, but draw every layer through
+        // the same native compositor used by export. Only the outside ghost is separate.
+        canvas.Opacity = 0;
+#else
+        composite.IsVisible = false;
+#endif
+        widgetBorder = new Border { Content = new Grid { Children = { checker, canvas, composite, renderError } },
             StrokeShape = new RoundRectangle { CornerRadius = 22 }, StrokeThickness = GuideStroke };
         SettingsControls.SurfaceStroke(widgetBorder);
         ghost.Frame.Opacity = .22; ghost.Frame.IsVisible = false;
@@ -87,6 +105,8 @@ internal sealed class WidgetCanvasView : ContentView
     {
         if (gestureStart is not null && (design?.Size != value.Size || selected != selectedId || !value.Layers.Any(x => x.Id == gestureStart.Id && x.Visible))) EndInteraction(false);
         design = value; selected = selectedId;
+        if (!Equals(composite.Design, value)) renderError.IsVisible = false;
+        composite.Design = value;
         if (!value.Layers.Any(x => x.Id == selectedId && x.Visible)) { ghost.Image.Source = null; ghost.Frame.IsVisible = false; }
         checker.IsVisible = value.TransparentBackground;
         canvas.BackgroundColor = value.TransparentBackground ? Colors.Transparent : Color.FromArgb(value.BackgroundHex);
@@ -97,7 +117,12 @@ internal sealed class WidgetCanvasView : ContentView
             var layer = value.Layers[i];
             if (!photos.TryGetValue(layer.Id, out var photo))
             {
-                photo = new PhotoView(path(layer.AssetKey)); photos.Add(layer.Id, photo); canvas.Children.Add(photo.Frame);
+#if IOS
+                photo = new PhotoView(null);
+#else
+                photo = new PhotoView(path(layer.AssetKey));
+#endif
+                photos.Add(layer.Id, photo); canvas.Children.Add(photo.Frame);
             }
             var current = canvas.Children.IndexOf(photo.Frame);
             if (current != i) { canvas.Children.RemoveAt(current); canvas.Children.Insert(i, photo.Frame); }
@@ -115,11 +140,22 @@ internal sealed class WidgetCanvasView : ContentView
         var active = design.Layers.FirstOrDefault(x => x.Id == selected && x.Visible);
         var origin = Origin(canvas, workspace);
         ghost.Frame.IsVisible = active is not null;
-        if (active is null) ghost.Image.Source = null;
+        if (active is null)
+        {
+            ghost.Image.Source = null;
+#if IOS
+            ghostAsset = null;
+#endif
+        }
         else
         {
+#if IOS
+            if (ghostAsset != active.AssetKey || ghost.Image.Source is null) ghost.Image.Source = path(active.AssetKey);
+            ghostAsset = active.AssetKey;
+#else
             // One selected-layer ghost reuses the existing source, rather than duplicating every layer.
             if (!ReferenceEquals(ghost.Image.Source, photos[active.Id].Image.Source)) ghost.Image.Source = photos[active.Id].Image.Source;
+#endif
             Configure(ghost, active); Place(ghost, active, origin.X, origin.Y);
         }
         handles.SelectionFrame = active is null ? Rect.Zero : new Rect(origin.X + active.Frame.X * canvas.Width, origin.Y + active.Frame.Y * canvas.Height,
@@ -199,9 +235,14 @@ internal sealed class WidgetCanvasView : ContentView
     public void ReleaseSources()
     {
         EndInteraction(false);
+        composite.Design = null;
         ghost.Image.Source = null; ghost.Frame.IsVisible = false;
+#if IOS
+        ghostAsset = null;
+#endif
         foreach (var photo in photos.Values) photo.Image.Source = null;
     }
+    public void SuspendComposition() => composite.Design = null;
     private sealed class PhotoView
     {
         public AbsoluteLayout Frame { get; } = new() { IsClippedToBounds = true, InputTransparent = true };

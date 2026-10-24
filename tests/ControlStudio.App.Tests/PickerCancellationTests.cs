@@ -33,6 +33,57 @@ public sealed class PickerCancellationTests : IDisposable
     private static WidgetEditorPage Editor(Store store, string source = "Photo Library", ColourPicker? colours = null)
         => new(store, colours ?? new(), NullLogger.Instance, WidgetDesignRules.New() with { Layers = [Photo()] }, choosePhotoSource: () => Task.FromResult<string?>(source));
 
+    [Fact]
+    public async Task BlendingStaysOpenUpdatesTheCorrectLayerAndSurvivesPickerCancellationAndSave()
+    {
+        var first = Photo() with { BlendMode = WidgetBlendMode.Multiply };
+        var second = Photo() with { Name = "Second photo" };
+        var original = WidgetDesignRules.New() with { Layers = [first, second] };
+        var store = new Store(); var page = new WidgetEditorPage(store, new ColourPicker(), NullLogger.Instance, original,
+            choosePhotoSource: () => Task.FromResult<string?>("Photo Library")); Open(page);
+        ((IButtonController)Button(page, "ClipboardBlendselectedphoto")).SendClicked();
+        var panel = Descendants(page).OfType<WidgetBlendPanel>().Single(); Assert.True(panel.IsVisible);
+        ((IButtonController)Button(page, "WidgetBlendGroup3")).SendClicked();
+        ((IButtonController)Button(page, "WidgetBlendModeSoftLight")).SendClicked(); Assert.True(panel.IsVisible);
+        Assert.Contains(Descendants(page).OfType<Label>(), x => x.Text == "Image · Soft Light");
+        var composition = Descendants(page).OfType<WidgetCompositeView>().Single();
+        Assert.Equal(WidgetBlendMode.Multiply, composition.Design!.Layers[0].BlendMode);
+        Assert.Equal(WidgetBlendMode.SoftLight, composition.Design.Layers[1].BlendMode);
+        ((IWindow)host.App.Windows[0]).Deactivated(); Assert.Null(composition.Design); Assert.False(panel.IsVisible);
+        ((IWindow)host.App.Windows[0]).Activated(); Assert.Equal(WidgetBlendMode.SoftLight, composition.Design!.Layers[1].BlendMode);
+        await page.AddPhotoAsync(); Assert.Equal(2, composition.Design.Layers.Count); Assert.True(Button(page, "SaveWidgetDesign").IsEnabled);
+        ((IButtonController)Button(page, "SaveWidgetDesign")).SendClicked();
+        Assert.Equal(WidgetBlendMode.Multiply, store.Saved!.Layers[0].BlendMode);
+        Assert.Equal(WidgetBlendMode.SoftLight, store.Saved.Layers[1].BlendMode);
+        Assert.Equal(WidgetBlendMode.Normal, second.BlendMode); // Draft editing did not mutate the original.
+    }
+    [Fact]
+    public void ResetClearsBlendAndSwitchingLayersClosesTheOldPanel()
+    {
+        var first = Photo() with { BlendMode = WidgetBlendMode.DarkerColor }; var second = Photo() with { Name = "Second" };
+        var page = new WidgetEditorPage(new Store(), new ColourPicker(), NullLogger.Instance, WidgetDesignRules.New() with { Layers = [first, second] }); Open(page);
+        ((IButtonController)Button(page, "ClipboardBlendselectedphoto")).SendClicked();
+        var panel = Descendants(page).OfType<WidgetBlendPanel>().Single(); Assert.True(panel.IsVisible);
+        ((IButtonController)Button(page, "SelectWidgetLayer" + first.Id.ToString("N"))).SendClicked(); Assert.False(panel.IsVisible);
+        ((IButtonController)Button(page, "ClipboardBlendselectedphoto")).SendClicked();
+        Assert.Contains(Descendants(panel).OfType<Button>(), x => x.AutomationId == "WidgetBlendModeDarkerColor");
+        ((IButtonController)Button(page, "ClipboardResetselectedphoto")).SendClicked(); Assert.False(panel.IsVisible);
+        var composite = Descendants(page).OfType<WidgetCompositeView>().Single(); Assert.Equal(WidgetBlendMode.Normal, composite.Design!.Layers[0].BlendMode);
+        Assert.DoesNotContain(Descendants(page).OfType<Label>(), x => x.Text == "Image · Darker Color");
+    }
+    [Fact]
+    public void FailedSaveRestoresCompositionWithTheSelectedBlendAndCanBeRetried()
+    {
+        var photo = Photo() with { BlendMode = WidgetBlendMode.LighterColor };
+        var store = new Store { FailSave = true };
+        var page = new WidgetEditorPage(store, new ColourPicker(), NullLogger.Instance, WidgetDesignRules.New() with { Layers = [photo] }); Open(page);
+        var composition = Descendants(page).OfType<WidgetCompositeView>().Single();
+        ((IButtonController)Button(page, "SaveWidgetDesign")).SendClicked();
+        Assert.True(Button(page, "SaveWidgetDesign").IsEnabled); Assert.Equal(photo, composition.Design!.Layers[0]);
+        store.FailSave = false; ((IButtonController)Button(page, "SaveWidgetDesign")).SendClicked();
+        Assert.Equal(2, store.Saves); Assert.Equal(photo, store.Saved!.Layers[0]);
+    }
+
     [Theory]
     [InlineData("Photo Library")] [InlineData("Files")]
     public async Task CancelSecondPhotoRestoresTheEntireEditorAndKeepsItsExistingLayer(string source)
@@ -218,11 +269,17 @@ public sealed class PickerCancellationTests : IDisposable
         public int Picks { get; private set; }
         public int Saves { get; private set; }
         public WidgetDesign? Saved { get; private set; }
+        public bool FailSave { get; set; }
         public bool Library { get; private set; }
         public List<string> Removed { get; } = [];
         public string? AssetPath(string key) => "/private/" + key + ".png";
         public Task<WidgetLayer?> PickPhotoAsync(bool library) { Picks++; Library = library; return Pick(library); }
-        public Task<WidgetSaveResult> SaveAsync(WidgetDesign draft) { Saves++; Saved = draft; return Task.FromResult(new WidgetSaveResult(draft, true)); }
+        public Task<WidgetSaveResult> SaveAsync(WidgetDesign draft)
+        {
+            Saves++;
+            if (FailSave) return Task.FromException<WidgetSaveResult>(new IOException("Save failed"));
+            Saved = draft; return Task.FromResult(new WidgetSaveResult(draft, true));
+        }
         public Task RemoveDraftPhotosAsync(IEnumerable<string> keys) { Removed.AddRange(keys); return Task.CompletedTask; }
     }
     public void Dispose() => host.Dispose();

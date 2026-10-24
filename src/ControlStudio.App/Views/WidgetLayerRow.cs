@@ -6,6 +6,7 @@ namespace ControlStudio.App.Views;
 internal sealed class WidgetLayerRow : ContentView
 {
     private readonly Label name = SettingsControls.Text("", 15, bold: true);
+    private readonly Label detail = SettingsControls.Text("Image", 12, secondary: true);
     private readonly Image photo = new() { WidthRequest = 48, HeightRequest = 48, Aspect = Aspect.AspectFill, InputTransparent = true };
     private readonly Switch visible = SettingsControls.RowSwitch();
     private readonly Border surface;
@@ -19,7 +20,7 @@ internal sealed class WidgetLayerRow : ContentView
         var thumbnail = ClipboardEditorControls.Field(photo, 0); thumbnail.WidthRequest = thumbnail.HeightRequest = 48;
         thumbnail.VerticalOptions = LayoutOptions.Center;
         var title = new VerticalStackLayout { Spacing = 2, VerticalOptions = LayoutOptions.Center,
-            InputTransparent = true, Children = { name, SettingsControls.Text("Image", 12, secondary: true) } };
+            InputTransparent = true, Children = { name, detail } };
         tap = SettingsControls.TapTarget("Select " + layer.Name, "SelectWidgetLayer" + layer.Id.ToString("N"));
         tap.Clicked += (_, _) => { if (IsEnabled) select(layer.Id); };
         var selection = new Grid { ColumnSpacing = 8, ColumnDefinitions = { new(48), new(GridLength.Star) } };
@@ -54,6 +55,7 @@ internal sealed class WidgetLayerRow : ContentView
     public void Update(WidgetLayer layer, bool selected)
     {
         updating = true; name.Text = layer.Name; visible.IsToggled = layer.Visible; updating = false;
+        detail.Text = layer.BlendMode == WidgetBlendMode.Normal ? "Image" : "Image · " + WidgetBlending.Name(layer.BlendMode);
         surface.StrokeThickness = selected ? 2 : 1;
         if (selected) surface.SetDynamicResource(Border.StrokeProperty, "AccentText");
         else { surface.RemoveDynamicResource(Border.StrokeProperty); SettingsControls.SurfaceStroke(surface); }

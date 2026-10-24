@@ -11,7 +11,7 @@ public static class WidgetLayerEdits
         if (height > .8) { height = .8; width = height * canvas.Height * layer.PixelWidth / layer.PixelHeight / canvas.Width; }
         width = Clamp(width, .05, .8); height = Clamp(height, .05, .8);
         return layer with { Frame = new((1 - width) / 2, (1 - height) / 2, width, height), Zoom = 1, CropX = .5, CropY = .5,
-            QuarterTurns = 0, FlipHorizontal = false, FlipVertical = false, Opacity = 1, FitPhoto = true };
+            QuarterTurns = 0, FlipHorizontal = false, FlipVertical = false, Opacity = 1, FitPhoto = true, BlendMode = WidgetBlendMode.Normal };
     }
     public static WidgetLayer Move(WidgetLayer layer, double dx, double dy) => !double.IsFinite(dx) || !double.IsFinite(dy) ? layer
         : layer with { Frame = layer.Frame with { X = Position(layer.Frame.X + dx), Y = Position(layer.Frame.Y + dy) } };
