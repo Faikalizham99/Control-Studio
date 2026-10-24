@@ -210,7 +210,7 @@ public sealed class ClipboardEditorPage : ContentPage
 
     private static View ActionRow(params View[] buttons)
     {
-        var row = new Grid { ColumnSpacing = 8 };
+        var row = new Grid { ColumnSpacing = ActionSpacing.Gap };
         for (var i = 0; i < buttons.Length; i++) { row.ColumnDefinitions.Add(new(GridLength.Star)); row.Add(buttons[i], i); }
         return row;
     }

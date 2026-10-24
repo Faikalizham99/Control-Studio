@@ -90,6 +90,7 @@ internal sealed class ColourChoice : ContentView
     public ColourChoice(string title, Brush fill, string automationId, Action selected, bool custom = false)
     {
         this.title = title;
+        WidthRequest = MinimumWidthRequest = 44; VerticalOptions = LayoutOptions.Start;
         check = new Label { Text = "✓", FontSize = 18, FontAttributes = FontAttributes.Bold, TextColor = Colors.White,
             HorizontalTextAlignment = TextAlignment.Center, VerticalTextAlignment = TextAlignment.Center, FontAutoScalingEnabled = false, InputTransparent = true };
         var circle = new Border { Content = check, Background = fill, Stroke = Colors.White.WithAlpha(.5f), StrokeThickness = 1,
@@ -98,7 +99,7 @@ internal sealed class ColourChoice : ContentView
         tap = SettingsControls.TapTarget(title + " colour", automationId); tap.Clicked += (_, _) => selected();
         var target = new Grid { WidthRequest = 44, HeightRequest = 44, HorizontalOptions = LayoutOptions.Center, Children = { outline, tap } };
         var column = new VerticalStackLayout { Spacing = 1, Children = { target } };
-        if (custom) { var label = SettingsControls.Text("Custom Colour", 9, true); label.HorizontalTextAlignment = TextAlignment.Center; column.Children.Add(label); }
+        if (custom) { var label = SettingsControls.Text("Custom Colour", 9, true); label.HorizontalTextAlignment = TextAlignment.Center; label.MaxLines = 2; column.Children.Add(label); }
         Content = column;
     }
     public void Update(bool selected, Color accent)

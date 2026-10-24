@@ -8,7 +8,7 @@ internal sealed class WidgetBlendPanel : ContentView
     private readonly WidgetSegments groups;
     private readonly Label summary = SettingsControls.Text("", 14, bold: true);
     private readonly Label notice = SettingsControls.Text("", 12, secondary: true);
-    private readonly Grid modes = new() { ColumnSpacing = 8, RowSpacing = 8,
+    private readonly Grid modes = new() { ColumnSpacing = ActionSpacing.Gap, RowSpacing = ActionSpacing.Gap,
         ColumnDefinitions = { new(GridLength.Star), new(GridLength.Star) } };
     private readonly List<(WidgetBlendMode Mode, Grid Cell, Button Tap, AccentSurface Accent)> choices = [];
     private WidgetLayer? layer;

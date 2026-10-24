@@ -66,7 +66,7 @@ internal static class PageActionBar
     }
     private static Grid Row()
     {
-        var row = new Grid { Padding = new Thickness(16, 6), ColumnSpacing = 8 };
+        var row = new Grid { Padding = new Thickness(16, 6), ColumnSpacing = ActionSpacing.Gap };
         row.SetAppThemeColor(VisualElement.BackgroundColorProperty, Colors.White, Colors.Black);
         return row;
     }

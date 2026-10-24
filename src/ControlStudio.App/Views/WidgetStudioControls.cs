@@ -27,7 +27,7 @@ internal static class WidgetStudioStyle
         var title = SettingsControls.Text(text, 17, bold: true);
         title.VerticalOptions = LayoutOptions.Center; title.HorizontalTextAlignment = TextAlignment.Center;
         title.MaxLines = 2; SemanticProperties.SetHeadingLevel(title, SemanticHeadingLevel.Level1);
-        var row = new Grid { Padding = new Thickness(18, 6, 18, 8), ColumnSpacing = 8,
+        var row = new Grid { Padding = new Thickness(18, 6, 18, 8), ColumnSpacing = ActionSpacing.Gap,
             ColumnDefinitions = { new(48), new(GridLength.Star), new(48) } };
         back.HorizontalOptions = LayoutOptions.Start; back.VerticalOptions = LayoutOptions.Center; row.Add(back); row.Add(title, 1);
         if (trailing is not null) { trailing.HorizontalOptions = LayoutOptions.End; trailing.VerticalOptions = LayoutOptions.Center; row.Add(trailing, 2); }

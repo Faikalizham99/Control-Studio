@@ -42,19 +42,17 @@ internal sealed class ColourPickerView : ContentView
         well = SettingsControls.Rounded(new Grid(), 10);
         well.WidthRequest = well.HeightRequest = 40; well.VerticalOptions = LayoutOptions.Center;
         field = SettingsControls.Rounded(new Grid(), 16, new Thickness(12, 8));
-        var palette = new Grid { ColumnSpacing = 2 };
+        var palette = new ActionButtonRow { Alignment = TextAlignment.Center };
         var names = new[] { "Blue", "Purple", "Pink", "Green", "Orange" };
         for (var i = 0; i < AppearanceValues.Presets.Count; i++)
         {
-            palette.ColumnDefinitions.Add(new(GridLength.Star));
             var value = AppearanceValues.Presets[i];
             var choice = new ColourChoice(names[i], SettingsControls.Swatch(Color.FromArgb(value)), prefix + names[i], () => Select(value));
-            choices.Add(choice); palette.Add(choice, i);
+            choices.Add(choice); palette.Children.Add(choice);
         }
-        palette.ColumnDefinitions.Add(new(GridLength.Star));
         var spectrum = new LinearGradientBrush(new GradientStopCollection { new(Colors.Magenta, 0), new(Colors.Cyan, .33f), new(Colors.Lime, .5f), new(Colors.Yellow, .67f), new(Colors.Orange, .83f), new(Colors.Magenta, 1) }, new Point(0, 0), new Point(1, 1));
         var customChoice = new ColourChoice("Custom colour", spectrum, prefix + "Custom", async () => await PickAsync(), true);
-        choices.Add(customChoice); palette.Add(customChoice, 5);
+        choices.Add(customChoice); palette.Children.Add(customChoice);
         custom.AutomationId = Id("CustomColourEnabled", "CustomEnabled"); SemanticProperties.SetDescription(custom, $"Enable custom {colourName.ToLowerInvariant()} colour editing");
         custom.Toggled += (_, args) =>
         {

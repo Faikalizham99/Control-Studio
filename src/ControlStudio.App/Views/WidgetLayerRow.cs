@@ -26,7 +26,7 @@ internal sealed class WidgetLayerRow : ContentView
         var selection = new Grid { ColumnSpacing = 8, ColumnDefinitions = { new(48), new(GridLength.Star) } };
         var labels = new Grid { Children = { tap, title } }; selection.Add(thumbnail); selection.Add(labels, 1);
         AutomationProperties.SetIsInAccessibleTree(title, false); AutomationProperties.SetIsInAccessibleTree(thumbnail, false);
-        var drag = new Grid { WidthRequest = 44, MinimumHeightRequest = 48, Children = { ClipboardEditorControls.Icon(StudioSymbol.Drag, size: 18) } };
+        var drag = new Grid { WidthRequest = 44, HeightRequest = 48, VerticalOptions = LayoutOptions.Start, Children = { ClipboardEditorControls.Icon(StudioSymbol.Drag, size: 18) } };
         SemanticProperties.SetDescription(drag, "Reorder " + layer.Name); SemanticProperties.SetHint(drag, "Drag to another layer. Move forward and backward are also in the layer menu.");
         var start = new DragGestureRecognizer();
         start.DragStarting += (_, args) =>
@@ -46,8 +46,10 @@ internal sealed class WidgetLayerRow : ContentView
         visible.Toggled += (_, args) => { if (!updating && IsEnabled) show(layer.Id, args.Value); };
         more = new ClipboardIconButton(StudioSymbol.More, "Layer actions") { VerticalOptions = LayoutOptions.Center }; more.Describe("Layer actions", layer.Name);
         more.Clicked += (_, _) => { if (IsEnabled) menu(layer.Id); };
-        var row = new Grid { ColumnSpacing = 4, ColumnDefinitions = { new(44), new(GridLength.Star), new(GridLength.Auto), new(48) } };
-        row.Add(drag); row.Add(selection, 1); row.Add(visible, 2); row.Add(more, 3);
+        var actions = new ActionButtonRow(visible, more);
+        var header = new CardActionHeader(selection, actions);
+        var row = new Grid { ColumnSpacing = ActionSpacing.Gap, ColumnDefinitions = { new(44), new(GridLength.Star) } };
+        row.Add(drag); row.Add(header, 1);
         surface = WidgetStudioStyle.Card(row, new Thickness(6, 8), 16); Content = surface; Update(layer, false);
     }
     private static bool ValidDrag(DataPackagePropertySet properties, string scope) => properties.TryGetValue("WidgetLayerScope", out var value) && value is string text && text == scope;

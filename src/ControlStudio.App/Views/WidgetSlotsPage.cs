@@ -114,7 +114,7 @@ internal sealed class WidgetSlotCard : ContentView
         var change = new ClipboardEditorActionButton(design is null ? "Assign" : "Change", null, (design is null ? "Assign" : "Change") + family + "Slot" + number, primary: true, compact: true);
         change.Describe((design is null ? "Assign a design to " : "Change the design in ") + title);
         change.Clicked += async (_, _) => await assign();
-        var actions = new Grid { ColumnSpacing = 7, ColumnDefinitions = { new(GridLength.Star) } }; actions.Add(change);
+        var actions = new Grid { ColumnSpacing = ActionSpacing.Gap, ColumnDefinitions = { new(GridLength.Star) } }; actions.Add(change);
         if (design is not null)
         {
             var remove = new PageActionButton("Clear", "Clear" + family + "Slot" + number);

@@ -299,7 +299,7 @@ public sealed class ClipboardPage : ContentPage
                     if (args.PropertyName is nameof(Label.FontSize) or nameof(Label.FontFamily) or nameof(Label.FontAttributes) or nameof(Label.FontAutoScalingEnabled)) QueueOverflowCheck();
                 };
             }
-            var actions = new HorizontalStackLayout { Spacing = 8, HorizontalOptions = LayoutOptions.End, Children = { visibility, edit, delete, open, preview, copy } };
+            var actions = new ActionButtonRow(visibility, edit, delete, open, preview, copy);
             var content = new VerticalStackLayout { Spacing = 0, Children = { text, link, expand } };
             conceal = new ClipboardConcealView(new VerticalStackLayout { Spacing = 12, Children = { content, photo } }, visibilityStore);
             conceal.VisibilityFailed += (_, args) => visibilityFailed(args);

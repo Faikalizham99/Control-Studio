@@ -48,7 +48,7 @@ internal static class ClipboardEditorControls
         heading.HorizontalTextAlignment = TextAlignment.Center; heading.VerticalOptions = LayoutOptions.Center;
         back.HorizontalOptions = LayoutOptions.Start; trailing.HorizontalOptions = LayoutOptions.End;
         back.VerticalOptions = trailing.VerticalOptions = LayoutOptions.Center;
-        var row = new Grid { Padding = new Thickness(16, 5), ColumnSpacing = 8,
+        var row = new Grid { Padding = new Thickness(16, 5), ColumnSpacing = ActionSpacing.Gap,
             ColumnDefinitions = { new(GridLength.Star), new(GridLength.Auto), new(GridLength.Star) } };
         row.Add(back); row.Add(heading, 1); row.Add(trailing, 2); return row;
     }

@@ -104,7 +104,7 @@ internal sealed class WidgetEditorPage : ContentPage
         });
         blendTool.AutomationId = "WidgetBlendTool";
         deleteTool = Tool(StudioSymbol.Delete, "Delete selected photo", () => _ = RunAsync(RemoveLayerAsync), destructive: true);
-        var tools = new Grid { ColumnSpacing = 4, RowSpacing = 10,
+        var tools = new Grid { ColumnSpacing = ActionSpacing.Gap, RowSpacing = ActionSpacing.Gap,
             ColumnDefinitions = { new(GridLength.Star), new(GridLength.Star), new(GridLength.Star) },
             RowDefinitions = { new(GridLength.Auto), new(GridLength.Auto) } };
         var toolViews = new[] { ToolCell(resetTool, "Reset"), ToolCell(rotateTool, "Rotate"), ToolCell(flipTool, "Flip"), ToolCell(blendTool, "Blend"), ToolCell(opacityTool, opacityCaption), ToolCell(deleteTool, "Delete", true) };

@@ -107,9 +107,8 @@ internal sealed class WidgetsPage : WidgetStudioPage
                 HorizontalOptions = LayoutOptions.Center, VerticalOptions = LayoutOptions.Center };
             chevron.SetAppThemeColor(StudioGlyph.TintProperty, Color.FromArgb("#53617A"), Color.FromArgb("#CAD4E8"));
             var next = new Grid { WidthRequest = 44, MinimumHeightRequest = 48, Children = { open, chevron } };
-            var actions = new HorizontalStackLayout { Spacing = 2, VerticalOptions = LayoutOptions.Center, Children = { edit, delete, next } };
-            var header = new Grid { ColumnSpacing = 8, ColumnDefinitions = { new(GridLength.Star), new(GridLength.Auto) } };
-            header.Add(labels); header.Add(actions, 1);
+            var actions = new ActionButtonRow(edit, delete, next);
+            var header = new CardActionHeader(labels, actions);
             // Full-size cards need the full saved composite, not the 256px slot thumbnail.
             var image = new WidgetRenderPreview(studio.Repository.RenderPath(design.RenderKey), Color.FromArgb(design.BackgroundHex));
             var tap = SettingsControls.TapTarget("Open " + design.Name + " widget", "OpenWidget" + design.Id.ToString("N"));

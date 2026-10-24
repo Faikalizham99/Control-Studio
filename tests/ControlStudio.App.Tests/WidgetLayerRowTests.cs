@@ -14,8 +14,9 @@ public sealed class WidgetLayerRowTests : IDisposable
         var layer = new WidgetLayer(Guid.NewGuid(), "First", Guid.NewGuid().ToString("N"), 640, 480, new()); var changes = 0; Guid? selected = null;
         var row = new WidgetLayerRow(layer, "/private/photo.png", "local-editor", id => selected = id, (_, _) => changes++, _ => { }, (_, _) => { }); host.Attach(row);
         var grid = Assert.IsType<Grid>(Assert.IsType<Border>(row.Content).Content);
-        var visible = Assert.IsType<Switch>(grid.Children[2]);
-        var selectGrid = Assert.IsType<Grid>(grid.Children[1]); var image = Assert.IsType<Image>(Assert.IsType<Border>(selectGrid.Children[0]).Content);
+        var header = Assert.IsType<CardActionHeader>(grid.Children[1]);
+        var actions = Assert.IsType<ActionButtonRow>(header.Children[1]); var visible = Assert.IsType<Switch>(actions.Children[0]);
+        var selectGrid = Assert.IsType<Grid>(header.Children[0]); var image = Assert.IsType<Image>(Assert.IsType<Border>(selectGrid.Children[0]).Content);
         var source = image.Source;
         row.Update(layer with { Name = "Renamed", Visible = false }, true);
         Assert.Equal(0, changes); Assert.False(visible.IsToggled); Assert.Same(source, image.Source);
