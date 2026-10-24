@@ -145,14 +145,16 @@ internal sealed class WidgetEditorPage : ContentPage
         opacityMenu.Children.Add(opacityCaption); opacityMenu.Children.Add(opacity);
         photoSettings = Card(new VerticalStackLayout { Spacing = 12, Children = { rotateMenu, flipMenu, opacityMenu, blendMenu } });
         photoSettings.IsVisible = false; adjustments.Children.Add(photoSettings); adjustments.Children.Add(clockControls);
-        form.Children.Insert(0, adjustments);
         var previewTitle = SettingsControls.Text("Live preview", 22, bold: true); previewTitle.MaxLines = 1;
         SemanticProperties.SetHeadingLevel(previewTitle, SemanticHeadingLevel.Level2);
         selectionHint.VerticalTextAlignment = TextAlignment.Center; selectionHint.HorizontalTextAlignment = TextAlignment.Center; selectionHint.MaxLines = 1;
         var toolbarSlot = new Grid { Children = { tools, clockControls.Toolbar, selectionHint } };
-        var previewBody = new Grid { RowSpacing = 8, RowDefinitions = { new(GridLength.Auto), new(GridLength.Star), new(64) } };
-        previewBody.Add(previewTitle); previewBody.Add(new WidgetCanvasViewport(canvas, logger, fitHeight: true), 0, 1); previewBody.Add(toolbarSlot, 0, 2);
-        var preview = Card(previewBody); preview.AutomationId = "PinnedWidgetPreview"; preview.Margin = new Thickness(16, 8, 16, 0);
+        // Let the width-sized canvas request its complete height. A constrained star
+        // row would shrink tall widgets instead of letting the page scroll.
+        var previewBody = new Grid { RowSpacing = 8, RowDefinitions = { new(GridLength.Auto), new(GridLength.Auto), new(64) } };
+        previewBody.Add(previewTitle); previewBody.Add(new WidgetCanvasViewport(canvas, logger), 0, 1); previewBody.Add(toolbarSlot, 0, 2);
+        var preview = Card(previewBody); preview.AutomationId = "WidgetEditorLivePreview";
+        form.Children.Add(preview); form.Children.Add(adjustments);
         addPhoto = AsyncAction("Add layer", StudioSymbol.Plus, "AddWidgetPhoto", ChooseLayerAsync);
         var layerHeading = new Grid { ColumnDefinitions = { new(GridLength.Star), new(GridLength.Auto) } };
         var layerLabel = SettingsControls.Text("Layers", 21, bold: true); layerLabel.VerticalOptions = LayoutOptions.Center;
@@ -192,21 +194,16 @@ internal sealed class WidgetEditorPage : ContentPage
         cancel.Clicked += async (_, _) => await ExitAsync(); back.Clicked += async (_, _) => await ExitAsync();
         var layout = new Grid { RowDefinitions = { new(GridLength.Auto), new(GridLength.Star) } };
         scroll.Content = form; scroll.AutomationId = "WidgetEditorSettingsScroll";
-        var editing = new Grid { RowDefinitions = { new(GridLength.Star), new(GridLength.Star) }, AutomationId = "WidgetEditorWorkspace" };
-        editing.Add(preview); editing.Add(scroll, 0, 1);
-        editing.SizeChanged += (_, _) => { if (editing.Height > 0) editing.RowDefinitions[0].Height = new GridLength(PreviewHeight(editing.Height)); };
-        layout.Add(ClipboardEditorControls.Header(Title, back, cancel)); layout.Add(editing, 0, 1);
+        layout.Add(ClipboardEditorControls.Header(Title, back, cancel)); layout.Add(scroll, 0, 1);
         Content = new WidgetEditorSurface(layout, () => CanEdit && selected is not null, ClearLayerSelection,
             canvas, tools, clockControls.Toolbar, rotateMenu, flipMenu, opacityMenu, blendMenu, layerList, precise, background, clockControls);
         selected = draft.Layers.LastOrDefault()?.Id; RefreshBackground(); RefreshLayers();
     }
     private static Border Card(View content) => ClipboardEditorControls.Surface(content, 22, 14);
-    internal static double PreviewHeight(double available) => !double.IsFinite(available) || available <= 0 ? 0
-        : Math.Min(400, Math.Max(Math.Min(220, available * .65), available * .5));
     private async void RevealAdjustments()
     {
         if (!Foreground || !scroll.IsLoaded || scroll.Handler is null) return;
-        try { await scroll.ScrollToAsync(0, 0, false); }
+        try { await scroll.ScrollToAsync(adjustments, ScrollToPosition.MakeVisible, false); }
         catch (Exception ex) { logger.LogDebug("Widget controls reveal unavailable. ErrorType={ErrorType}", ex.GetType().Name); }
     }
     private WidgetToolButton Tool(StudioSymbol symbol, string title, Action action, bool destructive = false)
@@ -500,12 +497,13 @@ internal sealed class WidgetEditorPage : ContentPage
         // Execution still checks the current navigation owner and MAUI window activation.
         var canInteract = !busy && !departed && !background.IsBusy && !clockControls.IsBusy && !canvas.IsInteracting;
         var canNavigate = canInteract && !layerList.IsReordering;
-        form.IsEnabled = !busy && !saved && !departed && !background.IsBusy && !clockControls.IsBusy && !canvas.IsInteracting;
+        // The canvas lives inside this form. Disabling its ancestor during a
+        // native pinch/drag would cancel the gesture that just started.
+        form.IsEnabled = !busy && !saved && !departed && !background.IsBusy && !clockControls.IsBusy;
         // The list must stay enabled until its native drag recognizer finishes.
         layerList.IsEnabled = canInteract && !saved;
         save.IsEnabled = sizes.IsEnabled = name.IsEnabled = background.IsEnabled = canNavigate && !saved;
-        // The pinned canvas is outside the disabled settings form, so apply
-        // operation guards explicitly without disabling an active gesture.
+        // Keep operation guards explicit without disabling an active gesture.
         canvas.IsEnabled = !busy && !saved && !departed && !background.IsBusy && !clockControls.IsBusy && !layerList.IsReordering;
         back.IsEnabled = cancel.IsEnabled = canNavigate;
         addPhoto.IsEnabled = canNavigate && !saved && draft.Layers.Count < WidgetDesignRules.MaximumLayers;

@@ -242,12 +242,18 @@ public sealed class WidgetCanvasTests : IDisposable
         Assert.Equal(canvas.PhotoSurface.Width + 68, canvas.WidthRequest, 8);
     }
     [Theory]
-    [InlineData(WidgetSize.Small)] [InlineData(WidgetSize.Medium)] [InlineData(WidgetSize.Large)] [InlineData(WidgetSize.ExtraLargePortrait)]
-    public void PinnedPreviewFitsHeightWithoutChangingWidgetProportionsOrSavedGeometry(WidgetSize family)
+    [InlineData(WidgetSize.Small, false)] [InlineData(WidgetSize.Medium, false)] [InlineData(WidgetSize.Large, false)] [InlineData(WidgetSize.ExtraLargePortrait, false)]
+    [InlineData(WidgetSize.Small, true)] [InlineData(WidgetSize.Medium, true)] [InlineData(WidgetSize.Large, true)] [InlineData(WidgetSize.ExtraLargePortrait, true)]
+    public void EditorPreviewUsesWidthWithoutShrinkingForViewportHeight(WidgetSize family, bool measured)
     {
         var clock = WidgetClocks.New(); var design = WidgetDesignRules.New() with { Size = family, Layers = [clock] };
+        if (measured)
+        {
+            var dimensions = WidgetDesignRules.Canvas(family);
+            design = design with { CanvasDimensions = new(dimensions.Width * .9, dimensions.Height * .9) };
+        }
         var canvas = new WidgetCanvasView(_ => null, _ => { });
-        var viewport = new WidgetCanvasViewport(canvas, Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance, fitHeight: true); host.Attach(viewport);
+        var viewport = new WidgetCanvasViewport(canvas, Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance); host.Attach(viewport);
         canvas.Update(design, clock.Id);
         foreach (var height in new[] { 40d, 100d, 180d, 320d, 700d })
         {
@@ -255,17 +261,11 @@ public sealed class WidgetCanvasTests : IDisposable
             var border = Assert.IsType<Border>(canvas.Workspace.Children[1]); var bounds = AbsoluteLayout.GetLayoutBounds(border);
             var expected = WidgetDesignRules.Canvas(design);
             Assert.Equal(expected.Width / expected.Height, (bounds.Width - 2) / (bounds.Height - 2), 8);
-            Assert.True(canvas.HeightRequest <= height + .001); Assert.True(bounds.Width - 2 <= expected.Width);
+            var fit = WidgetPreviewFrame.Fit(design, 296);
+            Assert.Equal(fit.Width, bounds.Width - 2, 8); Assert.Equal(fit.Height, bounds.Height - 2, 8);
+            Assert.Equal(fit.Width + 68, canvas.WidthRequest, 8); Assert.Equal(fit.Height + 68, canvas.HeightRequest, 8);
             Assert.Equal(design, Assert.IsType<WidgetCompositeView>(Assert.IsType<Grid>(border.Content).Children[2]).Design);
         }
-    }
-    [Theory]
-    [InlineData(240)] [InlineData(350)] [InlineData(650)] [InlineData(1000)]
-    public void PinnedPreviewBudgetLeavesSettingsRoomOnCompactAndTallScreens(double height)
-    {
-        var preview = WidgetEditorPage.PreviewHeight(height);
-        Assert.InRange(preview, 1, 400); Assert.True(preview <= height * .65);
-        Assert.True(height - preview >= height * .35 - .001);
     }
     [Theory]
     [InlineData(WidgetSize.Small, 158, 158)] [InlineData(WidgetSize.Medium, 338, 158)]

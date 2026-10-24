@@ -44,6 +44,16 @@ The preview fits the available display height as well as width while preserving 
 
 Verification: **282 app, 150 Core, 66 Infrastructure and 34 packaging checks (532 total)**, managed iOS compilation with zero warnings/errors, source/project generation and whitespace checks. Added/updated coverage includes panel exclusivity/toggling, stable canvas parent and single compositor, option persistence, native-picker cancellation/deactivation recovery, invalid-HEX routing, disabled canvas/tool actions, locked/delete semantics, 48-point targets, preview proportions at five viewport heights for all four sizes and compact-screen space for settings. These are managed/layout-policy checks; physical iPhone scrolling, keyboard/large-text fit, toolbar discoverability, VoiceOver, colours, touch gestures, deletion confirmation and final native layout remain pending, along with Xcode/AOT verification. The owner authorized committing and pushing this follow-up to main; no tag or version change is included.
 
+## Add/Edit live preview scale correction — included in 0.2.33
+
+The height-limited preview introduced in 0.2.32 reduced Large and XL canvases to fit the pinned area, making the live preview smaller than the previous editor. Add/Edit now sizes the canvas from the available width and preserves its full proportional height, including saved device measurements. The complete page scrolls vertically; the outside workspace still scrolls horizontally. Name/size precedes the preview, the existing icon toolbar stays immediately below it, and tool panels follow the preview. Opening a panel reveals those controls rather than jumping to the page top. There is still one compositor with a stable parent, and the fixed toolbar slot keeps selection changes from resizing the canvas.
+
+The canvas and its ancestors stay enabled during pinch/drag; other actions remain guarded during the gesture. Native scroll arbitration continues to suspend enclosing scrolling during manipulation and restore it when the gesture finishes or cancels. Picker cancellation/recovery, background lifecycle, colour validation and save semantics remain covered by the existing editor tests. Gallery, Widget slots, Assign design, saved proportions and export rendering are unchanged.
+
+Automated checks cover all four sizes with default and saved dimensions over five viewport heights, full-height scrolling structure, toolbar/panel stability and enabled gesture ancestors. These checks do not establish actual UIKit measurements or device touch behaviour. Physical iPhone checks remain required for preview size, vertical/horizontal scrolling, pinch/drag, keyboard/large text, VoiceOver and picker/background recovery. The owner authorized committing, pushing main and pushing the new v0.2.33 tag. App and extension versions are 0.2.33 (35); the owner will monitor the IPA build. Workflow triggers remain unchanged.
+
+Local verification passed: **292 app tests**, managed iOS C# compilation with **zero warnings/errors**, source/project-generation validation and whitespace checks. Xcode/AOT compilation and physical iPhone rendering have not run on this Windows machine.
+
 ## Editor behaviour
 
 - **Add layer** offers **Photo** and **Clock**. Photo retains Photo Library and Files selection. Cancel returns to the usable editor without changing the design.

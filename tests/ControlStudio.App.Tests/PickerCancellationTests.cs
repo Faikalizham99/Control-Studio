@@ -33,15 +33,21 @@ public sealed class PickerCancellationTests : IDisposable
     private static WidgetEditorPage Editor(Store store, string source = "Photo Library", ColourPicker? colours = null)
         => new(store, colours ?? new(), NullLogger.Instance, WidgetDesignRules.New() with { Layers = [Photo()] }, choosePhotoSource: () => Task.FromResult<string?>(source));
     [Fact]
-    public async Task ClockToolbarHasSevenTargetsAndOnlyOnePanelWithoutMovingItsPinnedCanvas()
+    public async Task ClockToolbarHasSevenTargetsAndOnlyOnePanelWithAFullHeightScrollingPreview()
     {
         var photo = Photo(); var page = new WidgetEditorPage(new Store(), new ColourPicker(), NullLogger.Instance,
             WidgetDesignRules.New() with { Layers = [photo] }, chooseLayerType: () => Task.FromResult<string?>("Clock")); Open(page); await page.AddLayerAsync();
         var controls = Descendants(page).OfType<WidgetClockControls>().Single(); var canvas = Descendants(page).OfType<WidgetCanvasView>().Single();
-        var originalParent = canvas.Parent; var preview = Descendants(page).OfType<Border>().Single(x => x.AutomationId == "PinnedWidgetPreview");
+        var originalParent = canvas.Parent; var preview = Descendants(page).OfType<Border>().Single(x => x.AutomationId == "WidgetEditorLivePreview");
         var settings = Descendants(page).OfType<ScrollView>().Single(x => x.AutomationId == "WidgetEditorSettingsScroll");
-        Assert.Same(preview.Parent, settings.Parent); Assert.Equal(0, Grid.GetRow(preview)); Assert.Equal(1, Grid.GetRow(settings));
-        Assert.Contains(canvas, Descendants(preview)); Assert.DoesNotContain(canvas, Descendants(settings));
+        var form = Assert.IsType<VerticalStackLayout>(settings.Content);
+        var adjustments = Descendants(page).OfType<VerticalStackLayout>().Single(x => x.AutomationId == "WidgetAdjustments");
+        Assert.Same(form, preview.Parent); Assert.Same(form, adjustments.Parent);
+        Assert.Equal(form.Children.IndexOf(preview) + 1, form.Children.IndexOf(adjustments));
+        Assert.Contains(canvas, Descendants(preview)); Assert.Contains(canvas, Descendants(settings));
+        var body = Assert.IsType<Grid>(preview.Content);
+        Assert.Equal(GridLength.Auto, body.RowDefinitions[1].Height); Assert.Equal(new GridLength(64), body.RowDefinitions[2].Height);
+        var originalSize = new Size(canvas.WidthRequest, canvas.HeightRequest);
         var targets = Descendants(controls.Toolbar).OfType<Button>().ToArray(); Assert.Equal(7, targets.Length);
         Assert.All(Descendants(controls.Toolbar).OfType<WidgetToolButton>(), x => { Assert.Equal(48, x.WidthRequest); Assert.Equal(48, x.HeightRequest); });
         Assert.Null(controls.ActiveTool); Assert.False(controls.IsVisible);
@@ -51,6 +57,7 @@ public sealed class PickerCancellationTests : IDisposable
             Assert.Equal(tool, controls.ActiveTool); Assert.True(controls.IsVisible); Assert.Contains("expanded", SemanticProperties.GetDescription(button));
             Assert.Single(Descendants(controls).OfType<Border>(), x => x.AutomationId?.StartsWith("ClockPanel") == true && x.IsVisible);
             Assert.Same(originalParent, canvas.Parent); Assert.Single(Descendants(page).OfType<WidgetCompositeView>());
+            Assert.Equal(originalSize, new Size(canvas.WidthRequest, canvas.HeightRequest));
         }
         ((IButtonController)Button(page, "ClockToolOpacity")).SendClicked(); Assert.Null(controls.ActiveTool); Assert.False(controls.IsVisible);
         ((IButtonController)Button(page, "ClockToolFont")).SendClicked();
@@ -61,7 +68,7 @@ public sealed class PickerCancellationTests : IDisposable
         Assert.Equal(WidgetClockFont.Monospaced, Descendants(page).OfType<WidgetCompositeView>().Single().Design!.Layers.Last().Clock!.Font);
     }
     [Fact]
-    public async Task ClockPanelValidationBlocksClosingAndNativePickerDisablesThePinnedCanvasUntilRecovery()
+    public async Task ClockPanelValidationBlocksClosingAndNativePickerDisablesTheCanvasUntilRecovery()
     {
         var pending = new TaskCompletionSource<string>(); var colours = new ColourPicker { Pick = (_, _) => pending.Task };
         var page = new WidgetEditorPage(new Store(), colours, NullLogger.Instance, chooseLayerType: () => Task.FromResult<string?>("Clock")); Open(page); await page.AddLayerAsync();
@@ -150,7 +157,11 @@ public sealed class PickerCancellationTests : IDisposable
         ((IButtonController)button).SendClicked(); Assert.Equal(centered.Frame, composition.Design.Layers.Last().Frame);
         ((IButtonController)toggle).SendClicked(); Assert.True(button.IsEnabled);
         var canvas = Descendants(page).OfType<WidgetCanvasView>().Single(); ((IView)canvas.PhotoSurface).Arrange(new Rect(0, 0, 170, 170));
-        Assert.True(canvas.BeginInteraction(85, 42.5, true)); canvas.Pinch(1.2, 30, 30); var pinching = composition.Design.Layers.Last();
+        Assert.True(canvas.BeginInteraction(85, 42.5, true));
+        for (Element? ancestor = canvas; ancestor is not null; ancestor = ancestor.Parent)
+            if (ancestor is VisualElement view) Assert.True(view.IsEnabled);
+        Assert.False(Button(page, "SaveWidgetDesign").IsEnabled);
+        canvas.Pinch(1.2, 30, 30); var pinching = composition.Design.Layers.Last();
         ((IButtonController)button).SendClicked(); Assert.Equal(pinching, composition.Design.Layers.Last()); canvas.EndInteraction(true);
         ((IButtonController)Button(page, "SaveWidgetDesign")).SendClicked(); Assert.Equal(centered, store.Saved!.Layers.Last());
     }
@@ -261,7 +272,11 @@ public sealed class PickerCancellationTests : IDisposable
         Assert.True(composition.Design.Layers[0].Locked); Assert.Equal(.35, composition.Design.Layers[0].Opacity); Assert.Equal(WidgetBlendMode.Multiply, composition.Design.Layers[0].BlendMode);
         ((IButtonController)toggle).SendClicked(); Assert.False(composition.Design.Layers[0].Locked); Assert.Equal(StudioSymbol.Unlock, control.Symbol);
         Assert.True(Button(page, "ClipboardResetselectedphoto").IsEnabled); Assert.Same(row, Descendants(page).OfType<WidgetLayerRow>().Single());
-        Assert.True(canvas.BeginInteraction(85, 85, false)); canvas.Pan(17, 0); canvas.EndInteraction(false);
+        Assert.True(canvas.BeginInteraction(85, 85, false));
+        for (Element? ancestor = canvas; ancestor is not null; ancestor = ancestor.Parent)
+            if (ancestor is VisualElement view) Assert.True(view.IsEnabled);
+        Assert.False(Button(page, "SaveWidgetDesign").IsEnabled);
+        canvas.Pan(17, 0); canvas.EndInteraction(false);
         ((IButtonController)toggle).SendClicked(); Click("SaveWidgetDesign");
         var savedPhoto = Assert.Single(store.Saved!.Layers); Assert.True(savedPhoto.Locked); Assert.Equal(.1, savedPhoto.Frame.X, 8);
         Assert.Equal(.35, savedPhoto.Opacity); Assert.Equal(WidgetBlendMode.Multiply, savedPhoto.BlendMode); Assert.False(original.Layers[0].Locked);

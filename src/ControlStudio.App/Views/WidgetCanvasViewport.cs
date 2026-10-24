@@ -7,11 +7,10 @@ internal sealed class WidgetCanvasViewport : ScrollView
 {
     private readonly WidgetCanvasView canvas;
     private readonly ILogger logger;
-    private readonly bool fitHeight;
     private bool needsCenter = true, centering;
-    public WidgetCanvasViewport(WidgetCanvasView canvas, ILogger logger, bool fitHeight = false)
+    public WidgetCanvasViewport(WidgetCanvasView canvas, ILogger logger)
     {
-        this.canvas = canvas; this.logger = logger; this.fitHeight = fitHeight;
+        this.canvas = canvas; this.logger = logger;
         Orientation = ScrollOrientation.Horizontal; HorizontalScrollBarVisibility = ScrollBarVisibility.Never;
         VerticalScrollBarVisibility = ScrollBarVisibility.Never; IsClippedToBounds = true; Content = canvas;
         AutomationId = "WidgetCanvasViewport";
@@ -21,7 +20,6 @@ internal sealed class WidgetCanvasViewport : ScrollView
     }
     private void Changed(object? sender, EventArgs args)
     {
-        if (fitHeight) canvas.FitViewportHeight(Height);
         needsCenter = true; Center();
     }
     internal static double CenterOffset(double contentWidth, double viewportWidth) => double.IsFinite(contentWidth) && double.IsFinite(viewportWidth)
