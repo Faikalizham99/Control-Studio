@@ -12,6 +12,12 @@ Editor text, saved previews and native live text use the same explicit hour-cycl
 
 Verification: **142 Core, 265 app, 66 Infrastructure and 34 packaging checks pass (507 total)**, along with source/project generation and managed iOS compilation (zero warnings/errors). Coverage includes old scenes missing the field, Boolean validation, midnight/noon/seconds formatting, 24-hour independence, switch visibility/mode restoration, saved settings and shared scene publication. Native Swift regressions cover the eight format combinations and missing/invalid field decoding, but have not run locally on Windows. Corrected Xcode compilation and actual iPhone preview/Home Screen/VoiceOver checks remain pending. The owner authorized committing and pushing this follow-up to main; no tag or version change is included.
 
+## Compact clock layer rows — unreleased
+
+The layer list now shows the clock name and **Clock**, without a 12-hour/24-hour suffix. This matches the compact photo-row metadata and gives the visibility switch, lock and menu more room beside it. Changing hour format no longer changes the row's detail width. All format/AM-PM controls remain in Clock settings; saved clock options, rendering, ordering, visibility and lock behaviour are unchanged. Existing accessible action/state descriptions and responsive wrapping for narrow screens or large text remain.
+
+All **265 app tests** and managed iOS compilation pass with zero warnings/errors; whitespace checks pass. Actual iPhone row layout and VoiceOver checks remain pending. The owner authorized committing and pushing this follow-up to main; no tag or version change is included.
+
 ## Editor behaviour
 
 - **Add layer** offers **Photo** and **Clock**. Photo retains Photo Library and Files selection. Cancel returns to the usable editor without changing the design.
