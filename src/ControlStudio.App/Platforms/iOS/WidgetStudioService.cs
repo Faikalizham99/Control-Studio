@@ -140,6 +140,8 @@ public sealed class WidgetStudioService : IWidgetEditorStore
             using var rendered = renderer.CreateImage(context =>
             {
                 var graphics = context.CGContext;
+                // The workspace ghost never enters this render; clip all off-canvas layer content.
+                graphics.ClipToRect(new CGRect(0, 0, width, height));
                 if (design.TransparentBackground) graphics.ClearRect(new CGRect(0, 0, width, height));
                 else { graphics.SetFillColor(fill); graphics.FillRect(new CGRect(0, 0, width, height)); }
                 var index = 0;

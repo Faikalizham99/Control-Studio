@@ -1,6 +1,6 @@
 namespace ControlStudio.Core.Widgets;
 
-/// <summary>Bounded normalized transforms shared by gestures and accessible controls.</summary>
+/// <summary>Finite workspace transforms shared by gestures and accessible controls.</summary>
 public static class WidgetLayerEdits
 {
     private static double Clamp(double value, double minimum, double maximum) => Math.Clamp(value, minimum, maximum);
@@ -11,31 +11,41 @@ public static class WidgetLayerEdits
         if (height > .8) { height = .8; width = height * canvas.Height * layer.PixelWidth / layer.PixelHeight / canvas.Width; }
         width = Clamp(width, .05, .8); height = Clamp(height, .05, .8);
         return layer with { Frame = new((1 - width) / 2, (1 - height) / 2, width, height), Zoom = 1, CropX = .5, CropY = .5,
-            QuarterTurns = 0, FlipHorizontal = false, FlipVertical = false, Opacity = 1 };
+            QuarterTurns = 0, FlipHorizontal = false, FlipVertical = false, Opacity = 1, FitPhoto = true };
     }
     public static WidgetLayer Move(WidgetLayer layer, double dx, double dy) => !double.IsFinite(dx) || !double.IsFinite(dy) ? layer
-        : layer with { Frame = layer.Frame with { X = Clamp(layer.Frame.X + dx, 0, 1 - layer.Frame.Width), Y = Clamp(layer.Frame.Y + dy, 0, 1 - layer.Frame.Height) } };
+        : layer with { Frame = layer.Frame with { X = Position(layer.Frame.X + dx), Y = Position(layer.Frame.Y + dy) } };
+    private static double Position(double value) => Clamp(value, -WidgetDesignRules.MaximumLayerOffset, WidgetDesignRules.MaximumLayerOffset);
+    public static WidgetLayer Center(WidgetLayer layer) => layer with { Frame = layer.Frame with { X = (1 - layer.Frame.Width) / 2, Y = (1 - layer.Frame.Height) / 2 } };
     public static WidgetLayer Scale(WidgetLayer layer, double factor, double anchorX = .5, double anchorY = .5)
     {
         if (!double.IsFinite(factor) || factor <= 0 || !double.IsFinite(anchorX) || !double.IsFinite(anchorY)) return layer;
         var f = layer.Frame;
-        factor = Clamp(factor, Math.Max(.05 / f.Width, .05 / f.Height), Math.Min(1 / f.Width, 1 / f.Height));
-        var width = Clamp(f.Width * factor, .05, 1); var height = Clamp(f.Height * factor, .05, 1);
-        return layer with { Frame = new(Clamp(f.X + (f.Width - width) * Clamp(anchorX, 0, 1), 0, 1 - width),
-            Clamp(f.Y + (f.Height - height) * Clamp(anchorY, 0, 1), 0, 1 - height), width, height) };
+        factor = Clamp(factor, Math.Max(WidgetDesignRules.MinimumLayerSize / f.Width, WidgetDesignRules.MinimumLayerSize / f.Height),
+            Math.Min(WidgetDesignRules.MaximumLayerSize / f.Width, WidgetDesignRules.MaximumLayerSize / f.Height));
+        var width = Clamp(f.Width * factor, WidgetDesignRules.MinimumLayerSize, WidgetDesignRules.MaximumLayerSize);
+        var height = Clamp(f.Height * factor, WidgetDesignRules.MinimumLayerSize, WidgetDesignRules.MaximumLayerSize);
+        return layer with { Frame = new(Position(f.X + (f.Width - width) * Clamp(anchorX, 0, 1)),
+            Position(f.Y + (f.Height - height) * Clamp(anchorY, 0, 1)), width, height) };
     }
     public static WidgetLayer Resize(WidgetLayer layer, int corner, double dx, double dy)
     {
         if (corner is < 0 or > 3 || !double.IsFinite(dx) || !double.IsFinite(dy)) return layer;
-        var f = layer.Frame; var left = f.X; var top = f.Y; var right = f.X + f.Width; var bottom = f.Y + f.Height;
-        if (corner % 2 == 0) left = Clamp(left + dx, 0, right - .05); else right = Clamp(right + dx, left + .05, 1);
-        if (corner < 2) top = Clamp(top + dy, 0, bottom - .05); else bottom = Clamp(bottom + dy, top + .05, 1);
-        // Subtraction near the minimum can produce .04999999999999999.
-        // Normalize before strict persistence validation, including opposite-edge bounds.
-        var width = Clamp(right - left, .05, 1); var height = Clamp(bottom - top, .05, 1);
-        return layer with { Frame = new(Clamp(left, 0, 1 - width), Clamp(top, 0, 1 - height), width, height) };
+        var f = layer.Frame;
+        var horizontal = (corner % 2 == 0 ? -dx : dx) / f.Width;
+        var vertical = (corner < 2 ? -dy : dy) / f.Height;
+        var factor = Math.Max(double.Epsilon, 1 + (Math.Abs(horizontal) >= Math.Abs(vertical) ? horizontal : vertical));
+        return Scale(layer, factor, corner % 2 == 0 ? 1 : 0, corner < 2 ? 1 : 0);
     }
-    public static WidgetLayer Rotate(WidgetLayer layer, int turns) => layer with { QuarterTurns = ((layer.QuarterTurns + turns % 4) % 4 + 4) % 4 };
+    public static WidgetLayer Rotate(WidgetLayer layer, int turns, WidgetSize? size = null)
+    {
+        var rotated = layer with { QuarterTurns = ((layer.QuarterTurns + turns % 4) % 4 + 4) % 4 };
+        if (!layer.FitPhoto || size is null || turns % 2 == 0) return rotated;
+        var canvas = WidgetDesignRules.Canvas(size.Value); var f = layer.Frame;
+        var width = Clamp(f.Height * canvas.Height / canvas.Width, WidgetDesignRules.MinimumLayerSize, WidgetDesignRules.MaximumLayerSize);
+        var height = Clamp(f.Width * canvas.Width / canvas.Height, WidgetDesignRules.MinimumLayerSize, WidgetDesignRules.MaximumLayerSize);
+        return rotated with { Frame = new(Position(f.X + (f.Width - width) / 2), Position(f.Y + (f.Height - height) / 2), width, height) };
+    }
     public static IReadOnlyList<WidgetLayer> Reorder(IReadOnlyList<WidgetLayer> layers, Guid source, Guid target)
     {
         var result = layers.ToList(); var from = result.FindIndex(x => x.Id == source); var to = result.FindIndex(x => x.Id == target);

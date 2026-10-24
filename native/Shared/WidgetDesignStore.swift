@@ -23,6 +23,14 @@ struct WidgetDesignSummary: Decodable, Equatable {
     let renderKey: String
     let revision: Int
     let transparentBackground: Bool?
+    let preserveCanvas: Bool?
+    let backgroundHex: String?
+    var canvasBackgroundRGB: (red: Double, green: Double, blue: Double)? {
+        guard let hex = backgroundHex, hex.utf8.count == 7, hex.first == "#",
+              hex.dropFirst().utf8.allSatisfy({ (48...57).contains($0) || (65...70).contains($0) }),
+              let number = UInt32(hex.dropFirst(), radix: 16) else { return nil }
+        return (Double((number >> 16) & 255) / 255, Double((number >> 8) & 255) / 255, Double(number & 255) / 255)
+    }
 }
 
 struct WidgetDesignCatalog: Decodable {

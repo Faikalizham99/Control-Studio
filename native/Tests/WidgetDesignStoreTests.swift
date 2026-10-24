@@ -46,6 +46,30 @@ final class WidgetDesignStoreTests: XCTestCase {
             XCTAssertEqual(try Data(contentsOf: url), bytes)
         }
     }
+    func testCanvasPreservationIsOptInAndNewGeometryDoesNotChangeNativeSummaryReading() throws {
+        let url = directory.appendingPathComponent("catalog.json")
+        try fixture.write(to: url)
+        XCTAssertNil(try store.read().first?.preserveCanvas)
+        var catalog = try JSONSerialization.jsonObject(with: fixture) as! [String: Any]
+        var design = (catalog["designs"] as! [[String: Any]])[0]
+        design["preserveCanvas"] = true; design["backgroundHex"] = "#12ABEF"
+        var layers = design["layers"] as! [[String: Any]]
+        layers[0]["fitPhoto"] = true
+        layers[0]["frame"] = ["x": -0.4, "y": 1.2, "width": 2.4, "height": 1.6]
+        design["layers"] = layers; catalog["designs"] = [design]
+        let bytes = try JSONSerialization.data(withJSONObject: catalog); try bytes.write(to: url)
+        let summary = try XCTUnwrap(store.read().first)
+        XCTAssertEqual(summary.preserveCanvas, true)
+        XCTAssertEqual(summary.canvasBackgroundRGB?.red, Double(0x12) / 255)
+        XCTAssertEqual(summary.canvasBackgroundRGB?.green, Double(0xAB) / 255)
+        XCTAssertEqual(summary.canvasBackgroundRGB?.blue, Double(0xEF) / 255)
+        XCTAssertEqual(try Data(contentsOf: url), bytes)
+        for hex in ["#GGGGGG", "#123", "123456", "#12345678", "#+00001"] {
+            design["backgroundHex"] = hex; catalog["designs"] = [design]
+            try JSONSerialization.data(withJSONObject: catalog).write(to: url)
+            XCTAssertNil(try store.read().first?.canvasBackgroundRGB)
+        }
+    }
     func testMissingCatalogIsEmptyButCorruptAndFutureCatalogAreNeverReset() throws {
         XCTAssertTrue(try store.read().isEmpty)
         let url = directory.appendingPathComponent("catalog.json")

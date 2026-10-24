@@ -53,7 +53,7 @@ public sealed class WidgetDesignTests
         Assert.Throws<IOException>(() => WidgetDesignRules.Validate(new WidgetCatalog(2, [design])));
     }
     [Theory]
-    [InlineData(double.NaN)] [InlineData(double.PositiveInfinity)] [InlineData(-.1)] [InlineData(1.1)]
+    [InlineData(double.NaN)] [InlineData(double.PositiveInfinity)] [InlineData(-4.1)] [InlineData(4.1)]
     public void InvalidGeometryIsRejectedBeforeSaving(double value)
     {
         var layer = Photo(); var design = WidgetDesignRules.New();
@@ -63,7 +63,7 @@ public sealed class WidgetDesignTests
     public void BoundsZoomKeysAndUniqueIdsAreValidated()
     {
         var layer = Photo(); var design = WidgetDesignRules.New();
-        foreach (var invalid in new[] { layer with { Frame = new(.5, 0, 1, 1) }, layer with { Zoom = 5 }, layer with { CropY = -1 }, layer with { AssetKey = "../private" }, layer with { PixelWidth = 4096 } })
+        foreach (var invalid in new[] { layer with { Frame = new(0, 0, 4.1, 1) }, layer with { Zoom = 5 }, layer with { CropY = -1 }, layer with { AssetKey = "../private" }, layer with { PixelWidth = 4096 } })
             Assert.Throws<IOException>(() => WidgetDesignRules.Validate(design with { Layers = [invalid] }));
         Assert.Throws<IOException>(() => WidgetDesignRules.Validate(design with { Layers = [layer, layer] }));
         Assert.Throws<IOException>(() => WidgetDesignRules.Validate(new WidgetCatalog(1, [design, design])));

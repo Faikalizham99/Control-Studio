@@ -1,12 +1,18 @@
 using ControlStudio.Core.Widgets;
 using Microsoft.Maui.Controls.Shapes;
+using Microsoft.Maui.Layouts;
 
 namespace ControlStudio.App.Views;
 
 /// <summary>Live photo composition, using the same oriented geometry as the PNG renderer.</summary>
 internal sealed class WidgetCanvasView : ContentView
 {
+    private const double WorkspaceInset = 32;
+    private const double GuideStroke = 1;
+    private readonly AbsoluteLayout workspace = new() { IsClippedToBounds = true, InputTransparent = true };
     private readonly AbsoluteLayout canvas = new() { IsClippedToBounds = true, InputTransparent = true };
+    private readonly PhotoView ghost = new(null);
+    private readonly Border widgetBorder;
     private readonly WidgetCheckerboard checker = new();
     private readonly SelectionOverlay handles = new();
     private readonly Dictionary<Guid, PhotoView> photos = [];
@@ -20,17 +26,41 @@ internal sealed class WidgetCanvasView : ContentView
     private int corner = -1;
     private VisualElement? measuredParent;
     public bool IsInteracting => gestureStart is not null;
+    internal AbsoluteLayout PhotoSurface => canvas;
+    internal AbsoluteLayout Workspace => workspace;
+    internal Rect WidgetBounds
+    {
+        get
+        {
+            var origin = Origin(canvas, this);
+            return new(origin.X, origin.Y, canvas.Width, canvas.Height);
+        }
+    }
+    private static Point Origin(VisualElement child, VisualElement ancestor)
+    {
+        double x = 0, y = 0; VisualElement? element = child;
+        while (element is not null && element != ancestor) { x += element.X; y += element.Y; element = element.Parent as VisualElement; }
+        return new(x, y);
+    }
     public event EventHandler? InteractionChanged;
 
     public WidgetCanvasView(Func<string, string?> path, Action<Guid> select, Action<WidgetLayer>? change = null)
     {
         this.path = path; this.select = select; this.change = change;
         HeightRequest = WidthRequest = 170; HorizontalOptions = LayoutOptions.Center; AutomationId = "WidgetCanvas";
-        var border = new Border { Content = new Grid { Children = { checker, canvas, handles } },
-            StrokeShape = new RoundRectangle { CornerRadius = 22 }, StrokeThickness = 1 };
+        widgetBorder = new Border { Content = new Grid { Children = { checker, canvas } },
+            StrokeShape = new RoundRectangle { CornerRadius = 22 }, StrokeThickness = GuideStroke };
+        SettingsControls.SurfaceStroke(widgetBorder);
+        ghost.Frame.Opacity = .22; ghost.Frame.IsVisible = false;
+        workspace.Children.Add(ghost.Frame); workspace.Children.Add(widgetBorder); workspace.Children.Add(handles);
+        AbsoluteLayout.SetLayoutFlags(handles, AbsoluteLayoutFlags.All);
+        AbsoluteLayout.SetLayoutBounds(handles, new Rect(0, 0, 1, 1));
+        var border = new Border { Content = workspace, StrokeShape = new RoundRectangle { CornerRadius = 16 }, StrokeThickness = GuideStroke };
+        border.SetAppThemeColor(BackgroundColorProperty, Color.FromArgb("#E5E8EF"), Color.FromArgb("#101319"));
         SettingsControls.SurfaceStroke(border); Content = border;
-        canvas.SizeChanged += (_, _) => ArrangePhotos();
-        SemanticProperties.SetHint(this, "Tap a photo to select it. Drag to move, pinch to resize, or drag a corner to change width and height. Precise controls are available in each layer's menu.");
+        canvas.SizeChanged += (_, _) => { EndInteraction(true); ArrangePhotos(); };
+        widgetBorder.SizeChanged += (_, _) => ArrangePhotos();
+        SemanticProperties.SetHint(this, "Tap a photo to select it. Drag past the widget edges to hide part of it. Pinch or drag a corner to resize proportionally. The faint outside area is not saved. Centre on widget in the layer menu recovers an off-screen photo.");
     }
     protected override void OnParentSet()
     {
@@ -43,15 +73,21 @@ internal sealed class WidgetCanvasView : ContentView
     private void FitCanvas()
     {
         if (design is null) return;
-        var size = WidgetPreviewFrame.Fit(design.Size, measuredParent?.Width > 0 ? measuredParent.Width : 300);
-        if (Math.Abs(WidthRequest - size.Width) > .5) WidthRequest = size.Width;
-        if (Math.Abs(HeightRequest - size.Height) > .5) HeightRequest = size.Height;
+        var available = measuredParent?.Width > 0 ? measuredParent.Width : 300;
+        // Border.CrossPlatformArrange subtracts its stroke on each side. Reserve both
+        // guides outside the photo area so the actual canvas keeps the exported aspect ratio.
+        var extra = WorkspaceInset * 2 + GuideStroke * 4;
+        var size = WidgetPreviewFrame.Fit(design.Size, Math.Max(1, available - extra));
+        AbsoluteLayout.SetLayoutBounds(widgetBorder, new Rect(WorkspaceInset, WorkspaceInset, size.Width + GuideStroke * 2, size.Height + GuideStroke * 2));
+        if (Math.Abs(WidthRequest - size.Width - extra) > .5) WidthRequest = size.Width + extra;
+        if (Math.Abs(HeightRequest - size.Height - extra) > .5) HeightRequest = size.Height + extra;
         ArrangePhotos();
     }
     public void Update(WidgetDesign value, Guid? selectedId)
     {
         if (gestureStart is not null && (design?.Size != value.Size || selected != selectedId || !value.Layers.Any(x => x.Id == gestureStart.Id && x.Visible))) EndInteraction(false);
         design = value; selected = selectedId;
+        if (!value.Layers.Any(x => x.Id == selectedId && x.Visible)) { ghost.Image.Source = null; ghost.Frame.IsVisible = false; }
         checker.IsVisible = value.TransparentBackground;
         canvas.BackgroundColor = value.TransparentBackground ? Colors.Transparent : Color.FromArgb(value.BackgroundHex);
         foreach (var id in photos.Keys.Where(id => !value.Layers.Any(x => x.Id == id)).ToArray())
@@ -65,11 +101,7 @@ internal sealed class WidgetCanvasView : ContentView
             }
             var current = canvas.Children.IndexOf(photo.Frame);
             if (current != i) { canvas.Children.RemoveAt(current); canvas.Children.Insert(i, photo.Frame); }
-            photo.Frame.IsVisible = layer.Visible; photo.Selection.IsVisible = selectedId == layer.Id;
-            photo.Image.Opacity = layer.Opacity; photo.Image.Rotation = layer.QuarterTurns * 90;
-            var odd = layer.QuarterTurns % 2 != 0;
-            photo.Image.ScaleX = (odd ? layer.FlipVertical : layer.FlipHorizontal) ? -1 : 1;
-            photo.Image.ScaleY = (odd ? layer.FlipHorizontal : layer.FlipVertical) ? -1 : 1;
+            photo.Frame.IsVisible = layer.Visible; Configure(photo, layer);
         }
         FitCanvas();
     }
@@ -78,19 +110,37 @@ internal sealed class WidgetCanvasView : ContentView
         if (design is null || canvas.Width <= 0 || canvas.Height <= 0) return;
         foreach (var layer in design.Layers)
         {
-            var photo = photos[layer.Id];
-            var width = layer.Frame.Width * canvas.Width; var height = layer.Frame.Height * canvas.Height;
-            AbsoluteLayout.SetLayoutBounds(photo.Frame, new Rect(layer.Frame.X * canvas.Width, layer.Frame.Y * canvas.Height, width, height));
-            var placement = WidgetPhotoGeometry.Image(layer, width, height); var odd = layer.QuarterTurns % 2 != 0;
-            var imageWidth = odd ? placement.Height : placement.Width; var imageHeight = odd ? placement.Width : placement.Height;
-            AbsoluteLayout.SetLayoutBounds(photo.Image, new Rect(placement.X + (placement.Width - imageWidth) / 2,
-                placement.Y + (placement.Height - imageHeight) / 2, imageWidth, imageHeight));
-            AbsoluteLayout.SetLayoutBounds(photo.Selection, new Rect(0, 0, width, height));
+            Place(photos[layer.Id], layer, 0, 0);
         }
         var active = design.Layers.FirstOrDefault(x => x.Id == selected && x.Visible);
-        handles.SelectionFrame = active is null ? Rect.Zero : new Rect(active.Frame.X * canvas.Width, active.Frame.Y * canvas.Height,
+        var origin = Origin(canvas, workspace);
+        ghost.Frame.IsVisible = active is not null;
+        if (active is null) ghost.Image.Source = null;
+        else
+        {
+            // One selected-layer ghost reuses the existing source, rather than duplicating every layer.
+            if (!ReferenceEquals(ghost.Image.Source, photos[active.Id].Image.Source)) ghost.Image.Source = photos[active.Id].Image.Source;
+            Configure(ghost, active); Place(ghost, active, origin.X, origin.Y);
+        }
+        handles.SelectionFrame = active is null ? Rect.Zero : new Rect(origin.X + active.Frame.X * canvas.Width, origin.Y + active.Frame.Y * canvas.Height,
             active.Frame.Width * canvas.Width, active.Frame.Height * canvas.Height);
         SemanticProperties.SetDescription(this, $"{WidgetDesignRules.SizeName(design.Size)} widget preview. {design.Layers.Count(x => x.Visible)} visible photo layers.");
+    }
+    private static void Configure(PhotoView photo, WidgetLayer layer)
+    {
+        photo.Image.Opacity = layer.Opacity; photo.Image.Rotation = layer.QuarterTurns * 90;
+        var odd = layer.QuarterTurns % 2 != 0;
+        photo.Image.ScaleX = (odd ? layer.FlipVertical : layer.FlipHorizontal) ? -1 : 1;
+        photo.Image.ScaleY = (odd ? layer.FlipHorizontal : layer.FlipVertical) ? -1 : 1;
+    }
+    private void Place(PhotoView photo, WidgetLayer layer, double x, double y)
+    {
+        var width = layer.Frame.Width * canvas.Width; var height = layer.Frame.Height * canvas.Height;
+        AbsoluteLayout.SetLayoutBounds(photo.Frame, new Rect(x + layer.Frame.X * canvas.Width, y + layer.Frame.Y * canvas.Height, width, height));
+        var placement = WidgetPhotoGeometry.Image(layer, width, height); var odd = layer.QuarterTurns % 2 != 0;
+        var imageWidth = odd ? placement.Height : placement.Width; var imageHeight = odd ? placement.Width : placement.Height;
+        AbsoluteLayout.SetLayoutBounds(photo.Image, new Rect(placement.X + (placement.Width - imageWidth) / 2,
+            placement.Y + (placement.Height - imageHeight) / 2, imageWidth, imageHeight));
     }
     private Point Normalize(double x, double y)
     {
@@ -115,9 +165,13 @@ internal sealed class WidgetCanvasView : ContentView
             var frame = layer.Frame;
             var corners = new[] { new Point(frame.X, frame.Y), new Point(frame.X + frame.Width, frame.Y),
                 new Point(frame.X, frame.Y + frame.Height), new Point(frame.X + frame.Width, frame.Y + frame.Height) };
-            corner = Array.FindIndex(corners, p => Math.Abs(p.X - point.X) * canvas.Width <= 22 && Math.Abs(p.Y - point.Y) * canvas.Height <= 22);
+            var radius = Math.Min(22, Math.Min(frame.Width * canvas.Width, frame.Height * canvas.Height) / 3);
+            var nearest = corners.Select((p, index) => (Index: index, Distance: Math.Pow((p.X - point.X) * canvas.Width, 2) + Math.Pow((p.Y - point.Y) * canvas.Height, 2)))
+                .OrderBy(x => x.Distance).First();
+            if (nearest.Distance <= radius * radius) corner = nearest.Index;
         }
-        if (corner < 0) layer = design.Layers.LastOrDefault(layer => WidgetLayerEdits.Contains(layer, point.X, point.Y));
+        if (corner < 0) layer = design.Layers.LastOrDefault(layer => WidgetLayerEdits.Contains(layer, point.X, point.Y))
+            ?? (pinch ? design.Layers.FirstOrDefault(x => x.Id == selected && x.Visible && x.Opacity > 0) : null);
         if (layer is null) return false;
         select(layer.Id); gestureStart = layer;
         anchor = new(Math.Clamp((point.X - layer.Frame.X) / layer.Frame.Width, 0, 1), Math.Clamp((point.Y - layer.Frame.Y) / layer.Frame.Height, 0, 1));
@@ -129,9 +183,11 @@ internal sealed class WidgetCanvasView : ContentView
         change?.Invoke(corner < 0 ? WidgetLayerEdits.Move(gestureStart, x / canvas.Width, y / canvas.Height)
             : WidgetLayerEdits.Resize(gestureStart, corner, x / canvas.Width, y / canvas.Height));
     }
-    public void Pinch(double scale)
+    public void Pinch(double scale, double dx = 0, double dy = 0)
     {
-        if (gestureStart is not null) change?.Invoke(WidgetLayerEdits.Scale(gestureStart, scale, anchor.X, anchor.Y));
+        if (!double.IsFinite(scale) || scale <= 0 || !double.IsFinite(dx) || !double.IsFinite(dy)) return;
+        if (gestureStart is not null && canvas.Width > 0 && canvas.Height > 0)
+            change?.Invoke(WidgetLayerEdits.Move(WidgetLayerEdits.Scale(gestureStart, scale, anchor.X, anchor.Y), dx / canvas.Width, dy / canvas.Height));
     }
     public void EndInteraction(bool cancel)
     {
@@ -143,17 +199,17 @@ internal sealed class WidgetCanvasView : ContentView
     public void ReleaseSources()
     {
         EndInteraction(false);
+        ghost.Image.Source = null; ghost.Frame.IsVisible = false;
         foreach (var photo in photos.Values) photo.Image.Source = null;
     }
     private sealed class PhotoView
     {
         public AbsoluteLayout Frame { get; } = new() { IsClippedToBounds = true, InputTransparent = true };
         public Image Image { get; } = new() { Aspect = Aspect.Fill, InputTransparent = true };
-        public Border Selection { get; } = new() { StrokeThickness = 2, BackgroundColor = Colors.Transparent, InputTransparent = true };
         public PhotoView(string? path)
         {
-            Image.Source = path; Selection.SetDynamicResource(Border.StrokeProperty, "AccentText");
-            Frame.Children.Add(Image); Frame.Children.Add(Selection); AutomationProperties.SetIsInAccessibleTree(Frame, false);
+            Image.Source = path;
+            Frame.Children.Add(Image); AutomationProperties.SetIsInAccessibleTree(Frame, false);
         }
     }
     private sealed class SelectionOverlay : GraphicsView, IDrawable
@@ -172,10 +228,10 @@ internal sealed class WidgetCanvasView : ContentView
         {
             if (frame.Width <= 0 || frame.Height <= 0) return;
             canvas.StrokeColor = Tint; canvas.StrokeSize = 2; canvas.FillColor = Colors.White;
+            canvas.DrawRectangle(frame);
             foreach (var point in new[] { new Point(frame.Left, frame.Top), new Point(frame.Right, frame.Top), new Point(frame.Left, frame.Bottom), new Point(frame.Right, frame.Bottom) })
             {
-                var x = (float)Math.Clamp(point.X, 6, Math.Max(6, dirty.Width - 6)); var y = (float)Math.Clamp(point.Y, 6, Math.Max(6, dirty.Height - 6));
-                canvas.FillCircle(x, y, 5); canvas.DrawCircle(x, y, 5);
+                canvas.FillCircle((float)point.X, (float)point.Y, 5); canvas.DrawCircle((float)point.X, (float)point.Y, 5);
             }
         }
     }

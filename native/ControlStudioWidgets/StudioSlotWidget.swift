@@ -8,6 +8,8 @@ struct StudioSlotEntry: TimelineEntry {
     var image: UIImage? = nil
     var name = ""
     var transparentBackground = false
+    var preserveCanvas = false
+    var canvasBackground: Color = .clear
     var message = "Assign a saved design to this slot in Control Studio, under Studio → My Widgets → Widget slots."
 }
 
@@ -44,7 +46,10 @@ struct StudioSlotProvider: TimelineProvider {
                     message: "Assign a \(size.title) design to slot \(slot) in Control Studio → Studio → My Widgets → Widget slots.")
             }
             guard let image = UIImage(data: try store.imageData(for: design)) else { throw WidgetDesignError.imageUnavailable }
-            return StudioSlotEntry(date: .now, slot: slot, image: image, name: design.name, transparentBackground: design.transparentBackground ?? false)
+            let rgb = design.canvasBackgroundRGB
+            let background = rgb.map { Color(red: $0.red, green: $0.green, blue: $0.blue) } ?? Color(uiColor: .systemBackground)
+            return StudioSlotEntry(date: .now, slot: slot, image: image, name: design.name,
+                transparentBackground: design.transparentBackground ?? false, preserveCanvas: design.preserveCanvas ?? false, canvasBackground: background)
         } catch CounterError.storageUnavailable {
             return StudioSlotEntry(date: .now, slot: slot, message: "App Group access is unavailable. Open Control Studio and check signing in Settings.")
         } catch {
@@ -59,8 +64,11 @@ struct StudioSlotView: View {
         Group {
             if let image = entry.image {
                 GeometryReader { geometry in
-                    photo(image).scaledToFill()
+                    // Retain every exported canvas edge when iOS supplies slightly different family proportions.
+                    // Previously saved catalogs retain their legacy fill until explicitly saved again in the app.
+                    photo(image).aspectRatio(contentMode: entry.preserveCanvas ? .fit : .fill)
                         .frame(width: geometry.size.width, height: geometry.size.height).clipped()
+                        .background(entry.preserveCanvas && !entry.transparentBackground ? entry.canvasBackground : .clear)
                         .accessibilityLabel("Studio \(entry.slot): \(entry.name)")
                 }
             } else {

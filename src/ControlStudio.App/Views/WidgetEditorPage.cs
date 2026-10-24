@@ -30,6 +30,7 @@ internal sealed class WidgetEditorPage : ContentPage
     private readonly Label backgroundHelp = SettingsControls.Text("", 13, secondary: true);
     private readonly Label opacityCaption = SettingsControls.Text("Opacity", 11);
     private readonly Slider opacity = new() { Minimum = 0, Maximum = 1, MinimumHeightRequest = 44 };
+    private readonly Switch fullPhoto = SettingsControls.RowSwitch("WidgetFullPhoto");
     private readonly ClipboardEditorActionButton save = new("Save widget", new ProfileGlyph(ProfileSymbol.Check), "SaveWidgetDesign", primary: true);
     private readonly ClipboardEditorActionButton cancel = new("Cancel", null, "CancelWidgetDesign", accentCaption: true);
     private readonly ClipboardEditorActionButton back = new("", new ProfileGlyph(ProfileSymbol.Back), "BackFromWidgetEditor");
@@ -90,8 +91,8 @@ internal sealed class WidgetEditorPage : ContentPage
         var tools = new Grid { ColumnSpacing = 4 };
         var toolViews = new[] { ToolCell(resetTool, "Reset"), ToolCell(rotateTool, "Rotate"), ToolCell(flipTool, "Flip"), ToolCell(opacityTool, opacityCaption), ToolCell(deleteTool, "Delete", true) };
         for (var i = 0; i < toolViews.Length; i++) { tools.ColumnDefinitions.Add(new(GridLength.Star)); tools.Add(toolViews[i], i); }
-        rotateMenu.Children.Add(MenuAction("Rotate Left", StudioSymbol.RotateLeft, () => EditLayer(layer => WidgetLayerEdits.Rotate(layer, -1), closeTools: false)));
-        rotateMenu.Children.Add(MenuAction("Rotate Right", StudioSymbol.RotateRight, () => EditLayer(layer => WidgetLayerEdits.Rotate(layer, 1), closeTools: false)));
+        rotateMenu.Children.Add(MenuAction("Rotate Left", StudioSymbol.RotateLeft, () => EditLayer(layer => WidgetLayerEdits.Rotate(layer, -1, draft.Size), closeTools: false)));
+        rotateMenu.Children.Add(MenuAction("Rotate Right", StudioSymbol.RotateRight, () => EditLayer(layer => WidgetLayerEdits.Rotate(layer, 1, draft.Size), closeTools: false)));
         flipMenu.Children.Add(MenuAction("Flip horizontally", StudioSymbol.Flip, () => EditLayer(layer => layer with { FlipHorizontal = !layer.FlipHorizontal }, closeTools: false)));
         flipMenu.Children.Add(MenuAction("Flip vertically", StudioSymbol.Flip, () => EditLayer(layer => layer with { FlipVertical = !layer.FlipVertical }, closeTools: false)));
         opacity.SetDynamicResource(Slider.MinimumTrackColorProperty, "AccentText"); SemanticProperties.SetDescription(opacity, "Selected photo opacity");
@@ -99,7 +100,8 @@ internal sealed class WidgetEditorPage : ContentPage
         opacityMenu.Children.Add(SettingsControls.Text("Photo opacity", 14)); opacityMenu.Children.Add(opacity);
         form.Children.Add(Card(new VerticalStackLayout { Spacing = 12, Children =
         {
-            SettingsControls.Text("Live preview", 22, bold: true), SettingsControls.Text("Pinch to resize • Drag to move • Tap a layer to select it", 12, secondary: true),
+            SettingsControls.Text("Live preview", 22, bold: true), SettingsControls.Text("Pinch to resize • Drag past the widget edges to crop", 12, secondary: true),
+            SettingsControls.Text("The faint outside area is for editing only. Recover an off-screen photo with Centre on widget in its layer menu.", 12, secondary: true),
             canvas, tools, rotateMenu, flipMenu, opacityMenu
         } }));
 
@@ -110,8 +112,17 @@ internal sealed class WidgetEditorPage : ContentPage
         layersCount.VerticalTextAlignment = TextAlignment.Center;
         form.Children.Add(Card(new VerticalStackLayout { Spacing = 12, Children = { layerHeading, addPhoto, layerList } }));
         precise.Children.Add(selectedTitle);
-        precise.Children.Add(SettingsControls.Text("Adjust width and height independently. Zoom and crop position the photo inside its frame.", 12, secondary: true));
-        AddSlider("Horizontal position", 0, 1); AddSlider("Vertical position", 0, 1); AddSlider("Width", .05, 1); AddSlider("Height", .05, 1);
+        precise.Children.Add(SettingsControls.Text("Full photo keeps the entire image visible. Turn it off to crop inside the layer frame. Moving past the widget edges hides content in either mode.", 12, secondary: true));
+        var fitLabel = SettingsControls.Text("Show full photo", 14); fitLabel.VerticalOptions = LayoutOptions.Center;
+        SemanticProperties.SetDescription(fullPhoto, "Show the full photo without cropping inside its layer");
+        fullPhoto.Toggled += (_, args) => { if (!updating && CanEdit) EditLayer(layer => layer with { FitPhoto = args.Value }, closeTools: false); };
+        var fitRow = new Grid { ColumnDefinitions = { new(GridLength.Star), new(GridLength.Auto) }, ColumnSpacing = 8 };
+        fitRow.Add(fitLabel); fitRow.Add(fullPhoto, 1); precise.Children.Add(fitRow);
+        precise.Children.Add(MenuAction("Centre on widget", StudioSymbol.Widgets, () => EditLayer(WidgetLayerEdits.Center, closeTools: false)));
+        AddSlider("Horizontal position", -WidgetDesignRules.MaximumLayerOffset, WidgetDesignRules.MaximumLayerOffset);
+        AddSlider("Vertical position", -WidgetDesignRules.MaximumLayerOffset, WidgetDesignRules.MaximumLayerOffset);
+        AddSlider("Width", WidgetDesignRules.MinimumLayerSize, WidgetDesignRules.MaximumLayerSize);
+        AddSlider("Height", WidgetDesignRules.MinimumLayerSize, WidgetDesignRules.MaximumLayerSize);
         AddSlider("Photo zoom", 1, 4); AddSlider("Crop horizontally", 0, 1); AddSlider("Crop vertically", 0, 1);
         precise.Children.Add(MenuAction("Done", StudioSymbol.Check, () => precise.IsVisible = false));
         // Hide the entire card when precision controls are closed, including its padding.
@@ -181,10 +192,10 @@ internal sealed class WidgetEditorPage : ContentPage
         var f = layer.Frame;
         return index switch
         {
-            0 => layer with { Frame = f with { X = Math.Min(value, 1 - f.Width) } },
-            1 => layer with { Frame = f with { Y = Math.Min(value, 1 - f.Height) } },
-            2 => layer with { Frame = f with { Width = value, X = Math.Min(f.X, 1 - value) } },
-            3 => layer with { Frame = f with { Height = value, Y = Math.Min(f.Y, 1 - value) } },
+            0 => WidgetLayerEdits.Move(layer, value - f.X, 0),
+            1 => WidgetLayerEdits.Move(layer, 0, value - f.Y),
+            2 => layer.FitPhoto ? WidgetLayerEdits.Scale(layer, value / f.Width) : layer with { Frame = f with { Width = value } },
+            3 => layer.FitPhoto ? WidgetLayerEdits.Scale(layer, value / f.Height) : layer with { Frame = f with { Height = value } },
             4 => layer with { Zoom = value }, 5 => layer with { CropX = value }, 6 => layer with { CropY = value }, _ => layer
         };
     }, closeTools: false);
@@ -223,16 +234,18 @@ internal sealed class WidgetEditorPage : ContentPage
             var layer = draft.Layers.FirstOrDefault(x => x.Id == selected);
             if (layer is null) { precise.IsVisible = false; opacityCaption.Text = "Opacity"; return; }
             selectedTitle.Text = layer.Name + " · Size, position & crop"; opacityCaption.Text = $"Opacity · {layer.Opacity:P0}"; opacity.Value = layer.Opacity;
-            sliders[0].Slider.Maximum = Math.Max(.001, 1 - layer.Frame.Width); sliders[1].Slider.Maximum = Math.Max(.001, 1 - layer.Frame.Height);
+            fullPhoto.IsToggled = layer.FitPhoto;
             var values = new[] { layer.Frame.X, layer.Frame.Y, layer.Frame.Width, layer.Frame.Height, layer.Zoom, layer.CropX, layer.CropY };
             for (var i = 0; i < sliders.Count; i++)
             {
                 sliders[i].Slider.Value = values[i]; sliders[i].Label.Text = i == 4 ? $"{sliders[i].Title} · {values[i]:0.00}×" : $"{sliders[i].Title} · {values[i]:P0}";
             }
-            sliders[0].Slider.IsEnabled = layer.Frame.Width < 1; sliders[1].Slider.IsEnabled = layer.Frame.Height < 1;
+            sliders[0].Slider.IsEnabled = sliders[1].Slider.IsEnabled = true;
+            sliders[4].Slider.IsEnabled = !layer.FitPhoto;
             var bounds = WidgetDesignRules.Canvas(draft.Size); var width = layer.Frame.Width * bounds.Width; var height = layer.Frame.Height * bounds.Height;
             var placement = WidgetPhotoGeometry.Image(layer, width, height);
-            sliders[5].Slider.IsEnabled = placement.Width > width + .001; sliders[6].Slider.IsEnabled = placement.Height > height + .001;
+            sliders[5].Slider.IsEnabled = !layer.FitPhoto && placement.Width > width + .001;
+            sliders[6].Slider.IsEnabled = !layer.FitPhoto && placement.Height > height + .001;
         }
         finally { updating = false; }
     }
@@ -240,7 +253,7 @@ internal sealed class WidgetEditorPage : ContentPage
     {
         var layer = draft.Layers.FirstOrDefault(x => x.Id == selected); if (layer is null) return;
         var index = draft.Layers.ToList().FindIndex(x => x.Id == layer.Id);
-        var choices = new List<string> { "Rename", "Size, position & crop" };
+        var choices = new List<string> { "Rename", "Size, position & crop", "Centre on widget", layer.FitPhoto ? "Crop to frame" : "Show full photo" };
         if (index < draft.Layers.Count - 1) choices.Add("Move forward"); if (index > 0) choices.Add("Move backward");
         var choice = await DisplayActionSheetAsync(layer.Name, "Cancel", "Delete layer", choices.ToArray());
         if (!Foreground || departed) return;
@@ -260,6 +273,9 @@ internal sealed class WidgetEditorPage : ContentPage
                 await scroll.ScrollToAsync(precisionCard, ScrollToPosition.Start, animate);
                 break;
             case "Move forward": MoveLayer(1); break;
+            case "Centre on widget": ReplaceLayer(WidgetLayerEdits.Center(layer)); break;
+            case "Show full photo": ReplaceLayer(layer with { FitPhoto = true }); break;
+            case "Crop to frame": ReplaceLayer(layer with { FitPhoto = false }); break;
             case "Move backward": MoveLayer(-1); break;
             case "Delete layer": await RemoveLayerAsync(); break;
         }
@@ -318,7 +334,7 @@ internal sealed class WidgetEditorPage : ContentPage
     private async Task SaveAsync()
     {
         if (!draft.TransparentBackground && !background.CommitPendingHex()) { ShowStatus("Enter a valid background colour before saving."); return; }
-        name.Unfocus(); draft = draft with { Name = name.Text?.Trim() ?? "" };
+        name.Unfocus(); draft = draft with { Name = name.Text?.Trim() ?? "", PreserveCanvas = true };
         var result = await studio.SaveAsync(draft); draft = result.Design; saved = true; await CleanupAsync();
         if (!Foreground || departed) return;
         if (!result.Published) await DisplayAlertAsync("Saved on this device", "Your design is saved, but the Home Screen update could not be published. Check App Group signing in Settings, then tap Refresh widgets in My Widgets.", "OK");

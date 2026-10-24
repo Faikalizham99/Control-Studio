@@ -15,6 +15,7 @@ internal sealed class WidgetCanvasGestureHandler : ContentViewHandler
     private UIGestureRecognizer? owner;
     private UIScrollView? scroll;
     private bool wasScrollable;
+    private CoreGraphics.CGPoint pinchOrigin;
     private WidgetCanvasView Canvas => (WidgetCanvasView)VirtualView;
     protected override void ConnectHandler(NativeContentView platformView)
     {
@@ -33,7 +34,11 @@ internal sealed class WidgetCanvasGestureHandler : ContentViewHandler
         pinch = new UIPinchGestureRecognizer(() => Guard(() =>
         {
             if (pinch is not { } gesture) return;
-            if (owner == gesture && gesture.State is (UIGestureRecognizerState.Changed or UIGestureRecognizerState.Ended)) Canvas.Pinch(gesture.Scale);
+            if (owner == gesture && gesture.State is (UIGestureRecognizerState.Changed or UIGestureRecognizerState.Ended))
+            {
+                var point = gesture.LocationInView(platformView);
+                Canvas.Pinch(gesture.Scale, point.X - pinchOrigin.X, point.Y - pinchOrigin.Y);
+            }
             Finish(gesture);
         }));
         pan.ShouldBegin = _ => Begin(pan, false); pinch.ShouldBegin = _ => Begin(pinch, true);
@@ -50,7 +55,7 @@ internal sealed class WidgetCanvasGestureHandler : ContentViewHandler
             { var translation = moving.TranslationInView(PlatformView); point.X -= translation.X; point.Y -= translation.Y; }
             if (!Canvas.BeginInteraction(point.X, point.Y, isPinch)) return false;
             owner = recognizer;
-            if (recognizer is UIPinchGestureRecognizer resizing) resizing.Scale = 1;
+            if (recognizer is UIPinchGestureRecognizer resizing) { pinchOrigin = point; resizing.Scale = 1; }
             for (var parent = PlatformView.Superview; parent is not null; parent = parent.Superview)
                 if (parent is UIScrollView found) { scroll = found; wasScrollable = found.ScrollEnabled; found.ScrollEnabled = false; break; }
             return true;

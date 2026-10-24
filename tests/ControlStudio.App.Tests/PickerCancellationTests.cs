@@ -87,6 +87,31 @@ public sealed class PickerCancellationTests : IDisposable
     }
 
     [Fact]
+    public void EditorKeepsOffCanvasValuesAndAnExplicitFitChoiceThroughSave()
+    {
+        var photo = Photo() with { Frame = new(-.4, .8, 2.4, 1.6), FitPhoto = true };
+        var original = WidgetDesignRules.New() with { Layers = [photo] };
+        var store = new Store(); var page = new WidgetEditorPage(store, new ColourPicker(), NullLogger.Instance, original); Open(page);
+        var toggle = Descendants(page).OfType<Switch>().Single(x => x.AutomationId == "WidgetFullPhoto");
+        Assert.True(toggle.IsToggled); toggle.IsToggled = false; toggle.IsToggled = true;
+        ((IButtonController)Button(page, "SaveWidgetDesign")).SendClicked();
+        Assert.Equal(1, store.Saves); Assert.Equal(photo, Assert.Single(store.Saved!.Layers));
+        Assert.True(store.Saved.PreserveCanvas);
+        Assert.Equal(original.Layers, new[] { photo });
+    }
+
+    [Fact]
+    public async Task NewPhotoImportsDefaultToFullPhotoAndLegacyLayersKeepTheirCropChoice()
+    {
+        var store = new Store { Pick = _ => Task.FromResult<WidgetLayer?>(Photo()) }; var page = Editor(store); Open(page);
+        var toggle = Descendants(page).OfType<Switch>().Single(x => x.AutomationId == "WidgetFullPhoto");
+        Assert.False(toggle.IsToggled);
+        await page.AddPhotoAsync(); Assert.True(toggle.IsToggled);
+        ((IButtonController)Button(page, "SaveWidgetDesign")).SendClicked();
+        Assert.False(store.Saved!.Layers[0].FitPhoto); Assert.True(store.Saved.Layers[1].FitPhoto);
+    }
+
+    [Fact]
     public async Task APhotoReturningAfterNavigationAwayIsCleanedUpWithoutReenablingTheDepartedEditor()
     {
         var pending = new TaskCompletionSource<WidgetLayer?>(); var store = new Store { Pick = _ => pending.Task };
@@ -192,11 +217,12 @@ public sealed class PickerCancellationTests : IDisposable
         public Func<bool, Task<WidgetLayer?>> Pick { get; set; } = _ => Task.FromResult<WidgetLayer?>(null);
         public int Picks { get; private set; }
         public int Saves { get; private set; }
+        public WidgetDesign? Saved { get; private set; }
         public bool Library { get; private set; }
         public List<string> Removed { get; } = [];
         public string? AssetPath(string key) => "/private/" + key + ".png";
         public Task<WidgetLayer?> PickPhotoAsync(bool library) { Picks++; Library = library; return Pick(library); }
-        public Task<WidgetSaveResult> SaveAsync(WidgetDesign draft) { Saves++; return Task.FromResult(new WidgetSaveResult(draft, true)); }
+        public Task<WidgetSaveResult> SaveAsync(WidgetDesign draft) { Saves++; Saved = draft; return Task.FromResult(new WidgetSaveResult(draft, true)); }
         public Task RemoveDraftPhotosAsync(IEnumerable<string> keys) { Removed.AddRange(keys); return Task.CompletedTask; }
     }
     public void Dispose() => host.Dispose();

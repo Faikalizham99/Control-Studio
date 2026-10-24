@@ -29,7 +29,7 @@ public sealed class WidgetLayerEditsTests
     public void GesturesClampFramesAndKeepIdentityAndOppositeResizeCorner()
     {
         var photo = Photo(); var moved = WidgetLayerEdits.Move(photo, 9, -9);
-        Assert.Equal(.6, moved.Frame.X); Assert.Equal(0, moved.Frame.Y); Assert.Equal(photo.Id, moved.Id);
+        Assert.Equal(4, moved.Frame.X); Assert.Equal(-4, moved.Frame.Y); Assert.Equal(photo.Id, moved.Id);
         Assert.Equal(photo, WidgetLayerEdits.Move(photo, double.NaN, 0));
         Assert.Equal(photo, WidgetLayerEdits.Scale(photo, double.PositiveInfinity));
         Assert.Equal(photo, WidgetLayerEdits.Scale(photo, -1));
