@@ -70,7 +70,7 @@ internal sealed class WidgetLayerRow : ContentView
     {
         updating = true; name.Text = layer.Name; visible.IsToggled = layerVisible = layer.Visible; updating = false;
         var kind = layer.Kind == WidgetLayerKind.Clock ? "clock" : "photo";
-        detail.Text = (layer.Kind == WidgetLayerKind.Clock ? "Clock" : "Image") + (layer.Locked ? " · Locked" : "")
+        detail.Text = (layer.Kind == WidgetLayerKind.Clock ? "Clock" : "Image")
             + (layer.Clock is { } options ? (options.TwentyFourHour ? " · 24-hour" : " · 12-hour") : layer.BlendMode == WidgetBlendMode.Normal ? "" : " · " + WidgetBlending.Name(layer.BlendMode));
         placementLock.Symbol = layer.Locked ? StudioSymbol.Lock : StudioSymbol.Unlock;
         placementLock.Describe((layer.Locked ? "Unlock " : "Lock ") + kind + " layer", layer.Name + (layer.Locked ? ", locked" : ", unlocked"));
