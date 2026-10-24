@@ -104,10 +104,11 @@ internal sealed class WidgetPreviewFrame : ContentView
     private readonly WidgetSize size;
     private readonly WidgetCanvasSize? dimensions;
     private readonly Border frame;
+    private readonly RoundRectangle outline = new();
     public WidgetPreviewFrame(WidgetSize size, View content, Color? background = null, double initialWidth = 320, WidgetCanvasSize? dimensions = null)
     {
         this.size = size; this.dimensions = dimensions;
-        frame = new Border { Content = content, StrokeShape = new RoundRectangle { CornerRadius = 24 },
+        frame = new Border { Content = content, StrokeShape = outline,
             StrokeThickness = 1, HorizontalOptions = LayoutOptions.Center };
         SettingsControls.SurfaceStroke(frame);
         if (background is not null) frame.BackgroundColor = background;
@@ -126,7 +127,10 @@ internal sealed class WidgetPreviewFrame : ContentView
     }
     private void ApplyWidth(double width)
     {
-        var bounds = dimensions is null ? Fit(size, width) : Fit((dimensions.Width, dimensions.Height), width); if (bounds.Width == 0) return;
+        var canvas = dimensions is null ? WidgetDesignRules.Canvas(size) : (Width: dimensions.Width, Height: dimensions.Height);
+        var bounds = Fit(canvas, width); if (bounds.Width == 0) return;
+        var radius = 24 * bounds.Width / canvas.Width;
+        if (Math.Abs(outline.CornerRadius.TopLeft - radius) > .01) outline.CornerRadius = new CornerRadius(radius);
         if (Math.Abs(frame.WidthRequest - bounds.Width) > .5) frame.WidthRequest = bounds.Width;
         if (Math.Abs(frame.HeightRequest - bounds.Height) > .5) frame.HeightRequest = bounds.Height;
         if (Math.Abs(HeightRequest - bounds.Height) > .5) HeightRequest = bounds.Height;

@@ -29,7 +29,7 @@ public sealed class WidgetSlotsRedesignTests : IDisposable
         => new(store, NullLogger.Instance, size, number, saved, close ?? (() => Task.CompletedTask));
 
     [Theory]
-    [InlineData(WidgetSize.Small, 2)] [InlineData(WidgetSize.Medium, 2)] [InlineData(WidgetSize.Large, 1)] [InlineData(WidgetSize.ExtraLargePortrait, 1)]
+    [InlineData(WidgetSize.Small, 2)] [InlineData(WidgetSize.Medium, 1)] [InlineData(WidgetSize.Large, 1)] [InlineData(WidgetSize.ExtraLargePortrait, 1)]
     public async Task AssignmentStaysLockedToItsSizeAndSavesOnlyAfterConfirmation(WidgetSize size, int columns)
     {
         var chosen = Design(size, "Cancel"); var unrelated = Design(size == WidgetSize.Small ? WidgetSize.Large : WidgetSize.Small);
@@ -46,6 +46,46 @@ public sealed class WidgetSlotsRedesignTests : IDisposable
         await page.ConfirmAsync(); Assert.Single(store.Writes);
     }
     [Theory]
+    [InlineData(WidgetSize.Small, false)] [InlineData(WidgetSize.Small, true)]
+    [InlineData(WidgetSize.Medium, false)] [InlineData(WidgetSize.Medium, true)]
+    [InlineData(WidgetSize.Large, false)] [InlineData(WidgetSize.Large, true)]
+    [InlineData(WidgetSize.ExtraLargePortrait, false)] [InlineData(WidgetSize.ExtraLargePortrait, true)]
+    public void AssignmentCardsResizePreviewGeometryAfterNarrowAndWideReflow(WidgetSize size, bool measured)
+    {
+        var dimensions = size switch { WidgetSize.Small => new WidgetCanvasSize(158, 158), WidgetSize.Medium => new(338, 158),
+            WidgetSize.Large => new(338, 354), _ => new(338, 550) };
+        var designs = new[] { Design(size, "A"), Design(size, "B with a longer title that wraps"), Design(size, "C") }
+            .Select(x => x with { CanvasDimensions = measured ? dimensions : null }).ToArray();
+        var store = new Store(designs); var page = Assignment(store, size); Open(page); page.Choose(designs[1].Id);
+        var grid = Descendants(page).OfType<Grid>().Single(x => x.AutomationId == "MatchingWidgetDesigns");
+        foreach (var width in new[] { 240d, 360d, 600d, 240d })
+        {
+            ((IView)grid).Arrange(new Rect(0, 0, width, 2000));
+            var columns = size == WidgetSize.Small && width >= 280 ? 2 : 1;
+            Assert.Equal(columns, grid.ColumnDefinitions.Count);
+            var cards = grid.Children.OfType<WidgetDesignChoiceCard>().ToArray(); Assert.Equal(3, cards.Length);
+            var cellWidth = (width - (columns - 1) * grid.ColumnSpacing) / columns;
+            for (var index = 0; index < cards.Length; index++)
+            {
+                Assert.Equal(index % columns, Grid.GetColumn(cards[index])); Assert.Equal(index / columns, Grid.GetRow(cards[index]));
+                var frame = Descendants(cards[index]).OfType<WidgetPreviewFrame>().Single();
+                var available = cellWidth - 20; // Card padding/stroke, including the selected outline.
+                ((IView)frame).Arrange(new Rect(0, 0, available, frame.HeightRequest));
+                ((IView)frame).Arrange(new Rect(0, 0, available, frame.HeightRequest)); // Updated height after width measurement.
+                var border = Assert.IsType<Border>(frame.Content);
+                var canvas = WidgetDesignRules.Canvas(designs[index]);
+                // The real width-change event updates this component's geometry;
+                // native Border/Image measurement still requires an iPhone.
+                Assert.Equal(canvas.Width / canvas.Height, border.WidthRequest / border.HeightRequest, 8);
+                Assert.Equal(Math.Min(available, canvas.Width), border.WidthRequest, 8);
+                Assert.Equal(border.HeightRequest, frame.HeightRequest, 8);
+                Assert.True(border.WidthRequest <= available); Assert.True(border.HeightRequest <= canvas.Height);
+                Assert.Equal(Aspect.AspectFit, Descendants(border).OfType<Image>().Single().Aspect);
+            }
+            Assert.Equal(designs[1].Id, page.SelectedId); Assert.Empty(store.Writes);
+        }
+    }
+    [Theory]
     [InlineData(WidgetSize.Small)] [InlineData(WidgetSize.Medium)] [InlineData(WidgetSize.Large)] [InlineData(WidgetSize.ExtraLargePortrait)]
     public void SlotCardsKeepAllTenAddressesAndCorrectPreviewProportions(WidgetSize size)
     {
@@ -56,10 +96,39 @@ public sealed class WidgetSlotsRedesignTests : IDisposable
         foreach (var frame in frames)
         {
             var border = Assert.IsType<Border>(frame.Content); var canvas = WidgetDesignRules.Canvas(size);
-            Assert.Equal(112, border.WidthRequest); Assert.Equal(canvas.Width / canvas.Height, border.WidthRequest / border.HeightRequest, 10);
+            Assert.Equal(112, border.WidthRequest);
+            Assert.Equal(canvas.Width / canvas.Height, border.WidthRequest / border.HeightRequest, 10);
+            var shape = Assert.IsType<Microsoft.Maui.Controls.Shapes.RoundRectangle>(border.StrokeShape);
+            Assert.True(shape.CornerRadius.TopLeft < border.HeightRequest / 4);
         }
         Assert.NotNull(Button(page, "Change" + size + "Slot1")); Assert.NotNull(Button(page, "Clear" + size + "Slot1"));
         Assert.NotNull(Button(page, "Assign" + size + "Slot2")); Assert.Empty(store.Writes);
+    }
+    [Fact]
+    public void AllSlotFamiliesShareTheCompactSideBySideLayoutAndResponsiveActions()
+    {
+        foreach (var family in WidgetDesignRules.SupportedSizes)
+        {
+            var design = Design(family); var store = new Store([design], [new(family, 1, design.Id)]);
+            var opened = new List<(WidgetSize, int)>();
+            var page = new WidgetSlotsPage(store, NullLogger.Instance, family, openAssignment: (size, number) => { opened.Add((size, number)); return Task.CompletedTask; }); Open(page);
+            var card = Descendants(page).OfType<WidgetSlotCard>().First();
+            var row = Assert.IsType<Grid>(Assert.IsType<VerticalStackLayout>(Assert.IsType<Border>(card.Content).Content).Children[1]);
+            var art = Assert.IsType<Grid>(row.Children[0]); var details = Assert.IsType<VerticalStackLayout>(row.Children[1]);
+            var frame = Descendants(art).OfType<WidgetPreviewFrame>().Single();
+            foreach (var width in new[] { 320d, 220d, 360d })
+            {
+                ((IView)row).Arrange(new Rect(0, 0, width, 600));
+                var vertical = width < 280;
+                Assert.Equal(vertical ? 1 : 2, row.ColumnDefinitions.Count);
+                Assert.Equal(vertical ? 1 : 0, Grid.GetRow(details)); Assert.Equal(vertical ? 0 : 1, Grid.GetColumn(details));
+                Assert.Equal(112, art.WidthRequest); Assert.Equal(112, frame.WidthRequest);
+                var outline = Assert.IsType<Border>(frame.Content);
+                Assert.Equal(WidgetDesignRules.Canvas(design).Width / WidgetDesignRules.Canvas(design).Height, outline.WidthRequest / outline.HeightRequest, 8);
+            }
+            ((IButtonController)Button(page, "Open" + family + "Slot1")).SendClicked(); Assert.Equal((family, 1), Assert.Single(opened));
+            Assert.Empty(store.Writes); Assert.Single(store.Library.Designs); Assert.Single(store.Library.Slots);
+        }
     }
     [Fact]
     public async Task ChangingSizeKeepsAssignmentsSeparateAndOpensTheCorrectLockedAddress()

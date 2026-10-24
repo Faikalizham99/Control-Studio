@@ -1,8 +1,10 @@
 # Clock layers — 0.2.31 (33)
 
+The follow-ups below are included in **0.2.32 (34)**. The owner authorized committing, pushing main and the new v0.2.32 tag, and will monitor the IPA build. Individual implementation records retain their test counts and approval scope from before this release.
+
 The owner approved adding Clock alongside Photo in the existing widget editor, then authorized committing and pushing main and the new v0.2.31 tag. App and extension versions are 0.2.31 (33). The owner will monitor the IPA build. IPA workflow triggers remain unchanged.
 
-## Optional AM/PM suffix — unreleased
+## Optional AM/PM suffix — included in 0.2.32
 
 12-hour clocks now offer **Show AM/PM**, using the same aligned, accent-aware switch as Show seconds. Turning it off displays `3:45:12` instead of `3:45:12 PM` (or `3:45` with seconds off). The row is hidden in 24-hour mode; returning to 12-hour mode restores the per-layer choice. The control retains its VoiceOver label and follows the editor's existing busy/lifecycle guards.
 
@@ -12,13 +14,13 @@ Editor text, saved previews and native live text use the same explicit hour-cycl
 
 Verification: **142 Core, 265 app, 66 Infrastructure and 34 packaging checks pass (507 total)**, along with source/project generation and managed iOS compilation (zero warnings/errors). Coverage includes old scenes missing the field, Boolean validation, midnight/noon/seconds formatting, 24-hour independence, switch visibility/mode restoration, saved settings and shared scene publication. Native Swift regressions cover the eight format combinations and missing/invalid field decoding, but have not run locally on Windows. Corrected Xcode compilation and actual iPhone preview/Home Screen/VoiceOver checks remain pending. The owner authorized committing and pushing this follow-up to main; no tag or version change is included.
 
-## Compact clock layer rows — unreleased
+## Compact clock layer rows — included in 0.2.32
 
 The layer list now shows the clock name and **Clock**, without a 12-hour/24-hour suffix. This matches the compact photo-row metadata and gives the visibility switch, lock and menu more room beside it. Changing hour format no longer changes the row's detail width. All format/AM-PM controls remain in Clock settings; saved clock options, rendering, ordering, visibility and lock behaviour are unchanged. Existing accessible action/state descriptions and responsive wrapping for narrow screens or large text remain.
 
 All **265 app tests** and managed iOS compilation pass with zero warnings/errors; whitespace checks pass. Actual iPhone row layout and VoiceOver checks remain pending. The owner authorized committing and pushing this follow-up to main; no tag or version change is included.
 
-## Horizontal centring and stable clock pinch — unreleased
+## Horizontal centring and stable clock pinch — included in 0.2.32
 
 The selected clock's panel adds **Centre horizontally**, with an accent-aware vector icon and an accessible action description. It centres the layer frame left-to-right while retaining Y, width, height, opacity and clock settings. It does not create a persistent alignment lock: a later drag may move the clock sideways. Text alignment remains independent and is labelled **Text alignment** to distinguish it from placement. Locked clocks disable the action; busy, background, reordering and active-gesture guards prevent it from editing the draft. Pending text-colour HEX is validated/committed first. Placement is draft-only until Save widget and uses the existing frame fields without a schema change.
 
@@ -30,7 +32,7 @@ Both photo and clock pinches now apply updates only for `Changed` with exactly t
 
 Local verification: **150 Core, 271 app, 66 Infrastructure and 34 packaging checks (521 total)**, source/project generation, whitespace checks and managed iOS compilation with zero warnings/errors. New regressions cover horizontal-only placement, unchanged draft/options, lock and invalid-colour guards, off-centre clock pinches, extreme workspace limits, last-valid photo/clock release frames, touch-count changes, cancellation and subsequent dragging. The tests exercise the same touch-input policy used by the native callback, but do not execute UIKit recognition, touch delivery or scroll restoration. Xcode/AOT compilation and physical iPhone pinch-release, centring, both themes, VoiceOver and background/scroll checks remain pending. The owner authorized committing and pushing this follow-up to main; no tag or version change is included.
 
-## Clock toolbar and pinned preview — unreleased
+## Clock toolbar and pinned preview — included in 0.2.32
 
 Clock layers now share the photo editor's single scrolling icon toolbar and 48-point native targets. The seven actions are **Time**, **Font**, **Colour**, **Size**, **Position**, **Opacity** and red **Delete**. Time contains 12/24-hour format, seconds and optional AM/PM; Size adjusts text size within the frame; Position offers horizontal centring and text alignment. Frame/crop precision remains available through the layer menu. Delete uses the existing confirmation flow, including for locked layers.
 

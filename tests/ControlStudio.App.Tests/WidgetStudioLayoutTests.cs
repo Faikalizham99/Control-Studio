@@ -24,6 +24,30 @@ public sealed class WidgetStudioLayoutTests : IDisposable
         foreach (var width in new[] { 0d, -1, double.NaN, double.PositiveInfinity }) Assert.Equal(Size.Zero, WidgetPreviewFrame.Fit(WidgetSize.Small, width));
     }
     [Fact]
+    public void WidgetPreviewCornersScaleWithSavedGeometryInsteadOfBecomingPills()
+    {
+        foreach (var size in WidgetDesignRules.SupportedSizes)
+        foreach (var measured in new[] { false, true })
+        {
+            var saved = size switch { WidgetSize.Small => new WidgetCanvasSize(158, 158), WidgetSize.Medium => new(338, 158),
+                WidgetSize.Large => new(338, 354), _ => new(338, 550) };
+            var defaultSize = WidgetDesignRules.Canvas(size);
+            var dimensions = measured ? saved : new(defaultSize.Width, defaultSize.Height);
+            var preview = new WidgetPreviewFrame(size, new Grid(), initialWidth: dimensions.Width, dimensions: measured ? saved : null); host.Attach(preview);
+            var border = Assert.IsType<Border>(preview.Content);
+            var shape = Assert.IsType<Microsoft.Maui.Controls.Shapes.RoundRectangle>(border.StrokeShape); var fullRadius = shape.CornerRadius.TopLeft;
+            foreach (var width in new[] { 112d, 220d, 360d, 600d, 112d })
+            {
+                ((IView)preview).Arrange(new Rect(0, 0, width, preview.HeightRequest));
+                var radius = shape.CornerRadius.TopLeft;
+                Assert.Equal(border.WidthRequest / dimensions.Width, radius / fullRadius, 10);
+                Assert.True(radius > 0 && radius < Math.Min(border.WidthRequest, border.HeightRequest) / 4);
+                Assert.Equal(dimensions.Width / dimensions.Height, border.WidthRequest / border.HeightRequest, 10);
+                Assert.Same(shape, border.StrokeShape);
+            }
+        }
+    }
+    [Fact]
     public void SelectedSegmentsFollowAccentChangesAndAnnounceTheirSelection()
     {
         host.App.Resources["AccentButtonBrush"] = new SolidColorBrush(Colors.Blue);

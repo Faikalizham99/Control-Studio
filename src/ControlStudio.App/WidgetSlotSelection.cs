@@ -25,5 +25,5 @@ internal sealed class WidgetSlotSelection
     }
     public IReadOnlyList<WidgetDesign> Search(string? text) => matching.Where(x => string.IsNullOrWhiteSpace(text)
         || x.Name.Contains(text.Trim(), StringComparison.CurrentCultureIgnoreCase)).ToArray();
-    public static int Columns(WidgetSize size, double width) => size is WidgetSize.Small or WidgetSize.Medium && width >= 280 ? 2 : 1;
+    public static int Columns(WidgetSize size, double width) => size == WidgetSize.Small && width >= 280 ? 2 : 1;
 }
