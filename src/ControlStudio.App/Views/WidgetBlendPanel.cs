@@ -5,37 +5,33 @@ namespace ControlStudio.App.Views;
 /// <summary>A persistent, accessible audition panel; browsing groups does not edit the layer.</summary>
 internal sealed class WidgetBlendPanel : ContentView
 {
-    private readonly WidgetSegments groups;
+    private readonly WidgetBlendGroups groups;
     private readonly Label summary = SettingsControls.Text("", 14, bold: true);
     private readonly Label notice = SettingsControls.Text("", 12, secondary: true);
     private readonly Grid modes = new() { ColumnSpacing = ActionSpacing.Gap, RowSpacing = ActionSpacing.Gap,
         ColumnDefinitions = { new(GridLength.Star), new(GridLength.Star) } };
-    private readonly List<(WidgetBlendMode Mode, Grid Cell, Button Tap, AccentSurface Accent)> choices = [];
+    private readonly List<(WidgetBlendMode Mode, WidgetBlendChoice Cell, WidgetBlendThumbnail Picture)> choices = [];
     private WidgetLayer? layer;
-    public WidgetBlendPanel(Action<WidgetBlendMode> choose)
+    public WidgetBlendPanel(Action<WidgetBlendMode> choose, Func<WidgetBlendMode, ImageSource?>? sampleSource = null)
     {
         AutomationId = "WidgetBlendPanel"; IsVisible = false;
-        groups = new WidgetSegments(WidgetBlending.Groups, "WidgetBlendGroup", ShowGroup);
+        groups = new WidgetBlendGroups(ShowGroup);
         foreach (var mode in WidgetBlending.Modes)
         {
             var title = WidgetBlending.Name(mode);
-            var idle = SettingsControls.Text(title, 14); idle.InputTransparent = true;
-            idle.HorizontalTextAlignment = idle.VerticalTextAlignment = TextAlignment.Center;
-            var selected = new Label { Text = title + " ✓", FontSize = 14, FontAttributes = FontAttributes.Bold,
-                HorizontalTextAlignment = TextAlignment.Center, VerticalTextAlignment = TextAlignment.Center, InputTransparent = true };
-            var accent = new AccentSurface(selected, 16, new Thickness(8), captionSize: 14);
-            accent.BindForeground(selected, Label.TextColorProperty); accent.InputTransparent = true;
-            var tap = SettingsControls.TapTarget(title, "WidgetBlendMode" + mode);
-            tap.Clicked += (_, _) => { if (IsEnabled && layer is not null && layer.BlendMode != mode) choose(mode); };
-            var cell = new Grid { MinimumHeightRequest = 48, Children = { tap, idle, accent } };
-            AutomationProperties.SetIsInAccessibleTree(idle, false); AutomationProperties.SetIsInAccessibleTree(selected, false);
-            choices.Add((mode, cell, tap, accent));
+            var picture = new WidgetBlendThumbnail(mode, sampleSource);
+            var cell = new WidgetBlendChoice(title, "WidgetBlendMode" + mode, picture, () =>
+            {
+                if (IsEnabled && IsVisible && layer is not null && groups.SelectedIndex == WidgetBlending.Group(mode) && layer.BlendMode != mode) choose(mode);
+            });
+            choices.Add((mode, cell, picture));
         }
         var done = new ClipboardEditorActionButton("Done", ClipboardEditorControls.Icon(StudioSymbol.Check), "CloseWidgetBlendPanel");
         done.Clicked += (_, _) => IsVisible = false;
         Content = new VerticalStackLayout { Spacing = 10, Children = { summary,
-            SettingsControls.Text("Blend with layers underneath or a solid background. The checkerboard and Home Screen wallpaper are not part of the blend.", 12, secondary: true),
+            SettingsControls.Text("Blue/orange examples show each effect. Tap a mode to blend your photo with lower layers or a solid background. Wallpaper is not included.", 12, secondary: true),
             notice, groups, modes, done } };
+        PropertyChanged += (_, args) => { if (args.PropertyName == nameof(IsVisible)) RefreshPictures(); };
         ShowGroup(0);
     }
     public void Show(WidgetLayer value) { Update(value); groups.Update(WidgetBlending.Group(value.BlendMode)); ShowGroup(groups.SelectedIndex); IsVisible = true; }
@@ -49,12 +45,13 @@ internal sealed class WidgetBlendPanel : ContentView
         notice.IsVisible = notice.Text.Length > 0;
         foreach (var choice in choices)
         {
-            var selected = choice.Mode == value.BlendMode; choice.Accent.IsVisible = selected;
-            SemanticProperties.SetDescription(choice.Tap, WidgetBlending.Name(choice.Mode) + (selected ? ", selected" : "") + ", " + value.Name);
+            var selected = choice.Mode == value.BlendMode; choice.Cell.MarkSelected(selected);
+            SemanticProperties.SetDescription(choice.Cell.Tap, WidgetBlending.Name(choice.Mode) + (selected ? ", selected" : "") + ", " + value.Name);
         }
     }
     private void ShowGroup(int index)
     {
+        foreach (var choice in choices) choice.Picture.SetActive(false);
         modes.Children.Clear(); modes.RowDefinitions.Clear();
         var items = choices.Where(x => WidgetBlending.Group(x.Mode) == index).ToArray();
         for (var i = 0; i < items.Length; i++)
@@ -62,5 +59,10 @@ internal sealed class WidgetBlendPanel : ContentView
             if (i % 2 == 0) modes.RowDefinitions.Add(new(GridLength.Auto));
             modes.Add(items[i].Cell, i % 2, i / 2);
         }
+        RefreshPictures();
+    }
+    private void RefreshPictures()
+    {
+        foreach (var choice in choices) choice.Picture.SetActive(IsVisible && layer is not null && WidgetBlending.Group(choice.Mode) == groups.SelectedIndex);
     }
 }

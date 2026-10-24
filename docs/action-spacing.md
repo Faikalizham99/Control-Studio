@@ -1,6 +1,6 @@
 # Action spacing audit — 24 October 2026
 
-The owner authorized matching My Widgets action spacing to Clipboard, auditing related UI across the app, fixing findings and reporting affected components, then authorized committing and pushing main. No new release tag is included. Version 0.2.28 (30) remains unchanged.
+The owner authorized matching My Widgets action spacing to Clipboard, auditing related UI across the app, fixing findings and reporting affected components, then authorized committing and pushing main. The spacing update was initially pushed without a new version tag and is now included in the authorized v0.2.29 release, version 0.2.29 (31), alongside the compact widget toolbar and blend illustrations. The toolbar's single grouped strip supersedes the two-row tool layout described below.
 
 ## Changes
 

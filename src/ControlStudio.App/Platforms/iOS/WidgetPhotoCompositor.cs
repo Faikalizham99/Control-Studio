@@ -1,4 +1,5 @@
 using ControlStudio.Core.Widgets;
+using System.Collections.Concurrent;
 using CoreGraphics;
 using CoreImage;
 using Foundation;
@@ -9,6 +10,9 @@ namespace ControlStudio.App.Platforms.iOS;
 /// <summary>Shared sRGB composition for live preview and export. Owned by one caller/thread.</summary>
 internal sealed class WidgetPhotoCompositor : IDisposable
 {
+    // Built-in kernels are shared immutable native objects. Retain their wrappers
+    // for the app lifetime; a background sample must not dispose a live editor's kernel.
+    private static readonly ConcurrentDictionary<WidgetBlendMode, CIBlendKernel> kernels = new();
     private readonly Func<string, string?> path;
     private readonly CGColorSpace colorSpace = CGColorSpace.CreateSrgb() ?? throw new IOException("Widget colour rendering is unavailable.");
     private readonly CIContext context;
@@ -46,7 +50,7 @@ internal sealed class WidgetPhotoCompositor : IDisposable
             foreach (var layer in design.Layers.Where(x => x.Visible && x.Opacity > 0))
             {
                 var input = Rasterize(layer, size);
-                using var kernel = Kernel(layer.BlendMode);
+                var kernel = Kernel(layer.BlendMode);
                 var blended = kernel.Apply(input, result) ?? throw new IOException("This photo blend could not be rendered.");
                 intermediates.Add(blended);
                 result = blended.ImageByCroppingToRect(bounds); intermediates.Add(result);
@@ -96,7 +100,8 @@ internal sealed class WidgetPhotoCompositor : IDisposable
         }
         catch { raster.Dispose(); throw; }
     }
-    private static CIBlendKernel Kernel(WidgetBlendMode mode) => mode switch
+    internal static CIBlendKernel Kernel(WidgetBlendMode mode) => kernels.GetOrAdd(mode, CreateKernel);
+    private static CIBlendKernel CreateKernel(WidgetBlendMode mode) => mode switch
     {
         WidgetBlendMode.Normal => CIBlendKernel.SourceOver,
         WidgetBlendMode.Darken => CIBlendKernel.Darken, WidgetBlendMode.Multiply => CIBlendKernel.Multiply,

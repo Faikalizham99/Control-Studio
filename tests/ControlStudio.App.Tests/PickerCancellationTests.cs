@@ -32,6 +32,31 @@ public sealed class PickerCancellationTests : IDisposable
         typeof(NavigationPage), BindingFlags.Instance | BindingFlags.NonPublic, null, [false, root], null)!;
     private static WidgetEditorPage Editor(Store store, string source = "Photo Library", ColourPicker? colours = null)
         => new(store, colours ?? new(), NullLogger.Instance, WidgetDesignRules.New() with { Layers = [Photo()] }, choosePhotoSource: () => Task.FromResult<string?>(source));
+    [Fact]
+    public void SingleRowToolsKeepAdjustmentPanelsOpenAndClearTheirHighlightOnDoneOrBackground()
+    {
+        var page = Editor(new Store()); Open(page);
+        WidgetToolButton Tool(string id) => Assert.IsType<WidgetToolButton>(Button(page, id).Parent!.Parent);
+        void Click(string id) => ((IButtonController)Button(page, id)).SendClicked();
+        var rotate = Tool("ClipboardRotateselectedphoto"); var flip = Tool("ClipboardFlipselectedphoto"); var blend = Tool("ClipboardBlendselectedphoto");
+        var opacity = Tool("ClipboardAdjustphotoopacity");
+        Click("ClipboardRotateselectedphoto"); Assert.True(rotate.IsSelected);
+        Click("WidgetRotateRight"); Click("WidgetRotateRight"); Assert.True(rotate.IsSelected);
+        var composition = Descendants(page).OfType<WidgetCompositeView>().Single(); Assert.Equal(2, composition.Design!.Layers[0].QuarterTurns);
+        Click("ClipboardFlipselectedphoto"); Assert.False(rotate.IsSelected); Assert.True(flip.IsSelected);
+        Click("WidgetFliphorizontally"); Assert.True(composition.Design.Layers[0].FlipHorizontal); Assert.True(flip.IsSelected);
+        Click("ClipboardBlendselectedphoto"); Assert.False(flip.IsSelected); Assert.True(blend.IsSelected);
+        Click("WidgetBlendGroup1"); Click("WidgetBlendModeMultiply"); Assert.True(blend.IsSelected);
+        Click("CloseWidgetBlendPanel"); Assert.False(blend.IsSelected);
+        Click("ClipboardAdjustphotoopacity"); Assert.True(opacity.IsSelected);
+        var slider = Descendants(page).OfType<Slider>().Single(x => SemanticProperties.GetDescription(x) == "Selected photo opacity");
+        slider.Value = .35; Assert.Equal(.35, composition.Design!.Layers[0].Opacity); Assert.True(opacity.IsSelected);
+        Assert.Contains("35", SemanticProperties.GetDescription(Button(page, "ClipboardAdjustphotoopacity")));
+        opacity.Scale = .95;
+        ((IWindow)host.App.Windows[0]).Deactivated(); Assert.False(opacity.IsSelected); Assert.Equal(1, opacity.Scale); ((IWindow)host.App.Windows[0]).Activated();
+        Click("ClipboardResetselectedphoto"); Assert.Equal(1, composition.Design!.Layers[0].Opacity); Assert.Equal(WidgetBlendMode.Normal, composition.Design.Layers[0].BlendMode);
+        Assert.All(Descendants(page).OfType<WidgetToolButton>(), tool => Assert.False(tool.IsSelected));
+    }
 
     [Theory]
     [InlineData(WidgetSize.Small, 158, 158)] [InlineData(WidgetSize.Medium, 338, 158)]

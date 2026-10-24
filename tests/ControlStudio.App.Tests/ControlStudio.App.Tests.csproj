@@ -21,6 +21,9 @@
     <Compile Include="../../src/ControlStudio.App/Views/WidgetCanvasViewport.cs" Link="Views/WidgetCanvasViewport.cs" />
     <Compile Include="../../src/ControlStudio.App/Views/WidgetCompositeView.cs" Link="Views/WidgetCompositeView.cs" />
     <Compile Include="../../src/ControlStudio.App/Views/WidgetBlendPanel.cs" Link="Views/WidgetBlendPanel.cs" />
+    <Compile Include="../../src/ControlStudio.App/Views/WidgetBlendChoices.cs" Link="Views/WidgetBlendChoices.cs" />
+    <Compile Include="../../src/ControlStudio.App/Views/WidgetBlendVisuals.cs" Link="Views/WidgetBlendVisuals.cs" />
+    <Compile Include="../../src/ControlStudio.App/Views/WidgetEditorToolbar.cs" Link="Views/WidgetEditorToolbar.cs" />
     <Compile Include="../../src/ControlStudio.App/Views/WidgetCheckerboard.cs" Link="Views/WidgetCheckerboard.cs" />
     <Compile Include="../../src/ControlStudio.App/Views/WidgetLayerRow.cs" Link="Views/WidgetLayerRow.cs" />
     <Compile Include="../../src/ControlStudio.App/Views/WidgetRenderPreview.cs" Link="Views/WidgetRenderPreview.cs" />

@@ -28,7 +28,7 @@ internal sealed class WidgetEditorPage : ContentPage
     private readonly Label backgroundStatus = SettingsControls.Text("", 12);
     private readonly Label backgroundMode = SettingsControls.Text("", 14, secondary: true);
     private readonly Label backgroundHelp = SettingsControls.Text("", 13, secondary: true);
-    private readonly Label opacityCaption = SettingsControls.Text("Opacity", 11);
+    private readonly Label opacityCaption = SettingsControls.Text("Photo opacity", 14, bold: true);
     private readonly Label sizingCaption = SettingsControls.Text("", 12, secondary: true);
     private readonly Slider opacity = new() { Minimum = 0, Maximum = 1, MinimumHeightRequest = 44 };
     private readonly Switch fullPhoto = SettingsControls.RowSwitch("WidgetFullPhoto");
@@ -37,7 +37,8 @@ internal sealed class WidgetEditorPage : ContentPage
     private readonly ClipboardEditorActionButton back = new("", new ProfileGlyph(ProfileSymbol.Back), "BackFromWidgetEditor");
     private readonly ClipboardEditorActionButton addPhoto;
     private readonly ClipboardEditorActionButton solid;
-    private readonly ClipboardIconButton resetTool, rotateTool, flipTool, opacityTool, deleteTool, blendTool;
+    private readonly WidgetToolButton resetTool, rotateTool, flipTool, opacityTool, deleteTool, blendTool;
+    private readonly WidgetHorizontalStrip tools;
     private readonly WidgetBlendPanel blendMenu;
     private readonly VerticalStackLayout rotateMenu = new() { Spacing = 8, IsVisible = false };
     private readonly VerticalStackLayout flipMenu = new() { Spacing = 8, IsVisible = false };
@@ -104,18 +105,16 @@ internal sealed class WidgetEditorPage : ContentPage
         });
         blendTool.AutomationId = "WidgetBlendTool";
         deleteTool = Tool(StudioSymbol.Delete, "Delete selected photo", () => _ = RunAsync(RemoveLayerAsync), destructive: true);
-        var tools = new Grid { ColumnSpacing = ActionSpacing.Gap, RowSpacing = ActionSpacing.Gap,
-            ColumnDefinitions = { new(GridLength.Star), new(GridLength.Star), new(GridLength.Star) },
-            RowDefinitions = { new(GridLength.Auto), new(GridLength.Auto) } };
-        var toolViews = new[] { ToolCell(resetTool, "Reset"), ToolCell(rotateTool, "Rotate"), ToolCell(flipTool, "Flip"), ToolCell(blendTool, "Blend"), ToolCell(opacityTool, opacityCaption), ToolCell(deleteTool, "Delete", true) };
-        for (var i = 0; i < toolViews.Length; i++) tools.Add(toolViews[i], i % 3, i / 3);
+        tools = new WidgetHorizontalStrip([resetTool, rotateTool, flipTool, blendTool, opacityTool, deleteTool], "WidgetEditorToolbar", logger);
+        foreach (var panel in new VisualElement[] { rotateMenu, flipMenu, opacityMenu, blendMenu })
+            panel.PropertyChanged += (_, args) => { if (args.PropertyName == nameof(IsVisible)) RefreshToolSelection(); };
         rotateMenu.Children.Add(MenuAction("Rotate Left", StudioSymbol.RotateLeft, () => EditLayer(layer => WidgetLayerEdits.Rotate(layer, -1, draft.Size, draft.CanvasDimensions), closeTools: false)));
         rotateMenu.Children.Add(MenuAction("Rotate Right", StudioSymbol.RotateRight, () => EditLayer(layer => WidgetLayerEdits.Rotate(layer, 1, draft.Size, draft.CanvasDimensions), closeTools: false)));
         flipMenu.Children.Add(MenuAction("Flip horizontally", StudioSymbol.Flip, () => EditLayer(layer => layer with { FlipHorizontal = !layer.FlipHorizontal }, closeTools: false)));
         flipMenu.Children.Add(MenuAction("Flip vertically", StudioSymbol.Flip, () => EditLayer(layer => layer with { FlipVertical = !layer.FlipVertical }, closeTools: false)));
         opacity.SetDynamicResource(Slider.MinimumTrackColorProperty, "AccentText"); SemanticProperties.SetDescription(opacity, "Selected photo opacity");
         opacity.ValueChanged += (_, args) => { if (!updating && CanEdit) EditLayer(layer => layer with { Opacity = args.NewValue }, closeTools: false); };
-        opacityMenu.Children.Add(SettingsControls.Text("Photo opacity", 14)); opacityMenu.Children.Add(opacity);
+        opacityMenu.Children.Add(opacityCaption); opacityMenu.Children.Add(opacity);
         form.Children.Add(Card(new VerticalStackLayout { Spacing = 12, Children =
         {
             SettingsControls.Text("Live preview", 22, bold: true), SettingsControls.Text("Pinch to resize • Drag past the widget edges to crop", 12, secondary: true),
@@ -164,17 +163,17 @@ internal sealed class WidgetEditorPage : ContentPage
         selected = draft.Layers.LastOrDefault()?.Id; RefreshBackground(); RefreshLayers();
     }
     private static Border Card(View content) => ClipboardEditorControls.Surface(content, 22, 14);
-    private ClipboardIconButton Tool(StudioSymbol symbol, string title, Action action, bool destructive = false)
+    private WidgetToolButton Tool(StudioSymbol symbol, string title, Action action, bool destructive = false)
     {
-        var button = new ClipboardIconButton(symbol, title, destructive: destructive); button.Clicked += (_, _) => { if (CanEdit) action(); }; return button;
+        var button = new WidgetToolButton(symbol, title, destructive); button.Clicked += (_, _) => { if (CanEdit) action(); }; return button;
     }
-    private static View ToolCell(View button, string text, bool destructive = false) => ToolCell(button, SettingsControls.Text(text, 11), destructive);
-    private static View ToolCell(View button, Label label, bool destructive = false)
+    private void RefreshToolSelection()
     {
-        label.HorizontalTextAlignment = TextAlignment.Center; label.MaxLines = 2;
-        if (destructive) label.SetAppThemeColor(Label.TextColorProperty, Color.FromArgb("#B5223E"), Color.FromArgb("#FF8096"));
-        button.HorizontalOptions = LayoutOptions.Center;
-        return new VerticalStackLayout { Spacing = 4, Children = { button, label } };
+        resetTool.IsSelected = deleteTool.IsSelected = false;
+        rotateTool.IsSelected = rotateMenu.IsVisible; flipTool.IsSelected = flipMenu.IsVisible;
+        blendTool.IsSelected = blendMenu.IsVisible; opacityTool.IsSelected = opacityMenu.IsVisible;
+        var active = rotateMenu.IsVisible ? rotateTool : flipMenu.IsVisible ? flipTool : blendMenu.IsVisible ? blendTool : opacityMenu.IsVisible ? opacityTool : null;
+        if (active is not null) tools.Reveal(active);
     }
     private ClipboardEditorActionButton MenuAction(string text, StudioSymbol symbol, Action action)
     {
@@ -186,7 +185,7 @@ internal sealed class WidgetEditorPage : ContentPage
         var button = new ClipboardEditorActionButton(text, ClipboardEditorControls.Icon(symbol, size: 18), id, accentCaption: true);
         button.Clicked += async (_, _) => await RunAsync(action); return button;
     }
-    private void CloseTools() { rotateMenu.IsVisible = flipMenu.IsVisible = opacityMenu.IsVisible = blendMenu.IsVisible = false; }
+    private void CloseTools() { rotateMenu.IsVisible = flipMenu.IsVisible = opacityMenu.IsVisible = blendMenu.IsVisible = false; RefreshToolSelection(); }
     private void ToggleTool(VisualElement panel) { var show = !panel.IsVisible; CloseTools(); panel.IsVisible = show; }
     private void SelectLayer(Guid id)
     {
@@ -270,8 +269,9 @@ internal sealed class WidgetEditorPage : ContentPage
             var layer = draft.Layers.FirstOrDefault(x => x.Id == selected);
             blendMenu.Update(layer);
             if (layer is not null) blendTool.Describe("Blend", layer.Name + ", " + WidgetBlending.Name(layer.BlendMode));
-            if (layer is null) { precise.IsVisible = false; opacityCaption.Text = "Opacity"; return; }
-            selectedTitle.Text = layer.Name + " · Size, position & crop"; opacityCaption.Text = $"Opacity · {layer.Opacity:P0}"; opacity.Value = layer.Opacity;
+            if (layer is null) { precise.IsVisible = false; opacityCaption.Text = "Photo opacity"; return; }
+            selectedTitle.Text = layer.Name + " · Size, position & crop"; opacityCaption.Text = $"Photo opacity · {layer.Opacity:P0}"; opacity.Value = layer.Opacity;
+            opacityTool.Describe("Photo opacity", $"{layer.Opacity:P0}");
             fullPhoto.IsToggled = layer.FitPhoto;
             var values = new[] { layer.Frame.X, layer.Frame.Y, layer.Frame.Width, layer.Frame.Height, layer.Zoom, layer.CropX, layer.CropY };
             for (var i = 0; i < sliders.Count; i++)
@@ -393,7 +393,7 @@ internal sealed class WidgetEditorPage : ContentPage
         back.IsEnabled = cancel.IsEnabled = canNavigate;
         addPhoto.IsEnabled = canNavigate && !saved && draft.Layers.Count < WidgetDesignRules.MaximumLayers;
         var hasLayer = draft.Layers.Any(x => x.Id == selected);
-        resetTool.IsEnabled = rotateTool.IsEnabled = flipTool.IsEnabled = opacityTool.IsEnabled = deleteTool.IsEnabled = blendTool.IsEnabled = blendMenu.IsEnabled = canNavigate && !saved && hasLayer;
+        resetTool.IsEnabled = rotateTool.IsEnabled = flipTool.IsEnabled = opacityTool.IsEnabled = deleteTool.IsEnabled = blendTool.IsEnabled = blendMenu.IsEnabled = tools.IsEnabled = canNavigate && !saved && hasLayer;
     }
     private async Task RunAsync(Func<Task> operation)
     {
