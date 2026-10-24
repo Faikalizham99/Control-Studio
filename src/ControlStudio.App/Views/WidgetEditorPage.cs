@@ -85,6 +85,10 @@ internal sealed class WidgetEditorPage : ContentPage
         background = new ColourPickerView(colourPicker, "WidgetBackground", "Background"); background.SetSelection(draft.BackgroundHex);
         clockControls = new(colourPicker);
         clockControls.BusyChanged += (_, _) => RefreshActions();
+        clockControls.CentreHorizontallyRequested += (_, _) =>
+        {
+            if (CanEdit && CommitClockColour()) EditLayer(WidgetLayerEdits.CenterHorizontally, closeTools: false);
+        };
         clockControls.Changed += changed =>
         {
             if (saved || departed || canvas.IsInteracting || layerList.IsReordering) return;

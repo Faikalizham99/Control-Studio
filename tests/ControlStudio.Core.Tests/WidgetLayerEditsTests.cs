@@ -8,6 +8,38 @@ public sealed class WidgetLayerEditsTests
 {
     private static WidgetLayer Photo() => new(Guid.NewGuid(), "Photo", Guid.NewGuid().ToString("N"), 800, 400, new(.2, .3, .4, .5));
     [Fact]
+    public void HorizontalCenterKeepsVerticalPlacementSizeAndAllClockOptions()
+    {
+        var clock = WidgetClocks.New() with { Frame = new(1.2, -.3, 1.4, .4), Clock = new(ShowAmPm: false), Opacity = .6 };
+        var centered = WidgetLayerEdits.CenterHorizontally(clock);
+        Assert.Equal(-.2, centered.Frame.X, 10); Assert.Equal(clock.Frame.Y, centered.Frame.Y);
+        Assert.Equal(clock.Frame.Width, centered.Frame.Width); Assert.Equal(clock.Frame.Height, centered.Frame.Height);
+        Assert.Equal(clock with { Frame = centered.Frame }, centered);
+        Assert.Equal(centered, WidgetLayerEdits.CenterHorizontally(centered));
+        var locked = clock with { Locked = true }; Assert.Same(locked, WidgetLayerEdits.CenterHorizontally(locked));
+        Assert.Same(locked, WidgetLayerEdits.ScaleCentered(locked, 2));
+        Assert.Same(clock, WidgetLayerEdits.ScaleCentered(clock, double.NaN));
+        Assert.Same(clock, WidgetLayerEdits.ScaleCentered(clock, double.PositiveInfinity));
+        Assert.Same(clock, WidgetLayerEdits.ScaleCentered(clock, 0));
+    }
+    [Theory]
+    [InlineData(.2, .3, .6, .2)] [InlineData(-.3, .8, 1.4, .4)]
+    [InlineData(-4, -4, .05, .05)] [InlineData(4, 4, .05, .05)]
+    [InlineData(-4, 4, 4, .05)] [InlineData(4, -4, .05, 4)] [InlineData(4, 4, 4, 4)]
+    public void CenteredScalingKeepsItsCentreAndAspectEvenAtWorkspaceLimits(double x, double y, double width, double height)
+    {
+        var clock = WidgetClocks.New() with { Frame = new(x, y, width, height) };
+        foreach (var factor in new[] { .00001, .5, 1, 2, 99999 })
+        {
+            var resized = WidgetLayerEdits.ScaleCentered(clock, factor);
+            WidgetDesignRules.Validate(WidgetDesignRules.New() with { Layers = [resized] });
+            Assert.Equal(x + width / 2, resized.Frame.X + resized.Frame.Width / 2, 10);
+            Assert.Equal(y + height / 2, resized.Frame.Y + resized.Frame.Height / 2, 10);
+            Assert.Equal(width / height, resized.Frame.Width / resized.Frame.Height, 10);
+            Assert.Equal(clock with { Frame = resized.Frame }, resized);
+        }
+    }
+    [Fact]
     public void LegacyJsonKeepsSolidBackgroundAndUntransformedPhotosWhileNewDesignsAreTransparent()
     {
         var old = JsonSerializer.Deserialize<WidgetCatalog>(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "widget-designs-v1.example.json")), WidgetDesignRules.Json)!;

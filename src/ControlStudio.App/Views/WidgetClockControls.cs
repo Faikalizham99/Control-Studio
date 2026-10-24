@@ -13,11 +13,13 @@ internal sealed class WidgetClockControls : ContentView
     private readonly Label sizeLabel = SettingsControls.Text("Text size", 14), opacityLabel = SettingsControls.Text("Opacity", 14);
     private readonly Label notice = SettingsControls.Text("", 12, secondary: true);
     private readonly ColourPickerView colour;
+    private readonly ClipboardEditorActionButton centre = new("Centre horizontally", ClipboardEditorControls.Icon(StudioSymbol.CenterHorizontal, size: 18), "CentreClockHorizontally", accentCaption: true);
     private WidgetLayer? layer;
     private bool updating;
     public bool IsBusy => colour.IsBusy;
     public event EventHandler? BusyChanged;
     public event Action<WidgetLayer>? Changed;
+    public event EventHandler? CentreHorizontallyRequested;
     public WidgetClockControls(IColourPicker picker)
     {
         AutomationId = "WidgetClockControls"; IsVisible = false;
@@ -32,6 +34,8 @@ internal sealed class WidgetClockControls : ContentView
         SemanticProperties.SetDescription(size, "Clock text size within its frame"); SemanticProperties.SetDescription(opacity, "Clock opacity");
         SemanticProperties.SetDescription(seconds, "Show clock seconds");
         SemanticProperties.SetDescription(amPm, "Show AM/PM");
+        centre.Describe("Centre clock horizontally in the widget, keeping its vertical position and size");
+        centre.Clicked += (_, _) => { if (!updating && IsEnabled && !IsBusy && layer is { Locked: false }) CentreHorizontallyRequested?.Invoke(this, EventArgs.Empty); };
         colour = new(picker, "ClockText", "Clock text");
         colour.ColourChanged += (_, args) => { if (!updating && layer is not null) Publish(layer with { Clock = layer.Clock! with { ColourHex = args.Hex } }); };
         colour.BusyChanged += (_, _) => BusyChanged?.Invoke(this, EventArgs.Empty);
@@ -41,9 +45,9 @@ internal sealed class WidgetClockControls : ContentView
         var amPmLabel = SettingsControls.Text("Show AM/PM", 14); amPmLabel.VerticalOptions = LayoutOptions.Center; amPmRow.Add(amPmLabel); amPmRow.Add(amPm, 1);
         Content = ClipboardEditorControls.Surface(new VerticalStackLayout { Spacing = 12, Children = {
             SettingsControls.Text("Clock", 21, bold: true),
-            SettingsControls.Text("Drag or pinch to move and resize. Top layers appear in front. Time follows this iPhone; iOS may simplify it while the display is dimmed.", 12, secondary: true),
-            notice, format, row, amPmRow, SettingsControls.Text("Font", 14, bold: true), fonts, sizeLabel, size,
-            SettingsControls.Text("Alignment", 14, bold: true), alignment, opacityLabel, opacity,
+            SettingsControls.Text("Drag to move. Pinch to resize around the clock's centre. Top layers appear in front. Time follows this iPhone; iOS may simplify it while the display is dimmed.", 12, secondary: true),
+            notice, centre, format, row, amPmRow, SettingsControls.Text("Font", 14, bold: true), fonts, sizeLabel, size,
+            SettingsControls.Text("Text alignment", 14, bold: true), alignment, opacityLabel, opacity,
             SettingsControls.Text("Text colour", 14, bold: true), colour
         } }, 22, 14);
     }
@@ -59,6 +63,7 @@ internal sealed class WidgetClockControls : ContentView
         try
         {
             layer = value?.Kind == WidgetLayerKind.Clock ? value : null; IsVisible = layer is not null;
+            centre.IsEnabled = layer is { Locked: false };
             if (layer?.Clock is not { } clock) return;
             notice.Text = !layer.Visible ? "This clock is hidden. Show it in Layers to see it in the preview." : layer.Opacity == 0 ? "This clock has 0% opacity. Increase opacity to see it." : "";
             notice.IsVisible = notice.Text.Length > 0;

@@ -9,6 +9,48 @@ public sealed class WidgetCanvasTests : IDisposable
 {
     private readonly MauiTestContext host = new();
     [Fact]
+    public void ClockPinchKeepsCentreDespiteOffCentreFingersAndStillAllowsSingleFingerMovement()
+    {
+        var clock = WidgetClocks.New() with { Frame = new(.2, .3, .6, .3) };
+        var draft = WidgetDesignRules.New() with { Layers = [clock] }; WidgetCanvasView? canvas = null;
+        canvas = new WidgetCanvasView(_ => null, _ => { }, changed => { draft = draft with { Layers = [changed] }; canvas!.Update(draft, changed.Id); });
+        host.Attach(canvas); canvas.Update(draft, clock.Id); ((IView)canvas.PhotoSurface).Arrange(new Rect(32, 32, 170, 170));
+        // Start near a corner, then change the pinch midpoint as well as scale.
+        Assert.True(canvas.BeginInteraction(74.5, 91.5, true));
+        foreach (var (factor, dx, dy) in new[] { (2d, 50d, -40d), (.5, -20d, 30d), (1.5, 0d, 70d) })
+        {
+            canvas.Pinch(factor, dx, dy); var frame = draft.Layers[0].Frame;
+            Assert.Equal(.5, frame.X + frame.Width / 2, 8); Assert.Equal(.45, frame.Y + frame.Height / 2, 8);
+            Assert.Equal(clock.Frame.Width * factor, frame.Width, 8);
+        }
+        canvas.EndInteraction(false); var committed = draft.Layers[0]; canvas.Pinch(5, 90, 90); Assert.Equal(committed, draft.Layers[0]);
+        Assert.True(canvas.BeginInteraction(117, 108.5, true)); canvas.Pinch(.5); canvas.EndInteraction(true); Assert.Equal(committed, draft.Layers[0]);
+        Assert.True(canvas.BeginInteraction(117, 108.5, false)); canvas.Pan(17, 17); canvas.EndInteraction(false);
+        Assert.Equal(committed.Frame.X + .1, draft.Layers[0].Frame.X, 8); Assert.Equal(committed.Frame.Y + .1, draft.Layers[0].Frame.Y, 8);
+    }
+    [Theory]
+    [InlineData(false, 1)] [InlineData(false, 3)] [InlineData(true, 1)] [InlineData(true, 3)]
+    public void PinchReleaseNeverReadsChangedTouchLocationsAndKeepsLastValidPhotoOrClockFrame(bool isClock, int changedTouchCount)
+    {
+        var layer = isClock ? WidgetClocks.New() : new WidgetLayer(Guid.NewGuid(), "Photo", Guid.NewGuid().ToString("N"), 640, 480, new(.2, .2, .6, .6));
+        var draft = WidgetDesignRules.New() with { Layers = [layer] }; WidgetCanvasView? canvas = null;
+        canvas = new WidgetCanvasView(_ => null, _ => { }, changed => { draft = draft with { Layers = [changed] }; canvas!.Update(draft, changed.Id); });
+        host.Attach(canvas); canvas.Update(draft, layer.Id); ((IView)canvas.PhotoSurface).Arrange(new Rect(0, 0, 170, 170));
+        Assert.True(canvas.BeginInteraction(85, 85, true)); var locationReads = 0;
+        WidgetPinchInput.Update(true, 2, () => { locationReads++; canvas.Pinch(1.4, 12, 15); }, () => canvas.EndInteraction(false));
+        var resized = draft.Layers[0];
+        foreach (var touches in new[] { 0, 1, 2 })
+            WidgetPinchInput.Update(false, touches, () => { locationReads++; canvas.Pinch(2, 90, -90); }, () => canvas.EndInteraction(false));
+        canvas.EndInteraction(false); Assert.Equal(1, locationReads); Assert.Equal(resized, draft.Layers[0]);
+        Assert.True(canvas.BeginInteraction(85, 85, true));
+        WidgetPinchInput.Update(true, 2, () => canvas.Pinch(.7, 10, 10), () => canvas.EndInteraction(false));
+        var valid = draft.Layers[0];
+        WidgetPinchInput.Update(true, changedTouchCount, () => throw new InvalidOperationException("A changed touch set must not read its new location"), () => canvas.EndInteraction(false));
+        Assert.False(canvas.IsInteracting); Assert.Equal(valid, draft.Layers[0]);
+        canvas.Pinch(2, 90, -90); Assert.Equal(valid, draft.Layers[0]);
+        Assert.True(canvas.BeginInteraction(85, 85, true)); canvas.Pinch(.5); canvas.EndInteraction(true); Assert.Equal(valid, draft.Layers[0]);
+    }
+    [Fact]
     public void LiveEditsReuseImagesWhileOrderVisibilityAndRemovalUpdate()
     {
         var photo = new WidgetLayer(Guid.NewGuid(), "Photo 1", Guid.NewGuid().ToString("N"), 640, 480, new());

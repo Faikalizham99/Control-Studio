@@ -19,6 +19,23 @@ public static class WidgetLayerEdits
         : layer with { Frame = layer.Frame with { X = Position(layer.Frame.X + dx), Y = Position(layer.Frame.Y + dy) } };
     private static double Position(double value) => Clamp(value, -WidgetDesignRules.MaximumLayerOffset, WidgetDesignRules.MaximumLayerOffset);
     public static WidgetLayer Center(WidgetLayer layer) => layer.Locked ? layer : layer with { Frame = layer.Frame with { X = (1 - layer.Frame.Width) / 2, Y = (1 - layer.Frame.Height) / 2 } };
+    public static WidgetLayer CenterHorizontally(WidgetLayer layer) => layer.Locked ? layer
+        : layer with { Frame = layer.Frame with { X = (1 - layer.Frame.Width) / 2 } };
+    public static WidgetLayer ScaleCentered(WidgetLayer layer, double factor)
+    {
+        if (layer.Locked || !double.IsFinite(factor) || factor <= 0) return layer;
+        var f = layer.Frame; var cx = f.X + f.Width / 2; var cy = f.Y + f.Height / 2;
+        var offset = WidgetDesignRules.MaximumLayerOffset;
+        // Bound the scale before moving the frame: clamping X/Y afterwards
+        // would shift its centre near the outside workspace limits.
+        var minimum = Math.Max(Math.Max(WidgetDesignRules.MinimumLayerSize / f.Width, WidgetDesignRules.MinimumLayerSize / f.Height),
+            Math.Max(2 * (cx - offset) / f.Width, 2 * (cy - offset) / f.Height));
+        var maximum = Math.Min(Math.Min(WidgetDesignRules.MaximumLayerSize / f.Width, WidgetDesignRules.MaximumLayerSize / f.Height),
+            Math.Min(2 * (cx + offset) / f.Width, 2 * (cy + offset) / f.Height));
+        // Identity is always feasible for a valid layer, including at an exact
+        // limit where floating-point subtraction can straddle the factor 1.
+        return Scale(layer, Clamp(factor, Math.Min(1, minimum), Math.Max(1, maximum)));
+    }
     public static WidgetLayer Scale(WidgetLayer layer, double factor, double anchorX = .5, double anchorY = .5)
     {
         if (layer.Locked || !double.IsFinite(factor) || factor <= 0 || !double.IsFinite(anchorX) || !double.IsFinite(anchorY)) return layer;

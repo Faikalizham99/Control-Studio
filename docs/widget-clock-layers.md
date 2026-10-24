@@ -18,6 +18,18 @@ The layer list now shows the clock name and **Clock**, without a 12-hour/24-hour
 
 All **265 app tests** and managed iOS compilation pass with zero warnings/errors; whitespace checks pass. Actual iPhone row layout and VoiceOver checks remain pending. The owner authorized committing and pushing this follow-up to main; no tag or version change is included.
 
+## Horizontal centring and stable clock pinch — unreleased
+
+The selected clock's panel adds **Centre horizontally**, with an accent-aware vector icon and an accessible action description. It centres the layer frame left-to-right while retaining Y, width, height, opacity and clock settings. It does not create a persistent alignment lock: a later drag may move the clock sideways. Text alignment remains independent and is labelled **Text alignment** to distinguish it from placement. Locked clocks disable the action; busy, background, reordering and active-gesture guards prevent it from editing the draft. Pending text-colour HEX is validated/committed first. Placement is draft-only until Save widget and uses the existing frame fields without a schema change.
+
+Clock pinches now resize proportionally around the frame's original centre, ignoring movement of the fingers' midpoint. One-finger dragging and corner resizing retain their existing behaviour. Centre-preserving scale limits are calculated before placement, including the outer workspace limits, so clamping a position afterwards cannot shift the centre. Clock format/font/colour options remain intact.
+
+The old native pinch callback applied another scale/translation on `Ended`, using a fresh `LocationInView` without checking the number of touches. Apple's [gesture-location documentation](https://developer.apple.com/documentation/uikit/uigesturerecognizer/location(in:)) describes that location as usually the touch centroid. The final touch set therefore was an unsafe input to placement and is a likely explanation for the owner's reported jump; the exact device transition has not been captured locally.
+
+Both photo and clock pinches now apply updates only for `Changed` with exactly two touches. `Ended` commits the last valid frame without reading a new touch centre. A changed touch count (including a third finger) freezes/commits that frame and releases ownership; late updates cannot mutate it. Photos retain two-finger translation and focal-point scaling while their touch set remains valid. Cancellation/failure, page disappearance, backgrounding and handler disconnection retain snapshot rollback and scroll-state restoration.
+
+Local verification: **150 Core, 271 app, 66 Infrastructure and 34 packaging checks (521 total)**, source/project generation, whitespace checks and managed iOS compilation with zero warnings/errors. New regressions cover horizontal-only placement, unchanged draft/options, lock and invalid-colour guards, off-centre clock pinches, extreme workspace limits, last-valid photo/clock release frames, touch-count changes, cancellation and subsequent dragging. The tests exercise the same touch-input policy used by the native callback, but do not execute UIKit recognition, touch delivery or scroll restoration. Xcode/AOT compilation and physical iPhone pinch-release, centring, both themes, VoiceOver and background/scroll checks remain pending. The owner authorized committing and pushing this follow-up to main; no tag or version change is included.
+
 ## Editor behaviour
 
 - **Add layer** offers **Photo** and **Clock**. Photo retains Photo Library and Files selection. Cancel returns to the usable editor without changing the design.

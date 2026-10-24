@@ -33,11 +33,13 @@ internal sealed class WidgetCanvasGestureHandler : ContentViewHandler
         pinch = new UIPinchGestureRecognizer(() => Guard(() =>
         {
             if (pinch is not { } gesture) return;
-            if (owner == gesture && gesture.State is (UIGestureRecognizerState.Changed or UIGestureRecognizerState.Ended))
-            {
-                var point = gesture.LocationInView(platformView);
-                Canvas.Pinch(gesture.Scale, point.X - pinchOrigin.X, point.Y - pinchOrigin.Y);
-            }
+            if (owner == gesture)
+                WidgetPinchInput.Update(gesture.State == UIGestureRecognizerState.Changed, (int)gesture.NumberOfTouches,
+                    () =>
+                    {
+                        var point = gesture.LocationInView(platformView);
+                        Canvas.Pinch(gesture.Scale, point.X - pinchOrigin.X, point.Y - pinchOrigin.Y);
+                    }, () => Canvas.EndInteraction(false));
             Finish(gesture);
         }));
         pan.ShouldBegin = _ => Begin(pan, false); pinch.ShouldBegin = _ => Begin(pinch, true);
@@ -49,6 +51,7 @@ internal sealed class WidgetCanvasGestureHandler : ContentViewHandler
     {
         try
         {
+            if (isPinch && recognizer.NumberOfTouches != 2) return false;
             var point = recognizer.LocationInView(PlatformView);
             if (recognizer is UIPanGestureRecognizer moving)
             { var translation = moving.TranslationInView(PlatformView); point.X -= translation.X; point.Y -= translation.Y; }

@@ -75,6 +75,31 @@ public sealed class PickerCancellationTests : IDisposable
         Assert.Equal(8, Descendants(page).OfType<WidgetCompositeView>().Single().Design!.Layers.Count); Assert.Equal(0, store.Picks);
     }
     [Fact]
+    public void ClockHorizontalCenterPreservesHeightOptionsAndDraftAndRespectsLockedAndInvalidColourStates()
+    {
+        var clock = WidgetClocks.New() with { Frame = new(1.2, .1, .7, .3), Clock = new(TwentyFourHour: false, ShowAmPm: false), Opacity = .6 };
+        var photo = Photo(); var original = WidgetDesignRules.New() with { Layers = [photo, clock] }; var store = new Store();
+        var page = new WidgetEditorPage(store, new ColourPicker(), NullLogger.Instance, original); Open(page);
+        var controls = Descendants(page).OfType<WidgetClockControls>().Single(); var composition = Descendants(page).OfType<WidgetCompositeView>().Single();
+        var button = Button(page, "CentreClockHorizontally");
+        Assert.Contains("keeping its vertical position and size", SemanticProperties.GetDescription(button));
+        var hex = Descendants(controls).OfType<HexColorEntry>().Single(); hex.Text = "#bad";
+        ((IButtonController)button).SendClicked(); Assert.Equal(clock, composition.Design!.Layers.Last()); Assert.Equal(0, store.Saves);
+        hex.Text = "#12ABEF"; ((IButtonController)button).SendClicked();
+        var centered = composition.Design.Layers.Last(); Assert.Equal(.15, centered.Frame.X, 8);
+        Assert.Equal(clock.Frame.Y, centered.Frame.Y); Assert.Equal(clock.Frame.Width, centered.Frame.Width); Assert.Equal(clock.Frame.Height, centered.Frame.Height);
+        Assert.Equal(clock.Clock! with { ColourHex = "#12ABEF" }, centered.Clock); Assert.Equal(clock.Opacity, centered.Opacity);
+        Assert.Equal(photo, composition.Design.Layers[0]); Assert.Equal(clock, original.Layers.Last()); Assert.Equal(0, store.Saves);
+        var lockControl = Descendants(page).OfType<ClipboardIconButton>().Single(x => x.AutomationId == "WidgetLayerLock" + clock.Id.ToString("N"));
+        var toggle = Descendants(lockControl).OfType<Button>().Single(); ((IButtonController)toggle).SendClicked(); Assert.False(button.IsEnabled);
+        ((IButtonController)button).SendClicked(); Assert.Equal(centered.Frame, composition.Design.Layers.Last().Frame);
+        ((IButtonController)toggle).SendClicked(); Assert.True(button.IsEnabled);
+        var canvas = Descendants(page).OfType<WidgetCanvasView>().Single(); ((IView)canvas.PhotoSurface).Arrange(new Rect(0, 0, 170, 170));
+        Assert.True(canvas.BeginInteraction(85, 42.5, true)); canvas.Pinch(1.2, 30, 30); var pinching = composition.Design.Layers.Last();
+        ((IButtonController)button).SendClicked(); Assert.Equal(pinching, composition.Design.Layers.Last()); canvas.EndInteraction(true);
+        ((IButtonController)Button(page, "SaveWidgetDesign")).SendClicked(); Assert.Equal(centered, store.Saved!.Layers.Last());
+    }
+    [Fact]
     public async Task ClockAmPmSwitchOnlyAppearsForTwelveHourAndKeepsItsSavedChoice()
     {
         var store = new Store(); var page = new WidgetEditorPage(store, new ColourPicker(), NullLogger.Instance, chooseLayerType: () => Task.FromResult<string?>("Clock"));

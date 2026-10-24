@@ -249,7 +249,8 @@ internal sealed class WidgetCanvasView : ContentView
     {
         if (!double.IsFinite(scale) || scale <= 0 || !double.IsFinite(dx) || !double.IsFinite(dy)) return;
         if (gestureStart is not null && canvas.Width > 0 && canvas.Height > 0)
-            change?.Invoke(WidgetLayerEdits.Move(WidgetLayerEdits.Scale(gestureStart, scale, anchor.X, anchor.Y), dx / canvas.Width, dy / canvas.Height));
+            change?.Invoke(gestureStart.Kind == WidgetLayerKind.Clock ? WidgetLayerEdits.ScaleCentered(gestureStart, scale)
+                : WidgetLayerEdits.Move(WidgetLayerEdits.Scale(gestureStart, scale, anchor.X, anchor.Y), dx / canvas.Width, dy / canvas.Height));
     }
     public void EndInteraction(bool cancel)
     {
