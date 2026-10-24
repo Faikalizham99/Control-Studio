@@ -33,6 +33,57 @@ public sealed class PickerCancellationTests : IDisposable
     private static WidgetEditorPage Editor(Store store, string source = "Photo Library", ColourPicker? colours = null)
         => new(store, colours ?? new(), NullLogger.Instance, WidgetDesignRules.New() with { Layers = [Photo()] }, choosePhotoSource: () => Task.FromResult<string?>(source));
     [Fact]
+    public void PhotoLockBlocksPlacementKeepsAppearanceEditableAndPersistsOnlyWhenSaved()
+    {
+        var photo = Photo(); var original = WidgetDesignRules.New() with { Layers = [photo] }; var store = new Store();
+        var page = new WidgetEditorPage(store, new ColourPicker(), NullLogger.Instance, original); Open(page);
+        var canvas = Descendants(page).OfType<WidgetCanvasView>().Single(); var composition = Descendants(page).OfType<WidgetCompositeView>().Single();
+        var row = Descendants(page).OfType<WidgetLayerRow>().Single();
+        var control = Descendants(row).OfType<ClipboardIconButton>().Single(x => x.AutomationId == "WidgetLayerLock" + photo.Id.ToString("N"));
+        var toggle = Descendants(control).OfType<Button>().Single();
+        void Click(string id) => ((IButtonController)Button(page, id)).SendClicked();
+        ((IButtonController)toggle).SendClicked(); Assert.True(composition.Design!.Layers[0].Locked); Assert.False(photo.Locked); Assert.Equal(0, store.Saves);
+        Assert.Equal(StudioSymbol.Lock, control.Symbol); Assert.Contains("Unlock photo layer", SemanticProperties.GetDescription(toggle));
+        Assert.False(Button(page, "ClipboardResetselectedphoto").IsEnabled); Assert.False(Button(page, "ClipboardRotateselectedphoto").IsEnabled);
+        Assert.False(Button(page, "ClipboardFlipselectedphoto").IsEnabled); Assert.True(Button(page, "ClipboardBlendselectedphoto").IsEnabled);
+        ((IView)canvas.PhotoSurface).Arrange(new Rect(0, 0, 170, 170)); Assert.False(canvas.BeginInteraction(85, 85, false));
+        Click("WidgetRotateRight"); Assert.Equal(photo.Frame, composition.Design.Layers[0].Frame); Assert.Equal(0, composition.Design.Layers[0].QuarterTurns);
+        Click("ClipboardAdjustphotoopacity"); Descendants(page).OfType<Slider>().Single(x => SemanticProperties.GetDescription(x) == "Selected photo opacity").Value = .35;
+        Click("ClipboardBlendselectedphoto"); Click("WidgetBlendGroup1"); Click("WidgetBlendModeMultiply");
+        Assert.True(composition.Design.Layers[0].Locked); Assert.Equal(.35, composition.Design.Layers[0].Opacity); Assert.Equal(WidgetBlendMode.Multiply, composition.Design.Layers[0].BlendMode);
+        ((IButtonController)toggle).SendClicked(); Assert.False(composition.Design.Layers[0].Locked); Assert.Equal(StudioSymbol.Unlock, control.Symbol);
+        Assert.True(Button(page, "ClipboardResetselectedphoto").IsEnabled); Assert.Same(row, Descendants(page).OfType<WidgetLayerRow>().Single());
+        Assert.True(canvas.BeginInteraction(85, 85, false)); canvas.Pan(17, 0); canvas.EndInteraction(false);
+        ((IButtonController)toggle).SendClicked(); Click("SaveWidgetDesign");
+        var savedPhoto = Assert.Single(store.Saved!.Layers); Assert.True(savedPhoto.Locked); Assert.Equal(.1, savedPhoto.Frame.X, 8);
+        Assert.Equal(.35, savedPhoto.Opacity); Assert.Equal(WidgetBlendMode.Multiply, savedPhoto.BlendMode); Assert.False(original.Layers[0].Locked);
+    }
+    [Fact]
+    public void BlankPageAndCanvasTapsDeselectWithoutSavingOrInterruptingActiveInteractions()
+    {
+        var first = Photo() with { Frame = new(.2, .2, .6, .6) }; var second = Photo() with { Name = "Second", Frame = new(.2, .2, .6, .6) };
+        var original = WidgetDesignRules.New() with { Layers = [first, second] }; var store = new Store();
+        var page = new WidgetEditorPage(store, new ColourPicker(), NullLogger.Instance, original); Open(page);
+        var surface = Assert.IsType<WidgetEditorSurface>(page.Content); var canvas = Descendants(page).OfType<WidgetCanvasView>().Single();
+        var list = Descendants(page).OfType<WidgetLayerList>().Single(); var composition = Descendants(page).OfType<WidgetCompositeView>().Single();
+        Assert.Contains(canvas, surface.ProtectedAreas); Assert.Contains(list, surface.ProtectedAreas);
+        ((IButtonController)Button(page, "ClipboardRotateselectedphoto")).SendClicked();
+        var tool = Descendants(page).OfType<WidgetToolButton>().Single(x => x.IsSelected); Assert.True(surface.DeselectFromBlankSpace());
+        Assert.False(tool.IsSelected); Assert.False(Button(page, "ClipboardRotateselectedphoto").IsEnabled);
+        Assert.Contains("No photo selected", SemanticProperties.GetDescription(canvas)); Assert.Equal(original.Layers, composition.Design!.Layers);
+        Assert.False(surface.DeselectFromBlankSpace()); Assert.Equal(0, store.Saves);
+        void Select() => ((IButtonController)Button(page, "SelectWidgetLayer" + second.Id.ToString("N"))).SendClicked();
+        Select(); ((IView)canvas.PhotoSurface).Arrange(new Rect(32, 32, 170, 170));
+        Assert.True(canvas.BeginInteraction(117, 117, false)); Assert.False(surface.DeselectFromBlankSpace()); canvas.SelectAt(5, 5);
+        Assert.True(canvas.IsInteracting); canvas.EndInteraction(true); Assert.True(surface.CanDeselect);
+        var positions = list.Rows.Select((row, index) => new WidgetLayerPosition(row.LayerId, index * 72, 64)).ToArray();
+        Assert.NotNull(list.BeginReorder(positions, second.Id)); Assert.False(surface.DeselectFromBlankSpace()); list.CancelReorder();
+        ((IWindow)host.App.Windows[0]).Deactivated(); Assert.False(surface.DeselectFromBlankSpace()); ((IWindow)host.App.Windows[0]).Activated();
+        canvas.SelectAt(5, 5); Assert.Contains("No photo selected", SemanticProperties.GetDescription(canvas));
+        Assert.False(Assert.IsType<AbsoluteLayout>(canvas.Workspace.Children[0]).IsVisible); Select(); Assert.True(surface.CanDeselect);
+        Assert.Equal(original.Layers, composition.Design!.Layers); Assert.Equal(0, store.Saves);
+    }
+    [Fact]
     public void LayerDragCommitsOnlyOnDropKeepsStableRowsAndSavesTheVisualStackOrder()
     {
         var first = Photo(); var second = Photo() with { Name = "Second" }; var third = Photo() with { Name = "Third" };

@@ -65,7 +65,7 @@ internal sealed class WidgetPhotoCompositor : IDisposable
         Convert.ToInt32(hex.Substring(3, 2), 16) / 255f, Convert.ToInt32(hex.Substring(5, 2), 16) / 255f, 1);
     private CIImage Rasterize(WidgetLayer layer, CGSize size)
     {
-        var geometry = layer with { Name = "", BlendMode = WidgetBlendMode.Normal };
+        var geometry = layer with { Name = "", BlendMode = WidgetBlendMode.Normal, Locked = false };
         if (rasters.TryGetValue(layer.Id, out var cached) && cached.Layer == geometry && cached.Size == size) return cached.Input;
         // Evict before allocating a replacement; a gesture never accumulates old full-canvas buffers.
         if (cached is not null) { cached.Dispose(); rasters.Remove(layer.Id); }

@@ -63,12 +63,12 @@ internal sealed class WidgetEditorPage : ContentPage
         {
             if (saved || departed || busy) return;
             ReplaceLayer(layer); RefreshControls(); UpdateCanvas();
-        });
+        }, ClearLayerSelection);
         canvas.RenderFailed += (_, message) => ShowStatus(message);
         blendMenu = new WidgetBlendPanel(mode =>
         {
             if (!CanEdit) return;
-            EditLayer(layer => layer with { BlendMode = mode }, closeTools: false);
+            EditLayer(layer => layer with { BlendMode = mode }, closeTools: false, changesPlacement: false);
         });
         canvas.InteractionChanged += (_, _) => { if (canvas.IsInteracting) CloseTools(); RefreshActions(); };
         sizes = new WidgetSegments(["Small", "Medium", "Large", "XL"], "EditorWidgetSize", index =>
@@ -116,7 +116,7 @@ internal sealed class WidgetEditorPage : ContentPage
         flipMenu.Children.Add(MenuAction("Flip horizontally", StudioSymbol.Flip, () => EditLayer(layer => layer with { FlipHorizontal = !layer.FlipHorizontal }, closeTools: false)));
         flipMenu.Children.Add(MenuAction("Flip vertically", StudioSymbol.Flip, () => EditLayer(layer => layer with { FlipVertical = !layer.FlipVertical }, closeTools: false)));
         opacity.SetDynamicResource(Slider.MinimumTrackColorProperty, "AccentText"); SemanticProperties.SetDescription(opacity, "Selected photo opacity");
-        opacity.ValueChanged += (_, args) => { if (!updating && CanEdit) EditLayer(layer => layer with { Opacity = args.NewValue }, closeTools: false); };
+        opacity.ValueChanged += (_, args) => { if (!updating && CanEdit) EditLayer(layer => layer with { Opacity = args.NewValue }, closeTools: false, changesPlacement: false); };
         opacityMenu.Children.Add(opacityCaption); opacityMenu.Children.Add(opacity);
         form.Children.Add(Card(new VerticalStackLayout { Spacing = 12, Children =
         {
@@ -162,7 +162,9 @@ internal sealed class WidgetEditorPage : ContentPage
         save.Clicked += async (_, _) => await RunAsync(SaveAsync);
         cancel.Clicked += async (_, _) => await ExitAsync(); back.Clicked += async (_, _) => await ExitAsync();
         var layout = new Grid { RowDefinitions = { new(GridLength.Auto), new(GridLength.Star) } };
-        scroll.Content = form; layout.Add(ClipboardEditorControls.Header(Title, back, cancel)); layout.Add(scroll, 0, 1); Content = layout;
+        scroll.Content = form; layout.Add(ClipboardEditorControls.Header(Title, back, cancel)); layout.Add(scroll, 0, 1);
+        Content = new WidgetEditorSurface(layout, () => CanEdit && selected is not null, ClearLayerSelection,
+            canvas, tools, rotateMenu, flipMenu, opacityMenu, blendMenu, layerList, precise, background);
         selected = draft.Layers.LastOrDefault()?.Id; RefreshBackground(); RefreshLayers();
     }
     private static Border Card(View content) => ClipboardEditorControls.Surface(content, 22, 14);
@@ -195,10 +197,24 @@ internal sealed class WidgetEditorPage : ContentPage
         if (busy || saved || departed || layerList.IsReordering) return;
         if (selected != id) CloseTools(); selected = id; RefreshLayers();
     }
-    private void ReplaceLayer(WidgetLayer layer) => draft = draft with { Layers = draft.Layers.Select(x => x.Id == layer.Id ? layer : x).ToArray() };
-    private void EditLayer(Func<WidgetLayer, WidgetLayer> transform, bool closeTools = true)
+    private void ClearLayerSelection()
     {
-        var layer = draft.Layers.FirstOrDefault(x => x.Id == selected); if (layer is null) return;
+        if (!CanEdit || selected is null) return;
+        CloseTools(); precise.IsVisible = false; selected = null; name.Unfocus(); RefreshLayers();
+    }
+    private void ToggleLayerLock(Guid id)
+    {
+        if (!CanEdit) return;
+        var layer = draft.Layers.FirstOrDefault(x => x.Id == id); if (layer is null) return;
+        if (selected == id) { CloseTools(); precise.IsVisible = false; }
+        ReplaceLayer(layer with { Locked = !layer.Locked }); RefreshLayers();
+        try { if (Foreground) SemanticScreenReader.Default.Announce(layer.Name + (layer.Locked ? " unlocked." : " locked. Unlock in Layers to move or resize.")); }
+        catch (Exception ex) { logger.LogDebug("Widget lock announcement unavailable. ErrorType={ErrorType}", ex.GetType().Name); }
+    }
+    private void ReplaceLayer(WidgetLayer layer) => draft = draft with { Layers = draft.Layers.Select(x => x.Id == layer.Id ? layer : x).ToArray() };
+    private void EditLayer(Func<WidgetLayer, WidgetLayer> transform, bool closeTools = true, bool changesPlacement = true)
+    {
+        var layer = draft.Layers.FirstOrDefault(x => x.Id == selected); if (layer is null || (changesPlacement && layer.Locked)) return;
         if (closeTools) CloseTools(); var changed = transform(layer); if (changed == layer) return;
         ReplaceLayer(changed);
         if (layer.BlendMode != changed.BlendMode && rows.TryGetValue(layer.Id, out var row)) row.Update(changed, true);
@@ -256,7 +272,7 @@ internal sealed class WidgetEditorPage : ContentPage
                         var current = draft.Layers.FirstOrDefault(x => x.Id == id); if (current is null) return;
                         ReplaceLayer(current with { Visible = visible }); RefreshLayers();
                     }, id => { if (CanEdit) { selected = id; RefreshLayers(); _ = RunAsync(LayerMenuAsync); } },
-                    ReorderLayers);
+                    ReorderLayers, ToggleLayerLock);
                 rows.Add(layer.Id, row); layerList.Items.Add(row);
             }
             var currentIndex = layerList.Items.IndexOf(row);
@@ -300,12 +316,16 @@ internal sealed class WidgetEditorPage : ContentPage
     {
         var layer = draft.Layers.FirstOrDefault(x => x.Id == selected); if (layer is null) return;
         var index = draft.Layers.ToList().FindIndex(x => x.Id == layer.Id);
-        var choices = new List<string> { "Rename", "Size, position & crop", "Centre on widget", layer.FitPhoto ? "Crop to frame" : "Show full photo" };
+        var choices = new List<string> { "Rename", layer.Locked ? "Unlock photo" : "Lock photo", "Deselect photo" };
+        if (!layer.Locked) choices.AddRange(["Size, position & crop", "Centre on widget", layer.FitPhoto ? "Crop to frame" : "Show full photo"]);
         if (index < draft.Layers.Count - 1) choices.Add("Move forward"); if (index > 0) choices.Add("Move backward");
         var choice = await DisplayActionSheetAsync(layer.Name, "Cancel", "Delete layer", choices.ToArray());
         if (!Foreground || departed) return;
         switch (choice)
         {
+            case "Lock photo": ReplaceLayer(layer with { Locked = true }); precise.IsVisible = false; break;
+            case "Unlock photo": ReplaceLayer(layer with { Locked = false }); break;
+            case "Deselect photo": selected = null; precise.IsVisible = false; break;
             case "Rename":
                 var title = await DisplayPromptAsync("Layer name", "Use up to 40 characters.", initialValue: layer.Name, maxLength: 40);
                 if (!Foreground || departed || title is null) return;
@@ -321,8 +341,8 @@ internal sealed class WidgetEditorPage : ContentPage
                 break;
             case "Move forward": MoveLayer(1); break;
             case "Centre on widget": ReplaceLayer(WidgetLayerEdits.Center(layer)); break;
-            case "Show full photo": ReplaceLayer(layer with { FitPhoto = true }); break;
-            case "Crop to frame": ReplaceLayer(layer with { FitPhoto = false }); break;
+            case "Show full photo": if (!layer.Locked) ReplaceLayer(layer with { FitPhoto = true }); break;
+            case "Crop to frame": if (!layer.Locked) ReplaceLayer(layer with { FitPhoto = false }); break;
             case "Move backward": MoveLayer(-1); break;
             case "Delete layer": await RemoveLayerAsync(); break;
         }
@@ -401,12 +421,14 @@ internal sealed class WidgetEditorPage : ContentPage
         form.IsEnabled = !busy && !saved && !departed && !background.IsBusy;
         // The list must stay enabled until its native drag recognizer finishes.
         layerList.IsEnabled = canInteract && !saved;
-        save.IsEnabled = sizes.IsEnabled = name.IsEnabled = background.IsEnabled = precise.IsEnabled = canNavigate && !saved;
+        save.IsEnabled = sizes.IsEnabled = name.IsEnabled = background.IsEnabled = canNavigate && !saved;
         canvas.IsEnabled = !layerList.IsReordering;
         back.IsEnabled = cancel.IsEnabled = canNavigate;
         addPhoto.IsEnabled = canNavigate && !saved && draft.Layers.Count < WidgetDesignRules.MaximumLayers;
-        var hasLayer = draft.Layers.Any(x => x.Id == selected);
-        resetTool.IsEnabled = rotateTool.IsEnabled = flipTool.IsEnabled = opacityTool.IsEnabled = deleteTool.IsEnabled = blendTool.IsEnabled = blendMenu.IsEnabled = tools.IsEnabled = canNavigate && !saved && hasLayer;
+        var layer = draft.Layers.FirstOrDefault(x => x.Id == selected);
+        opacityTool.IsEnabled = deleteTool.IsEnabled = blendTool.IsEnabled = blendMenu.IsEnabled = tools.IsEnabled = canNavigate && !saved && layer is not null;
+        resetTool.IsEnabled = rotateTool.IsEnabled = flipTool.IsEnabled = canNavigate && !saved && layer is { Locked: false };
+        precise.IsEnabled = canNavigate && !saved && layer is { Locked: false };
     }
     private async Task RunAsync(Func<Task> operation)
     {

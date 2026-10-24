@@ -12,11 +12,12 @@ internal sealed class WidgetLayerRow : ContentView
     private readonly Border surface;
     private readonly Button tap;
     private readonly ClipboardIconButton more;
+    private readonly ClipboardIconButton placementLock;
     public Guid LayerId { get; }
     public View DragHandle { get; }
     private bool updating, reordering, layerVisible;
     public WidgetLayerRow(WidgetLayer layer, string? path, string dragScope, Action<Guid> select,
-        Action<Guid, bool> show, Action<Guid> menu, Action<Guid, Guid> reorder)
+        Action<Guid, bool> show, Action<Guid> menu, Action<Guid, Guid> reorder, Action<Guid>? toggleLock = null)
     {
         LayerId = layer.Id;
         photo.Source = path; name.MaxLines = 2; name.LineBreakMode = LineBreakMode.TailTruncation;
@@ -53,7 +54,9 @@ internal sealed class WidgetLayerRow : ContentView
         visible.Toggled += (_, args) => { if (!updating && IsEnabled && !reordering) show(layer.Id, args.Value); };
         more = new ClipboardIconButton(StudioSymbol.More, "Layer actions") { VerticalOptions = LayoutOptions.Center }; more.Describe("Layer actions", layer.Name);
         more.Clicked += (_, _) => { if (IsEnabled && !reordering) menu(layer.Id); };
-        var actions = new ActionButtonRow(visible, more);
+        placementLock = new ClipboardIconButton(StudioSymbol.Unlock, "Toggle photo lock") { AutomationId = "WidgetLayerLock" + layer.Id.ToString("N") };
+        placementLock.Clicked += (_, _) => { if (IsEnabled && !reordering) toggleLock?.Invoke(layer.Id); };
+        var actions = new ActionButtonRow(visible, placementLock, more);
         var header = new CardActionHeader(selection, actions);
         var row = new Grid { ColumnSpacing = ActionSpacing.Gap, ColumnDefinitions = { new(44), new(GridLength.Star) } };
         row.Add(drag); row.Add(header, 1);
@@ -64,18 +67,20 @@ internal sealed class WidgetLayerRow : ContentView
     public void Update(WidgetLayer layer, bool selected)
     {
         updating = true; name.Text = layer.Name; visible.IsToggled = layerVisible = layer.Visible; updating = false;
-        detail.Text = layer.BlendMode == WidgetBlendMode.Normal ? "Image" : "Image · " + WidgetBlending.Name(layer.BlendMode);
+        detail.Text = "Image" + (layer.Locked ? " · Locked" : "") + (layer.BlendMode == WidgetBlendMode.Normal ? "" : " · " + WidgetBlending.Name(layer.BlendMode));
+        placementLock.Symbol = layer.Locked ? StudioSymbol.Lock : StudioSymbol.Unlock;
+        placementLock.Describe(layer.Locked ? "Unlock photo layer" : "Lock photo layer", layer.Name + (layer.Locked ? ", locked" : ", unlocked"));
         surface.StrokeThickness = selected ? 2 : 1;
         if (selected) surface.SetDynamicResource(Border.StrokeProperty, "AccentText");
         else { surface.RemoveDynamicResource(Border.StrokeProperty); SettingsControls.SurfaceStroke(surface); }
-        SemanticProperties.SetDescription(tap, "Select " + layer.Name + (selected ? ", selected" : "") + (layer.Visible ? "" : ", hidden"));
+        SemanticProperties.SetDescription(tap, "Select " + layer.Name + (selected ? ", selected" : "") + (layer.Visible ? "" : ", hidden") + (layer.Locked ? ", locked" : ""));
         more.Describe("Layer actions", layer.Name);
         SemanticProperties.SetDescription(DragHandle, "Reorder " + layer.Name);
         SemanticProperties.SetDescription(visible, "Show " + layer.Name);
     }
     public void SetReordering(bool value)
     {
-        reordering = value; tap.IsEnabled = visible.IsEnabled = more.IsEnabled = !value;
+        reordering = value; tap.IsEnabled = visible.IsEnabled = more.IsEnabled = placementLock.IsEnabled = !value;
         if (!value) { updating = true; visible.IsToggled = layerVisible; updating = false; }
     }
     public void ReleaseSource() => photo.Source = null;

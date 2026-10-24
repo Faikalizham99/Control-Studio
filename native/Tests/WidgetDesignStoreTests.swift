@@ -56,6 +56,7 @@ final class WidgetDesignStoreTests: XCTestCase {
         var layers = design["layers"] as! [[String: Any]]
         layers[0]["fitPhoto"] = true
         layers[0]["blendMode"] = "darkerColor"
+        layers[0]["locked"] = true // Editor-only state must not affect the rendered native summary.
         layers[0]["frame"] = ["x": -0.4, "y": 1.2, "width": 2.4, "height": 1.6]
         design["layers"] = layers; catalog["designs"] = [design]
         let bytes = try JSONSerialization.data(withJSONObject: catalog); try bytes.write(to: url)

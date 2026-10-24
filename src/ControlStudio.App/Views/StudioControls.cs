@@ -2,7 +2,7 @@ using Microsoft.Maui.Graphics;
 
 namespace ControlStudio.App.Views;
 
-internal enum StudioSymbol { Widgets, Clipboard, Counter, Bars, Calendar, Photo, Text, Link, Chevron, Edit, Delete, Open, Preview, Tag, Expand, Clear, EyeOff, Pin, PinFilled, Check, LayerUp, LayerDown, Plus, Hash, Refresh, RotateLeft, RotateRight, Flip, Opacity, Drag, More, Search, Layers, Blend }
+internal enum StudioSymbol { Widgets, Clipboard, Counter, Bars, Calendar, Photo, Text, Link, Chevron, Edit, Delete, Open, Preview, Tag, Expand, Clear, EyeOff, Pin, PinFilled, Check, LayerUp, LayerDown, Plus, Hash, Refresh, RotateLeft, RotateRight, Flip, Opacity, Drag, More, Search, Layers, Blend, Lock, Unlock }
 
 internal sealed class StudioGlyph : GraphicsView, IDrawable
 {
@@ -156,6 +156,14 @@ internal sealed class StudioGlyph : GraphicsView, IDrawable
             canvas.FillColor = Tint;
             if (symbol == StudioSymbol.More) { canvas.FillCircle(5, 12, 1.5f); canvas.FillCircle(12, 12, 1.5f); canvas.FillCircle(19, 12, 1.5f); }
             else for (var y = 5; y <= 19; y += 7) { canvas.FillCircle(9, y, 1.2f); canvas.FillCircle(15, y, 1.2f); }
+        }
+        else if (symbol is StudioSymbol.Lock or StudioSymbol.Unlock)
+        {
+            canvas.DrawRoundedRectangle(5, 10, 14, 12, 2);
+            var shackle = new PathF(); shackle.MoveTo(8, 10); shackle.LineTo(8, 7);
+            if (symbol == StudioSymbol.Lock) { shackle.CurveTo(8, 1, 16, 1, 16, 7); shackle.LineTo(16, 10); }
+            else shackle.CurveTo(8, 1, 16, 1, 17, 6);
+            canvas.DrawPath(shackle); canvas.DrawCircle(12, 15, 1); canvas.DrawLine(12, 16, 12, 18);
         }
         else if (symbol == StudioSymbol.Search) { canvas.DrawCircle(10, 10, 6); canvas.DrawLine(14.5f, 14.5f, 21, 21); }
         else if (symbol == StudioSymbol.Layers)

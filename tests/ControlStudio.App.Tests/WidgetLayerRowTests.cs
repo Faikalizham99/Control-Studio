@@ -31,5 +31,23 @@ public sealed class WidgetLayerRowTests : IDisposable
         Assert.Equal(1, changes); ((IButtonController)tap).SendClicked(); Assert.Equal(layer.Id, selected);
         row.ReleaseSource(); Assert.Null(image.Source);
     }
+    [Fact]
+    public void LockButtonFollowsModelAndRenameWithoutReloadingThePhotoOrFiringChanges()
+    {
+        var layer = new WidgetLayer(Guid.NewGuid(), "First", Guid.NewGuid().ToString("N"), 640, 480, new()); var toggles = 0;
+        var row = new WidgetLayerRow(layer, "/private/photo.png", "editor", _ => { }, (_, _) => { }, _ => { }, (_, _) => { }, _ => toggles++); host.Attach(row);
+        var grid = Assert.IsType<Grid>(Assert.IsType<Border>(row.Content).Content); var header = Assert.IsType<CardActionHeader>(grid.Children[1]);
+        var actions = Assert.IsType<ActionButtonRow>(header.Children[1]); var control = Assert.IsType<ClipboardIconButton>(actions.Children[1]);
+        var button = Assert.IsType<Button>(Assert.IsType<Grid>(control.Content).Children[0]);
+        Assert.Equal(48, control.WidthRequest); Assert.Equal(StudioSymbol.Unlock, control.Symbol);
+        ((IButtonController)button).SendClicked(); Assert.Equal(1, toggles);
+        row.Update(layer with { Locked = true, Name = "Renamed" }, true); Assert.Equal(1, toggles);
+        Assert.Equal(StudioSymbol.Lock, control.Symbol); Assert.Contains("Renamed, locked", SemanticProperties.GetDescription(button));
+        var buttonSurface = Assert.IsType<Border>(Assert.IsType<Grid>(control.Content).Children[1]);
+        ((IButtonController)button).SendPressed(); Assert.Equal(.95, buttonSurface.Scale);
+        row.SetReordering(true); ((IButtonController)button).SendClicked(); Assert.Equal(1, toggles); Assert.False(button.IsEnabled);
+        Assert.Equal(1, buttonSurface.Scale); ((IButtonController)button).SendPressed(); Assert.Equal(1, buttonSurface.Scale);
+        row.SetReordering(false); ((IButtonController)button).SendClicked(); Assert.Equal(2, toggles);
+    }
     public void Dispose() => host.Dispose();
 }

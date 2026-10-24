@@ -23,6 +23,7 @@ internal sealed class WidgetCanvasView : ContentView
     private readonly Dictionary<Guid, PhotoView> photos = [];
     private readonly Func<string, string?> path;
     private readonly Action<Guid> select;
+    private readonly Action? deselect;
     private readonly Action<WidgetLayer>? change;
     private WidgetDesign? design;
     private Guid? selected;
@@ -50,9 +51,9 @@ internal sealed class WidgetCanvasView : ContentView
     public event EventHandler? InteractionChanged;
     public event EventHandler<string>? RenderFailed;
 
-    public WidgetCanvasView(Func<string, string?> path, Action<Guid> select, Action<WidgetLayer>? change = null)
+    public WidgetCanvasView(Func<string, string?> path, Action<Guid> select, Action<WidgetLayer>? change = null, Action? deselect = null)
     {
-        this.path = path; this.select = select; this.change = change;
+        this.path = path; this.select = select; this.change = change; this.deselect = deselect;
         HeightRequest = WidthRequest = 170; HorizontalOptions = LayoutOptions.Center; AutomationId = "WidgetCanvas";
         composite = new WidgetCompositeView(path) { InputTransparent = true };
         renderError.IsVisible = false; renderError.Margin = 12; renderError.InputTransparent = true;
@@ -78,7 +79,7 @@ internal sealed class WidgetCanvasView : ContentView
         SettingsControls.SurfaceStroke(border); Content = border;
         canvas.SizeChanged += (_, _) => { EndInteraction(true); ArrangePhotos(); };
         widgetBorder.SizeChanged += (_, _) => ArrangePhotos();
-        SemanticProperties.SetHint(this, "Tap a photo to select it. Drag past the widget edges to hide part of it. Pinch or drag a corner to resize proportionally. The faint outside area is not saved. Centre on widget in the layer menu recovers an off-screen photo.");
+        SemanticProperties.SetHint(this, "Tap a photo to select it, or empty space to deselect. Locked photos cannot be moved or resized; unlock them in Layers. Drag past the widget edges to hide part of an unlocked photo. The faint outside area is not saved.");
     }
     protected override void OnParentSet()
     {
@@ -105,7 +106,7 @@ internal sealed class WidgetCanvasView : ContentView
     }
     public void Update(WidgetDesign value, Guid? selectedId)
     {
-        if (gestureStart is not null && (design?.Size != value.Size || selected != selectedId || !value.Layers.Any(x => x.Id == gestureStart.Id && x.Visible))) EndInteraction(false);
+        if (gestureStart is not null && (design?.Size != value.Size || selected != selectedId || !value.Layers.Any(x => x.Id == gestureStart.Id && x.Visible && !x.Locked))) EndInteraction(false);
         design = value; selected = selectedId;
         if (!Equals(composite.Design, value)) renderError.IsVisible = false;
         composite.Design = value;
@@ -131,6 +132,9 @@ internal sealed class WidgetCanvasView : ContentView
             photo.Frame.IsVisible = layer.Visible; Configure(photo, layer);
         }
         FitCanvas();
+        var active = value.Layers.FirstOrDefault(x => x.Id == selectedId && x.Visible);
+        SemanticProperties.SetDescription(this, $"{WidgetDesignRules.SizeName(value.Size)} widget preview. {value.Layers.Count(x => x.Visible)} visible photo layers."
+            + (active is null ? " No photo selected." : $" Selected {active.Name}." + (active.Locked ? " Locked. Unlock in Layers to move or resize." : "")));
     }
     private void ArrangePhotos()
     {
@@ -162,7 +166,7 @@ internal sealed class WidgetCanvasView : ContentView
         }
         handles.SelectionFrame = active is null ? Rect.Zero : new Rect(origin.X + active.Frame.X * canvas.Width, origin.Y + active.Frame.Y * canvas.Height,
             active.Frame.Width * canvas.Width, active.Frame.Height * canvas.Height);
-        SemanticProperties.SetDescription(this, $"{WidgetDesignRules.SizeName(design.Size)} widget preview. {design.Layers.Count(x => x.Visible)} visible photo layers.");
+        handles.CanResize = active?.Locked != true;
     }
     private static void Configure(PhotoView photo, WidgetLayer layer)
     {
@@ -188,17 +192,17 @@ internal sealed class WidgetCanvasView : ContentView
     }
     public void SelectAt(double x, double y)
     {
-        if (!IsEnabled || IsInteracting || design is null || canvas.Width <= 0 || canvas.Height <= 0) return;
+        if (!IsEnabled || IsInteracting || design is null || canvas.Width <= 0 || canvas.Height <= 0 || !double.IsFinite(x) || !double.IsFinite(y)) return;
         var point = Normalize(x, y);
         var layer = design.Layers.LastOrDefault(layer => WidgetLayerEdits.Contains(layer, point.X, point.Y));
-        if (layer is not null) select(layer.Id);
+        if (layer is not null) select(layer.Id); else deselect?.Invoke();
     }
     public bool BeginInteraction(double x, double y, bool pinch)
     {
-        if (!IsEnabled || IsInteracting || change is null || design is null || canvas.Width <= 0 || canvas.Height <= 0) return false;
+        if (!IsEnabled || IsInteracting || change is null || design is null || canvas.Width <= 0 || canvas.Height <= 0 || !double.IsFinite(x) || !double.IsFinite(y)) return false;
         var point = Normalize(x, y); corner = -1;
         var layer = design.Layers.FirstOrDefault(layer => layer.Id == selected && layer.Visible);
-        if (layer is not null && !pinch)
+        if (layer is not null && !layer.Locked && !pinch)
         {
             var frame = layer.Frame;
             var corners = new[] { new Point(frame.X, frame.Y), new Point(frame.X + frame.Width, frame.Y),
@@ -209,8 +213,8 @@ internal sealed class WidgetCanvasView : ContentView
             if (nearest.Distance <= radius * radius) corner = nearest.Index;
         }
         if (corner < 0) layer = design.Layers.LastOrDefault(layer => WidgetLayerEdits.Contains(layer, point.X, point.Y))
-            ?? (pinch ? design.Layers.FirstOrDefault(x => x.Id == selected && x.Visible && x.Opacity > 0) : null);
-        if (layer is null) return false;
+            ?? (pinch ? design.Layers.FirstOrDefault(x => x.Id == selected && x.Visible && x.Opacity > 0 && !x.Locked) : null);
+        if (layer is null || layer.Locked) return false;
         select(layer.Id); gestureStart = layer;
         anchor = new(Math.Clamp((point.X - layer.Frame.X) / layer.Frame.Width, 0, 1), Math.Clamp((point.Y - layer.Frame.Y) / layer.Frame.Height, 0, 1));
         InteractionChanged?.Invoke(this, EventArgs.Empty); return true;
@@ -261,6 +265,8 @@ internal sealed class WidgetCanvasView : ContentView
             propertyChanged: (view, _, _) => ((SelectionOverlay)view).Invalidate());
         public Color Tint { get => (Color)GetValue(TintProperty); set => SetValue(TintProperty, value); }
         private Rect frame;
+        private bool canResize = true;
+        public bool CanResize { get => canResize; set { canResize = value; Invalidate(); } }
         public Rect SelectionFrame { get => frame; set { frame = value; Invalidate(); } }
         public SelectionOverlay()
         {
@@ -272,6 +278,7 @@ internal sealed class WidgetCanvasView : ContentView
             if (frame.Width <= 0 || frame.Height <= 0) return;
             canvas.StrokeColor = Tint; canvas.StrokeSize = 2; canvas.FillColor = Colors.White;
             canvas.DrawRectangle(frame);
+            if (!canResize) return;
             foreach (var point in new[] { new Point(frame.Left, frame.Top), new Point(frame.Right, frame.Top), new Point(frame.Left, frame.Bottom), new Point(frame.Right, frame.Bottom) })
             {
                 canvas.FillCircle((float)point.X, (float)point.Y, 5); canvas.DrawCircle((float)point.X, (float)point.Y, 5);

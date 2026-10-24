@@ -11,7 +11,7 @@ public sealed record WidgetFrame(double X = 0, double Y = 0, double Width = 1, d
 public sealed record WidgetLayer(Guid Id, string Name, string AssetKey, int PixelWidth, int PixelHeight,
     WidgetFrame Frame, double Zoom = 1, double CropX = .5, double CropY = .5, bool Visible = true,
     WidgetLayerKind Kind = WidgetLayerKind.Photo, int QuarterTurns = 0, bool FlipHorizontal = false, bool FlipVertical = false, double Opacity = 1,
-    bool FitPhoto = false, WidgetBlendMode BlendMode = WidgetBlendMode.Normal);
+    bool FitPhoto = false, WidgetBlendMode BlendMode = WidgetBlendMode.Normal, bool Locked = false);
 public sealed record WidgetDesign(Guid Id, string Name, WidgetSize Size, string BackgroundHex,
     IReadOnlyList<WidgetLayer> Layers, string RenderKey, int Revision = 0, bool TransparentBackground = false, bool PreserveCanvas = false,
     WidgetCanvasSize? CanvasDimensions = null);

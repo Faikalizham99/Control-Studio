@@ -34,6 +34,38 @@ public sealed class WidgetCanvasTests : IDisposable
     }
     public void Dispose() => host.Dispose();
     [Fact]
+    public void LockedTopPhotoIsSelectableButDoesNotMoveResizeOrExposeTheLayerBehindIt()
+    {
+        var bottom = new WidgetLayer(Guid.NewGuid(), "Bottom", Guid.NewGuid().ToString("N"), 640, 480, new(.2, .2, .6, .6));
+        var top = bottom with { Id = Guid.NewGuid(), Name = "Locked top", Locked = true }; Guid? selected = null; var writes = 0; var clears = 0;
+        var canvas = new WidgetCanvasView(_ => null, id => selected = id, _ => writes++, () => clears++); host.Attach(canvas);
+        var design = WidgetDesignRules.New() with { Layers = [bottom, top] }; canvas.Update(design, top.Id);
+        ((IView)canvas.PhotoSurface).Arrange(new Rect(0, 0, 170, 170));
+        canvas.SelectAt(85, 85); Assert.Equal(top.Id, selected);
+        Assert.False(canvas.BeginInteraction(85, 85, false)); Assert.False(canvas.BeginInteraction(85, 85, true));
+        Assert.False(canvas.BeginInteraction(34, 34, false)); canvas.Pan(50, 50); canvas.Pinch(2); Assert.Equal(0, writes);
+        Assert.Contains("Locked. Unlock", SemanticProperties.GetDescription(canvas));
+        canvas.SelectAt(5, 5); Assert.Equal(1, clears); Assert.True(canvas.PhotoSurface.Children.All(x => x is VisualElement { IsVisible: true }));
+        canvas.Update(design with { Layers = [bottom, top with { Locked = false }] }, top.Id);
+        Assert.True(canvas.BeginInteraction(85, 85, false)); canvas.Pan(17, 0); canvas.EndInteraction(false); Assert.Equal(1, writes);
+    }
+    [Fact]
+    public void BlankTapsClearSelectionButNotDuringManipulationAndALockUpdateEndsTheGesture()
+    {
+        var photo = new WidgetLayer(Guid.NewGuid(), "Photo", Guid.NewGuid().ToString("N"), 640, 480, new(.2, .2, .6, .6));
+        var design = WidgetDesignRules.New() with { Layers = [photo] }; var clears = 0; var writes = 0;
+        var canvas = new WidgetCanvasView(_ => null, _ => { }, _ => writes++, () => clears++); host.Attach(canvas); canvas.Update(design, photo.Id);
+        ((IView)canvas.PhotoSurface).Arrange(new Rect(32, 32, 170, 170));
+        canvas.SelectAt(5, 5); Assert.Equal(1, clears); canvas.SelectAt(double.NaN, 5); Assert.Equal(1, clears);
+        Assert.True(canvas.BeginInteraction(117, 117, false)); canvas.SelectAt(5, 5); Assert.Equal(1, clears);
+        canvas.Update(design with { Layers = [photo with { Locked = true }] }, photo.Id); Assert.False(canvas.IsInteracting);
+        canvas.Pan(40, 0); canvas.Pinch(2); Assert.Equal(0, writes);
+        canvas.IsEnabled = false; canvas.SelectAt(5, 5); Assert.Equal(1, clears);
+        canvas.IsEnabled = true; canvas.Update(design, null);
+        Assert.False(Assert.IsType<AbsoluteLayout>(canvas.Workspace.Children[0]).IsVisible);
+        Assert.Contains("No photo selected", SemanticProperties.GetDescription(canvas));
+    }
+    [Fact]
     public void CanvasGestureChangesAreDraftOnlyAndCancellationRestoresSnapshot()
     {
         var photo = new WidgetLayer(Guid.NewGuid(), "Photo", Guid.NewGuid().ToString("N"), 640, 480, new(.2, .2, .6, .6));

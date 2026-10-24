@@ -12,6 +12,24 @@ public sealed class WidgetDesignRepositoryTests : IDisposable
     private WidgetDesignRepository Repository() => new(Private);
     private static byte[] Png => Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aZXsAAAAASUVORK5CYII=");
     [Fact]
+    public async Task PhotoLockPersistsAcrossReopenPublicationUnlockAndRejectedSave()
+    {
+        var repo = Repository(); var draft = await PhotoDraft();
+        var locked = draft.Layers[0] with { Locked = true };
+        var saved = await repo.SaveAsync(draft with { Layers = [locked] }, Png); await repo.AssignSlotAsync(saved.Size, 1, saved.Id);
+        Assert.Equal(locked, Assert.Single(Assert.Single(await Repository().ReadAsync()).Layers));
+        var before = await File.ReadAllBytesAsync(Path.Combine(Private, "catalog.json"));
+        await Assert.ThrowsAsync<IOException>(() => repo.SaveAsync(saved with { Layers = [locked with { Opacity = 2 }] }, Png));
+        Assert.Equal(before, await File.ReadAllBytesAsync(Path.Combine(Private, "catalog.json")));
+        await new WidgetDesignPublisher(Repository(), () => Shared).PublishAsync();
+        var published = JsonSerializer.Deserialize(await File.ReadAllBytesAsync(Path.Combine(Shared, "catalog.json")), WidgetDesignRules.JsonContext.WidgetCatalog)!;
+        Assert.Equal(locked, Assert.Single(Assert.Single(published.Designs).Layers));
+        await repo.SaveAsync(saved with { Layers = [locked with { Locked = false }] }, Png);
+        Assert.False(Assert.Single(Assert.Single(await Repository().ReadAsync()).Layers).Locked);
+        Assert.Equal(Png, await File.ReadAllBytesAsync(repo.AssetPath(locked.AssetKey)!));
+        Assert.Equal(saved.Id, Assert.Single((await Repository().ReadLibraryAsync()).Slots).DesignId);
+    }
+    [Fact]
     public async Task MeasuredCanvasSurvivesReopenAndPublicationWithoutRemovingSizeRecords()
     {
         var repo = Repository(); var draft = await PhotoDraft();

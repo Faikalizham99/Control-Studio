@@ -1,6 +1,6 @@
-# Animated widget layer reordering — unreleased, 24 October 2026
+# Animated widget layer reordering — included in 0.2.30, 24 October 2026
 
-The owner authorized implementing lifted photo-layer rows, smoothly displaced neighbours, a settling drop, safe cancellation and Reduced Motion support, then authorized committing and pushing the update to main. This update remains unreleased; no version tag or IPA build is included in this push.
+The owner authorized implementing lifted photo-layer rows, smoothly displaced neighbours, a settling drop, safe cancellation and Reduced Motion support, then authorized committing and pushing the update to main. It is included in the subsequently authorized 0.2.30 (32) release; the owner will monitor its tag-triggered IPA build.
 
 ## Behaviour
 

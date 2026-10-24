@@ -1,6 +1,6 @@
-# My Widgets header refresh — unreleased, 24 October 2026
+# My Widgets header refresh — included in 0.2.30, 24 October 2026
 
-The owner authorized moving Refresh from the bottom of My Widgets to its fixed header, then authorized committing and pushing the update to main. This update remains unreleased; no new version tag or IPA build is included in this push.
+The owner authorized moving Refresh from the bottom of My Widgets to its fixed header, then authorized committing and pushing the update to main. It is included in the subsequently authorized 0.2.30 (32) release; the owner will monitor its tag-triggered IPA build.
 
 ## Behaviour and review
 

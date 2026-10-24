@@ -7,6 +7,7 @@ internal class ClipboardIconButton : ContentView
 {
     private readonly Button tap;
     private readonly StudioGlyph icon;
+    private readonly Border surface;
     public StudioSymbol Symbol { get => icon.Symbol; set => icon.Symbol = value; }
     public event EventHandler? Clicked;
 
@@ -17,7 +18,6 @@ internal class ClipboardIconButton : ContentView
         {
             WidthRequest = HeightRequest = 23, HorizontalOptions = LayoutOptions.Center, VerticalOptions = LayoutOptions.Center
         };
-        Border surface;
         if (primary)
         {
             var accent = new AccentSurface(icon, 15, captionSize: 14, captionBold: false);
@@ -35,8 +35,8 @@ internal class ClipboardIconButton : ContentView
         surface.InputTransparent = true;
         tap = SettingsControls.TapTarget(action, "Clipboard" + action.Replace(" ", ""));
         tap.CornerRadius = 15;
-        tap.Clicked += (_, e) => Clicked?.Invoke(this, e);
-        tap.Pressed += (_, _) => surface.Scale = .95;
+        tap.Clicked += (_, e) => { if (IsEnabled) Clicked?.Invoke(this, e); };
+        tap.Pressed += (_, _) => { if (IsEnabled) surface.Scale = .95; };
         tap.Released += (_, _) => surface.Scale = 1;
         // Keep the native hit target beneath the visuals so its UIKit states cannot cover the fill/glyph.
         Content = new Grid { Children = { tap, surface } };
@@ -45,6 +45,12 @@ internal class ClipboardIconButton : ContentView
             // Retain the exact icon surface/size without offering a fake preview action.
             tap.IsVisible = false; InputTransparent = true; CascadeInputTransparent = true;
         }
+    }
+
+    protected override void OnPropertyChanged(string? propertyName = null)
+    {
+        base.OnPropertyChanged(propertyName);
+        if (propertyName == nameof(IsEnabled) && surface is not null) surface.Scale = 1;
     }
 
     public void Describe(string action, string name)

@@ -24,6 +24,7 @@ public static class MauiProgram
             handlers.AddHandler<WidgetCanvasView, WidgetCanvasGestureHandler>();
             handlers.AddHandler<WidgetCompositeView, WidgetCompositeHandler>();
             handlers.AddHandler<WidgetLayerList, WidgetLayerListHandler>();
+            handlers.AddHandler<WidgetEditorSurface, WidgetEditorSurfaceHandler>();
         });
         builder.Logging.AddProvider(new DeviceLoggerProvider());
         builder.Services.AddSingleton<AppearancePreferences>();
