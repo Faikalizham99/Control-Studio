@@ -75,6 +75,22 @@ public sealed class PickerCancellationTests : IDisposable
         Assert.Equal(8, Descendants(page).OfType<WidgetCompositeView>().Single().Design!.Layers.Count); Assert.Equal(0, store.Picks);
     }
     [Fact]
+    public async Task ClockAmPmSwitchOnlyAppearsForTwelveHourAndKeepsItsSavedChoice()
+    {
+        var store = new Store(); var page = new WidgetEditorPage(store, new ColourPicker(), NullLogger.Instance, chooseLayerType: () => Task.FromResult<string?>("Clock"));
+        Open(page); await page.AddLayerAsync();
+        var controls = Descendants(page).OfType<WidgetClockControls>().Single();
+        var toggle = Descendants(controls).OfType<Switch>().Single(x => x.AutomationId == "ClockShowAmPm");
+        var row = Assert.IsType<Grid>(toggle.Parent); var composition = Descendants(page).OfType<WidgetCompositeView>().Single();
+        void Click(string id) => ((IButtonController)Button(page, id)).SendClicked();
+        Assert.False(row.IsVisible); Assert.True(toggle.IsToggled); Assert.Equal("Show AM/PM", SemanticProperties.GetDescription(toggle));
+        Click("ClockFormat0"); Assert.True(row.IsVisible); Assert.True(toggle.IsToggled);
+        toggle.IsToggled = false; Assert.False(composition.Design!.Layers.Single().Clock!.ShowAmPm);
+        Click("ClockFormat1"); Assert.False(row.IsVisible); Assert.False(composition.Design.Layers.Single().Clock!.ShowAmPm);
+        Click("ClockFormat0"); Assert.True(row.IsVisible); Assert.False(toggle.IsToggled);
+        Click("SaveWidgetDesign"); Assert.False(store.Saved!.Layers.Single().Clock!.ShowAmPm); Assert.False(store.Saved.Layers.Single().Clock!.TwentyFourHour);
+    }
+    [Fact]
     public async Task ClockChooserAddsNoPhotoAndClockSettingsPersistAlongsideThePhoto()
     {
         var photo = Photo(); var store = new Store(); var original = WidgetDesignRules.New() with { Layers = [photo] };

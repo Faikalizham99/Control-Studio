@@ -14,8 +14,9 @@ public sealed class WidgetClockTests
         foreach (var size in WidgetDesignRules.SupportedSizes)
         foreach (var font in Enum.GetValues<WidgetClockFont>())
         foreach (var alignment in Enum.GetValues<WidgetClockAlignment>())
+        foreach (var showAmPm in new[] { true, false })
         {
-            var layer = clock with { Clock = clock.Clock! with { TwentyFourHour = false, ShowSeconds = false, Font = font, Alignment = alignment, ColourHex = "#12ABEF", FontScale = .5 } };
+            var layer = clock with { Clock = clock.Clock! with { TwentyFourHour = false, ShowSeconds = false, Font = font, Alignment = alignment, ColourHex = "#12ABEF", FontScale = .5, ShowAmPm = showAmPm } };
             var design = WidgetDesignRules.New() with { Size = size, Layers = [Photo(), layer] }; WidgetDesignRules.Validate(design);
             var json = JsonSerializer.Serialize(design, WidgetDesignRules.JsonContext.WidgetDesign);
             var restored = JsonSerializer.Deserialize(json, WidgetDesignRules.JsonContext.WidgetDesign)!;
@@ -24,11 +25,14 @@ public sealed class WidgetClockTests
         }
     }
     [Theory]
-    [InlineData(0, 0, 0, true, true, "00:00:00")] [InlineData(12, 0, 3, false, true, "12:00:03 PM")]
-    [InlineData(0, 5, 9, false, true, "12:05:09 AM")] [InlineData(23, 59, 59, true, false, "23:59")]
-    [InlineData(13, 8, 12, false, false, "1:08 PM")]
-    public void ClockFormatsMidnightNoonSecondsAndHourCycles(int hour, int minute, int second, bool twentyFour, bool seconds, string expected)
-        => Assert.Equal(expected, WidgetClocks.Text(new(TwentyFourHour: twentyFour, ShowSeconds: seconds), new(2026, 10, 24, hour, minute, second, TimeSpan.Zero), TimeZoneInfo.Utc));
+    [InlineData(0, 0, 0, true, true, true, "00:00:00")] [InlineData(12, 0, 3, false, true, true, "12:00:03 PM")]
+    [InlineData(0, 5, 9, false, true, true, "12:05:09 AM")] [InlineData(23, 59, 59, true, false, true, "23:59")]
+    [InlineData(13, 8, 12, false, false, true, "1:08 PM")]
+    [InlineData(0, 5, 9, false, true, false, "12:05:09")] [InlineData(12, 0, 3, false, true, false, "12:00:03")]
+    [InlineData(13, 8, 12, false, false, false, "1:08")] [InlineData(0, 5, 9, false, false, false, "12:05")]
+    [InlineData(23, 59, 59, true, false, false, "23:59")] [InlineData(0, 0, 0, true, true, false, "00:00:00")]
+    public void ClockFormatsMidnightNoonSecondsAndHourCycles(int hour, int minute, int second, bool twentyFour, bool seconds, bool showAmPm, string expected)
+        => Assert.Equal(expected, WidgetClocks.Text(new(TwentyFourHour: twentyFour, ShowSeconds: seconds, ShowAmPm: showAmPm), new(2026, 10, 24, hour, minute, second, TimeSpan.Zero), TimeZoneInfo.Utc));
     [Fact]
     public void ClockUsesTheChosenTimeZoneRatherThanAnElapsedTimer()
     {
@@ -48,6 +52,8 @@ public sealed class WidgetClockTests
             Assert.Throws<IOException>(() => WidgetDesignRules.Validate(WidgetDesignRules.New() with { Layers = [invalid] }));
         var json = JsonSerializer.Serialize(clock, WidgetDesignRules.Json);
         Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<WidgetLayer>(json.Replace("\"rounded\"", "42"), WidgetDesignRules.Json));
+        foreach (var invalid in new[] { "null", "\"false\"" })
+            Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<WidgetLayer>(json.Replace("\"showAmPm\":true", "\"showAmPm\":" + invalid), WidgetDesignRules.Json));
     }
     [Fact]
     public void SceneGroupingKeepsStackOrderAndHidingClocksDoesNotChangePhotoGroups()
@@ -68,6 +74,7 @@ public sealed class WidgetClockTests
     {
         var scene = JsonSerializer.Deserialize(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "widget-scene-v1.example.json")), WidgetDesignRules.JsonContext.WidgetScene)!;
         var clock = scene.Parts[1].Clock!; WidgetDesignRules.Validate(WidgetDesignRules.New() with { Layers = [clock] });
+        Assert.True(clock.Clock!.ShowAmPm); // This older scene fixture omits the setting.
         Assert.Equal("", clock.AssetKey); Assert.Equal(WidgetLayerKind.Clock, clock.Kind);
         WidgetScenes.Validate(scene, WidgetDesignRules.New() with { Layers = [Photo(), clock] });
         var locked = clock with { Locked = true }; Assert.Same(locked, WidgetLayerEdits.Move(locked, .5, .5));

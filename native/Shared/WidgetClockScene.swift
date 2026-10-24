@@ -18,6 +18,22 @@ struct WidgetClockStyle: Decodable, Equatable {
     let colourHex: String
     let fontScale: Double
     let alignment: String
+    let showAmPm: Bool
+    private enum CodingKeys: String, CodingKey {
+        case twentyFourHour, showSeconds, font, colourHex, fontScale, alignment, showAmPm
+    }
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        twentyFourHour = try values.decode(Bool.self, forKey: .twentyFourHour)
+        showSeconds = try values.decode(Bool.self, forKey: .showSeconds)
+        font = try values.decode(String.self, forKey: .font)
+        colourHex = try values.decode(String.self, forKey: .colourHex)
+        fontScale = try values.decode(Double.self, forKey: .fontScale)
+        alignment = try values.decode(String.self, forKey: .alignment)
+        // Older saved scenes predate this switch and always showed AM/PM.
+        if values.contains(.showAmPm) { showAmPm = try values.decode(Bool.self, forKey: .showAmPm) }
+        else { showAmPm = true }
+    }
     var valid: Bool {
         ["system", "rounded", "monospaced", "serif"].contains(font) && ["left", "centre", "right"].contains(alignment)
             && fontScale.isFinite && (0.2...1).contains(fontScale) && rgb != nil
@@ -26,11 +42,13 @@ struct WidgetClockStyle: Decodable, Equatable {
         // An explicit hour cycle preserves the chosen 12/24-hour setting even when
         // the device's locale or system clock preference uses the other cycle.
         let pattern: Date.FormatString
-        switch (twentyFourHour, showSeconds) {
-        case (true, true): pattern = "\(hour: .twoDigits(clock: .twentyFourHour, hourCycle: .zeroBased)):\(minute: .twoDigits):\(second: .twoDigits)"
-        case (true, false): pattern = "\(hour: .twoDigits(clock: .twentyFourHour, hourCycle: .zeroBased)):\(minute: .twoDigits)"
-        case (false, true): pattern = "\(hour: .defaultDigits(clock: .twelveHour, hourCycle: .oneBased)):\(minute: .twoDigits):\(second: .twoDigits) \(dayPeriod: .standard(.abbreviated))"
-        case (false, false): pattern = "\(hour: .defaultDigits(clock: .twelveHour, hourCycle: .oneBased)):\(minute: .twoDigits) \(dayPeriod: .standard(.abbreviated))"
+        switch (twentyFourHour, showSeconds, showAmPm) {
+        case (true, true, _): pattern = "\(hour: .twoDigits(clock: .twentyFourHour, hourCycle: .zeroBased)):\(minute: .twoDigits):\(second: .twoDigits)"
+        case (true, false, _): pattern = "\(hour: .twoDigits(clock: .twentyFourHour, hourCycle: .zeroBased)):\(minute: .twoDigits)"
+        case (false, true, true): pattern = "\(hour: .defaultDigits(clock: .twelveHour, hourCycle: .oneBased)):\(minute: .twoDigits):\(second: .twoDigits) \(dayPeriod: .standard(.abbreviated))"
+        case (false, false, true): pattern = "\(hour: .defaultDigits(clock: .twelveHour, hourCycle: .oneBased)):\(minute: .twoDigits) \(dayPeriod: .standard(.abbreviated))"
+        case (false, true, false): pattern = "\(hour: .defaultDigits(clock: .twelveHour, hourCycle: .oneBased)):\(minute: .twoDigits):\(second: .twoDigits)"
+        case (false, false, false): pattern = "\(hour: .defaultDigits(clock: .twelveHour, hourCycle: .oneBased)):\(minute: .twoDigits)"
         }
         return Date.VerbatimFormatStyle(format: pattern, locale: Locale(identifier: "en_US_POSIX"), timeZone: timeZone, calendar: Calendar(identifier: .gregorian))
     }

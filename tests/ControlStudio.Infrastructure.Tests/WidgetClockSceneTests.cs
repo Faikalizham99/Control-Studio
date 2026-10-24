@@ -27,10 +27,13 @@ public sealed class WidgetClockSceneTests : IDisposable
         WidgetScenes.Validate(scene, saved); Assert.NotNull(repo.SceneImagePath(saved.RenderKey, 0)); Assert.NotNull(repo.SceneImagePath(saved.RenderKey, 2));
         await new WidgetDesignPublisher(Repo(), () => Shared).PublishAsync();
         Assert.True(File.Exists(Path.Combine(Shared, "renders", saved.RenderKey + ".scene.json"))); Assert.False(Directory.Exists(Path.Combine(Shared, "photos")));
-        var updatedDraft = saved with { Layers = saved.Layers.Select(x => x.Kind == WidgetLayerKind.Clock ? x with { Locked = true, Clock = x.Clock! with { ShowSeconds = false } } : x).ToArray() };
+        var updatedDraft = saved with { Layers = saved.Layers.Select(x => x.Kind == WidgetLayerKind.Clock ? x with { Locked = true, Clock = x.Clock! with { ShowSeconds = false, TwentyFourHour = false, ShowAmPm = false } } : x).ToArray() };
         var updated = await repo.SaveAsync(updatedDraft, Png, scene: Export(updatedDraft));
         Assert.Null(repo.ScenePath(saved.RenderKey)); Assert.NotNull(repo.ScenePath(updated.RenderKey)); Assert.Null(repo.SceneImagePath(saved.RenderKey, 0));
         await new WidgetDesignPublisher(Repo(), () => Shared).PublishAsync();
+        Assert.False(Assert.Single(await Repo().ReadAsync()).Layers[1].Clock!.ShowAmPm);
+        var published = JsonSerializer.Deserialize(await File.ReadAllBytesAsync(Path.Combine(Shared, "renders", updated.RenderKey + ".scene.json")), WidgetDesignRules.JsonContext.WidgetScene)!;
+        Assert.False(published.Parts.Single(x => x.Clock is not null).Clock!.Clock!.ShowAmPm);
         Assert.True(File.Exists(Path.Combine(Shared, "renders", saved.RenderKey + ".scene.json"))); // Cached timelines have a seven-day grace period.
         Assert.Equal(saved.Id, Assert.Single((await Repo().ReadLibraryAsync()).Slots).DesignId);
         Assert.Equal(Png, await File.ReadAllBytesAsync(repo.AssetPath(saved.Layers[0].AssetKey)!));

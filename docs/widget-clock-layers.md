@@ -2,6 +2,16 @@
 
 The owner approved adding Clock alongside Photo in the existing widget editor, then authorized committing and pushing main and the new v0.2.31 tag. App and extension versions are 0.2.31 (33). The owner will monitor the IPA build. IPA workflow triggers remain unchanged.
 
+## Optional AM/PM suffix — unreleased
+
+12-hour clocks now offer **Show AM/PM**, using the same aligned, accent-aware switch as Show seconds. Turning it off displays `3:45:12` instead of `3:45:12 PM` (or `3:45` with seconds off). The row is hidden in 24-hour mode; returning to 12-hour mode restores the per-layer choice. The control retains its VoiceOver label and follows the editor's existing busy/lifecycle guards.
+
+The saved `showAmPm` Boolean defaults to true in both managed and native decoding when absent, preserving existing catalogs and scenes without a migration. Invalid types/null are rejected. Draft selection changes and save/reopen/publication retain the choice. Older strict-decoding app builds cannot read this new saved field, so downgrading newly saved designs remains unsupported.
+
+Editor text, saved previews and native live text use the same explicit hour-cycle and suffix choices, without trailing spaces. Midnight/noon remain 12 in 12-hour mode. The 24-hour display ignores the suffix choice. No timer, photo import, source-list or workflow change is introduced.
+
+Verification: **142 Core, 265 app, 66 Infrastructure and 34 packaging checks pass (507 total)**, along with source/project generation and managed iOS compilation (zero warnings/errors). Coverage includes old scenes missing the field, Boolean validation, midnight/noon/seconds formatting, 24-hour independence, switch visibility/mode restoration, saved settings and shared scene publication. Native Swift regressions cover the eight format combinations and missing/invalid field decoding, but have not run locally on Windows. Corrected Xcode compilation and actual iPhone preview/Home Screen/VoiceOver checks remain pending. The owner authorized committing and pushing this follow-up to main; no tag or version change is included.
+
 ## Editor behaviour
 
 - **Add layer** offers **Photo** and **Clock**. Photo retains Photo Library and Files selection. Cancel returns to the usable editor without changing the design.

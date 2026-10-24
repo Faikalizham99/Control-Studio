@@ -6,7 +6,7 @@ public enum WidgetClockFont { System, Rounded, Monospaced, Serif }
 public enum WidgetClockAlignment { Left, Centre, Right }
 public sealed record WidgetClockOptions(bool TwentyFourHour = true, bool ShowSeconds = true,
     WidgetClockFont Font = WidgetClockFont.Rounded, string ColourHex = "#FFFFFF", double FontScale = .72,
-    WidgetClockAlignment Alignment = WidgetClockAlignment.Centre);
+    WidgetClockAlignment Alignment = WidgetClockAlignment.Centre, bool ShowAmPm = true);
 
 public static class WidgetClocks
 {
@@ -21,7 +21,9 @@ public static class WidgetClocks
     public static string Text(WidgetClockOptions clock, DateTimeOffset date, TimeZoneInfo? zone = null)
     {
         var local = TimeZoneInfo.ConvertTime(date, zone ?? TimeZoneInfo.Local);
-        var format = clock.TwentyFourHour ? clock.ShowSeconds ? "HH:mm:ss" : "HH:mm" : clock.ShowSeconds ? "h:mm:ss tt" : "h:mm tt";
+        var format = clock.TwentyFourHour ? "HH:mm" : "h:mm";
+        if (clock.ShowSeconds) format += ":ss";
+        if (!clock.TwentyFourHour && clock.ShowAmPm) format += " tt";
         return local.ToString(format, CultureInfo.InvariantCulture);
     }
 }

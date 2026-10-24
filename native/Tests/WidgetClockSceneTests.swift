@@ -10,6 +10,7 @@ final class WidgetClockSceneTests: XCTestCase {
         let scene = try JSONDecoder().decode(WidgetClockScene.self, from: fixture("widget-scene-v1.example.json"))
         XCTAssertTrue(scene.valid); XCTAssertEqual(scene.parts.count, 2); XCTAssertEqual(scene.parts[0].imageIndex, 0)
         let clock = try XCTUnwrap(scene.parts[1].clock); XCTAssertTrue(clock.valid); XCTAssertEqual(clock.clock.font, "rounded")
+        XCTAssertTrue(clock.clock.showAmPm) // Older scenes omit the switch and retain their suffix.
         let midnight = Date(timeIntervalSince1970: 0)
         XCTAssertEqual(clock.clock.formatStyle(timeZone: TimeZone(secondsFromGMT: 0)!).format(midnight), "00:00:00")
         var object = try JSONSerialization.jsonObject(with: fixture("widget-scene-v1.example.json")) as! [String: Any]
@@ -18,6 +19,27 @@ final class WidgetClockSceneTests: XCTestCase {
         let updated = try JSONDecoder().decode(WidgetClockScene.self, from: JSONSerialization.data(withJSONObject: object))
         let text = updated.parts[1].clock!.clock.formatStyle(timeZone: TimeZone(secondsFromGMT: 0)!).format(midnight)
         XCTAssertTrue(text.contains("12:00")); XCTAssertTrue(text.contains("AM")); XCTAssertFalse(text.contains("12:00:00"))
+    }
+    func testExplicitAmPmVisibilityPreservesTwelveHourCycleAndSeconds() throws {
+        let scene = try JSONSerialization.jsonObject(with: fixture("widget-scene-v1.example.json")) as! [String: Any]
+        let layer = (scene["parts"] as! [[String: Any]])[1]["clock"] as! [String: Any]
+        let original = layer["clock"] as! [String: Any]
+        let time = Date(timeIntervalSince1970: 13 * 3600 + 8 * 60 + 12)
+        for (twentyFour, seconds, amPm, expected) in [
+            (false, true, true, "1:08:12 PM"), (false, true, false, "1:08:12"),
+            (false, false, true, "1:08 PM"), (false, false, false, "1:08"),
+            (true, true, true, "13:08:12"), (true, true, false, "13:08:12"),
+            (true, false, true, "13:08"), (true, false, false, "13:08")
+        ] {
+            var options = original; options["twentyFourHour"] = twentyFour; options["showSeconds"] = seconds; options["showAmPm"] = amPm
+            let clock = try JSONDecoder().decode(WidgetClockStyle.self, from: JSONSerialization.data(withJSONObject: options))
+            XCTAssertEqual(clock.showAmPm, amPm)
+            XCTAssertEqual(clock.formatStyle(timeZone: TimeZone(secondsFromGMT: 0)!).format(time), expected)
+        }
+        for invalid in [NSNull(), "false"] as [Any] {
+            var options = original; options["showAmPm"] = invalid
+            XCTAssertThrowsError(try JSONDecoder().decode(WidgetClockStyle.self, from: JSONSerialization.data(withJSONObject: options)))
+        }
     }
     func testSceneStoreReadsBoundedPhotoGroupsAndNeverUsesTheSnapshotForAClock() throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
