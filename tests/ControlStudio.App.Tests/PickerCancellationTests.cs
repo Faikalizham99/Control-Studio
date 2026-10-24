@@ -33,6 +33,39 @@ public sealed class PickerCancellationTests : IDisposable
     private static WidgetEditorPage Editor(Store store, string source = "Photo Library", ColourPicker? colours = null)
         => new(store, colours ?? new(), NullLogger.Instance, WidgetDesignRules.New() with { Layers = [Photo()] }, choosePhotoSource: () => Task.FromResult<string?>(source));
 
+    [Theory]
+    [InlineData(WidgetSize.Small, 158, 158)] [InlineData(WidgetSize.Medium, 338, 158)]
+    [InlineData(WidgetSize.Large, 338, 354)] [InlineData(WidgetSize.ExtraLargePortrait, 338, 550)]
+    public void EditingUsesMeasuredDimensionsWithoutChangingTheOriginalUntilSave(WidgetSize family, double width, double height)
+    {
+        var dimensions = new WidgetCanvasSize(width, height); var photo = Photo() with { FitPhoto = true, BlendMode = WidgetBlendMode.Screen };
+        var original = WidgetDesignRules.New() with { Size = family, Layers = [photo] };
+        var store = new Store { Sizing = _ => new(dimensions, Measured: true) };
+        var page = new WidgetEditorPage(store, new ColourPicker(), NullLogger.Instance, original); Open(page);
+        var composition = Descendants(page).OfType<WidgetCompositeView>().Single();
+        Assert.Equal(dimensions, composition.Design!.CanvasDimensions); Assert.Equal(photo, composition.Design.Layers[0]); Assert.Null(original.CanvasDimensions);
+        Assert.Contains(Descendants(page).OfType<Label>(), x => x.Text?.Contains("Device widget size") == true);
+        ((IButtonController)Button(page, "SaveWidgetDesign")).SendClicked();
+        Assert.Equal(dimensions, store.Saved!.CanvasDimensions); Assert.Equal(photo, store.Saved.Layers[0]); Assert.Null(original.CanvasDimensions);
+    }
+    [Fact]
+    public void SizeChangesAndForegroundCalibrationUpdateTheDraftWhileFallbackKeepsSavedDimensions()
+    {
+        var measured = false;
+        var saved = new WidgetCanvasSize(338, 158);
+        var store = new Store { Sizing = size => measured ? new(new(340, 160), true) : WidgetCanvasSizes.Estimate(size, 430, 932) };
+        var original = WidgetDesignRules.New() with { Size = WidgetSize.Medium, CanvasDimensions = saved, Layers = [Photo()] };
+        var page = new WidgetEditorPage(store, new ColourPicker(), NullLogger.Instance, original); Open(page);
+        var composition = Descendants(page).OfType<WidgetCompositeView>().Single(); Assert.Equal(saved, composition.Design!.CanvasDimensions);
+        ((IWindow)host.App.Windows[0]).Deactivated(); measured = true; ((IWindow)host.App.Windows[0]).Activated();
+        Assert.Equal(new WidgetCanvasSize(340, 160), composition.Design!.CanvasDimensions); Assert.Equal(saved, original.CanvasDimensions);
+        measured = false; ((IButtonController)Button(page, "EditorWidgetSize2")).SendClicked();
+        Assert.Equal(WidgetSize.Large, composition.Design.Size); Assert.Equal(new WidgetCanvasSize(364, 382), composition.Design.CanvasDimensions);
+        ((IButtonController)Button(page, "EditorWidgetSize3")).SendClicked();
+        Assert.Equal(WidgetSize.ExtraLargePortrait, composition.Design.Size); Assert.Equal(new WidgetCanvasSize(364, 594), composition.Design.CanvasDimensions);
+        Assert.Contains(Descendants(page).OfType<Label>(), x => x.Text?.Contains("Estimated size") == true);
+    }
+
     [Fact]
     public async Task BlendingStaysOpenUpdatesTheCorrectLayerAndSurvivesPickerCancellationAndSave()
     {
@@ -265,6 +298,8 @@ public sealed class PickerCancellationTests : IDisposable
     }
     private sealed class Store : IWidgetEditorStore
     {
+        public Func<WidgetSize, WidgetCanvasSizing?> Sizing { get; set; } = _ => null;
+        public WidgetCanvasSizing? CanvasSizing(WidgetSize size) => Sizing(size);
         public Func<bool, Task<WidgetLayer?>> Pick { get; set; } = _ => Task.FromResult<WidgetLayer?>(null);
         public int Picks { get; private set; }
         public int Saves { get; private set; }

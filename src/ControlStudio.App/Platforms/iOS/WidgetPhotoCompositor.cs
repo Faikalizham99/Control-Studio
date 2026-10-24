@@ -28,7 +28,7 @@ internal sealed class WidgetPhotoCompositor : IDisposable
     {
         WidgetDesignRules.Validate(design);
         using var pool = new NSAutoreleasePool();
-        var canvas = WidgetDesignRules.Canvas(design.Size);
+        var canvas = WidgetDesignRules.Canvas(design);
         var scale = Math.Min(2, WidgetDesignRules.MaximumImageEdge / Math.Max(canvas.Width, canvas.Height));
         var size = new CGSize(Math.Floor(canvas.Width * scale), Math.Floor(canvas.Height * scale));
         var bounds = new CGRect(CGPoint.Empty, size);

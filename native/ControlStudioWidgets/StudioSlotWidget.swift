@@ -10,6 +10,7 @@ struct StudioSlotEntry: TimelineEntry {
     var transparentBackground = false
     var preserveCanvas = false
     var canvasBackground: Color = .clear
+    var canvasDimensions: WidgetCanvasDimensions? = nil
     var message = "Assign a saved design to this slot in Control Studio, under Studio → My Widgets → Widget slots."
 }
 
@@ -22,11 +23,40 @@ struct StudioSlotProvider: TimelineProvider {
             completion(StudioSlotEntry(date: .now, slot: slot, message: "Shows the design assigned to this slot and size. Choose it in Control Studio → Widget slots."))
             return
         }
-        completion(current(context.family))
+        let entry = current(context.family)
+        captureSize(context) { completion(entry) }
     }
     func getTimeline(in context: Context, completion: @escaping (Timeline<StudioSlotEntry>) -> Void) {
         let entry = current(context.family)
-        completion(Timeline(entries: [entry], policy: .after(Date().addingTimeInterval(900))))
+        captureSize(context) { completion(Timeline(entries: [entry], policy: .after(Date().addingTimeInterval(900)))) }
+    }
+    private func captureSize(_ context: Context, completion: @escaping () -> Void) {
+        guard !context.isPreview else { completion(); return }
+        let size: WidgetDesignSize
+        if #available(iOS 27.0, *), context.family == .systemExtraLargePortrait { size = .extraLargePortrait }
+        else {
+            switch context.family {
+            case .systemSmall: size = .small
+            case .systemMedium: size = .medium
+            case .systemLarge: size = .large
+            default: completion(); return
+            }
+        }
+        let display = context.displaySize
+        // UIKit's screen/device access belongs to the main actor. Attempt the
+        // tiny atomic record before completion; a write failure never blocks delivery.
+        DispatchQueue.main.async {
+            if UIDevice.current.userInterfaceIdiom == .phone, let store = try? WidgetDesignStore.shared() {
+                let screen = UIScreen.main
+                let bounds = screen.bounds
+                let record = WidgetDisplayMeasurement(size: size,
+                    screenWidth: Double(min(bounds.width, bounds.height)), screenHeight: Double(max(bounds.width, bounds.height)),
+                    screenScale: Double(screen.scale), osMajor: ProcessInfo.processInfo.operatingSystemVersion.majorVersion,
+                    width: Double(display.width), height: Double(display.height))
+                try? WidgetDisplayMetricsStore(directory: store.directory).record(record)
+            }
+            completion()
+        }
     }
     private func current(_ family: WidgetFamily) -> StudioSlotEntry {
         let size: WidgetDesignSize
@@ -49,7 +79,8 @@ struct StudioSlotProvider: TimelineProvider {
             let rgb = design.canvasBackgroundRGB
             let background = rgb.map { Color(red: $0.red, green: $0.green, blue: $0.blue) } ?? Color(uiColor: .systemBackground)
             return StudioSlotEntry(date: .now, slot: slot, image: image, name: design.name,
-                transparentBackground: design.transparentBackground ?? false, preserveCanvas: design.preserveCanvas ?? false, canvasBackground: background)
+                transparentBackground: design.transparentBackground ?? false, preserveCanvas: design.preserveCanvas ?? false, canvasBackground: background,
+                canvasDimensions: design.canvasDimensions)
         } catch CounterError.storageUnavailable {
             return StudioSlotEntry(date: .now, slot: slot, message: "App Group access is unavailable. Open Control Studio and check signing in Settings.")
         } catch {
@@ -64,9 +95,13 @@ struct StudioSlotView: View {
         Group {
             if let image = entry.image {
                 GeometryReader { geometry in
+                    // Correct only integer-PNG rounding when the saved point canvas
+                    // matches this actual widget. Older/different-device canvases keep fit.
+                    let exact = entry.canvasDimensions?.matches(width: Double(geometry.size.width), height: Double(geometry.size.height)) == true
+                    let ratio: CGFloat? = exact ? geometry.size.width / geometry.size.height : nil
                     // Retain every exported canvas edge when iOS supplies slightly different family proportions.
                     // Previously saved catalogs retain their legacy fill until explicitly saved again in the app.
-                    photo(image).aspectRatio(contentMode: entry.preserveCanvas ? .fit : .fill)
+                    photo(image).aspectRatio(ratio, contentMode: entry.preserveCanvas ? .fit : .fill)
                         .frame(width: geometry.size.width, height: geometry.size.height).clipped()
                         .background(entry.preserveCanvas && !entry.transparentBackground ? entry.canvasBackground : .clear)
                         .accessibilityLabel("Studio \(entry.slot): \(entry.name)")

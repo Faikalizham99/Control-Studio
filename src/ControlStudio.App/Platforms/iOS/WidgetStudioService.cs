@@ -16,6 +16,7 @@ public sealed class WidgetStudioService : IWidgetEditorStore
     public WidgetDesignRepository Repository { get; }
     string? IWidgetEditorStore.AssetPath(string key) => Repository.AssetPath(key);
     Task IWidgetEditorStore.RemoveDraftPhotosAsync(IEnumerable<string> keys) => Repository.RemoveDraftPhotosAsync(keys);
+    WidgetCanvasSizing IWidgetEditorStore.CanvasSizing(WidgetSize size) => AppleWidgetCanvasSizing.Read(size, SharedDirectory);
     private readonly WidgetDesignPublisher publisher;
     private readonly ILogger<WidgetStudioService> logger;
     private readonly SemaphoreSlim gate = new(1, 1);

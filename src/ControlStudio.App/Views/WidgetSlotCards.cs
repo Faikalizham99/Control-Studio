@@ -61,7 +61,7 @@ internal static class WidgetSlotCards
             content.Children.Add(image);
         }
         else content.Children.Add(new StudioGlyph(StudioSymbol.Plus) { WidthRequest = 28, HeightRequest = 28, HorizontalOptions = LayoutOptions.Center, VerticalOptions = LayoutOptions.Center });
-        var frame = new WidgetPreviewFrame(size, content, background, initialWidth: width ?? 140);
+        var frame = new WidgetPreviewFrame(size, content, background, initialWidth: width ?? 140, dimensions: design?.CanvasDimensions);
         if (design is null && frame.Content is Border outline) outline.StrokeDashArray = new DoubleCollection { 5, 3 };
         if (width is { } value) frame.WidthRequest = value;
         frame.InputTransparent = true; AutomationProperties.SetIsInAccessibleTree(frame, false);

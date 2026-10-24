@@ -4,9 +4,9 @@ namespace ControlStudio.Core.Widgets;
 public static class WidgetLayerEdits
 {
     private static double Clamp(double value, double minimum, double maximum) => Math.Clamp(value, minimum, maximum);
-    public static WidgetLayer Reset(WidgetLayer layer, WidgetSize size)
+    public static WidgetLayer Reset(WidgetLayer layer, WidgetSize size, WidgetCanvasSize? dimensions = null)
     {
-        var canvas = WidgetDesignRules.Canvas(size);
+        var canvas = dimensions is null ? WidgetDesignRules.Canvas(size) : (Width: dimensions.Width, Height: dimensions.Height);
         var width = .8; var height = width * canvas.Width * layer.PixelHeight / layer.PixelWidth / canvas.Height;
         if (height > .8) { height = .8; width = height * canvas.Height * layer.PixelWidth / layer.PixelHeight / canvas.Width; }
         width = Clamp(width, .05, .8); height = Clamp(height, .05, .8);
@@ -37,11 +37,11 @@ public static class WidgetLayerEdits
         var factor = Math.Max(double.Epsilon, 1 + (Math.Abs(horizontal) >= Math.Abs(vertical) ? horizontal : vertical));
         return Scale(layer, factor, corner % 2 == 0 ? 1 : 0, corner < 2 ? 1 : 0);
     }
-    public static WidgetLayer Rotate(WidgetLayer layer, int turns, WidgetSize? size = null)
+    public static WidgetLayer Rotate(WidgetLayer layer, int turns, WidgetSize? size = null, WidgetCanvasSize? dimensions = null)
     {
         var rotated = layer with { QuarterTurns = ((layer.QuarterTurns + turns % 4) % 4 + 4) % 4 };
         if (!layer.FitPhoto || size is null || turns % 2 == 0) return rotated;
-        var canvas = WidgetDesignRules.Canvas(size.Value); var f = layer.Frame;
+        var canvas = dimensions is null ? WidgetDesignRules.Canvas(size.Value) : (Width: dimensions.Width, Height: dimensions.Height); var f = layer.Frame;
         var width = Clamp(f.Height * canvas.Height / canvas.Width, WidgetDesignRules.MinimumLayerSize, WidgetDesignRules.MaximumLayerSize);
         var height = Clamp(f.Width * canvas.Width / canvas.Height, WidgetDesignRules.MinimumLayerSize, WidgetDesignRules.MaximumLayerSize);
         return rotated with { Frame = new(Position(f.X + (f.Width - width) / 2), Position(f.Y + (f.Height - height) / 2), width, height) };

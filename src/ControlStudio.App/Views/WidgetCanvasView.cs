@@ -95,7 +95,9 @@ internal sealed class WidgetCanvasView : ContentView
         // Border.CrossPlatformArrange subtracts its stroke on each side. Reserve both
         // guides outside the photo area so the actual canvas keeps the exported aspect ratio.
         var extra = WorkspaceInset * 2 + GuideStroke * 4;
-        var size = WidgetPreviewFrame.Fit(design.Size, Math.Max(1, available - extra));
+        // Fit the widget itself first. The surrounding workspace may scroll;
+        // its margin must never be deducted from the widget's allotted width.
+        var size = WidgetPreviewFrame.Fit(design, Math.Max(1, available - GuideStroke * 4));
         AbsoluteLayout.SetLayoutBounds(widgetBorder, new Rect(WorkspaceInset, WorkspaceInset, size.Width + GuideStroke * 2, size.Height + GuideStroke * 2));
         if (Math.Abs(WidthRequest - size.Width - extra) > .5) WidthRequest = size.Width + extra;
         if (Math.Abs(HeightRequest - size.Height - extra) > .5) HeightRequest = size.Height + extra;

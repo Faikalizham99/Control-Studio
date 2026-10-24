@@ -102,10 +102,11 @@ internal sealed class WidgetAddButton : ContentView
 internal sealed class WidgetPreviewFrame : ContentView
 {
     private readonly WidgetSize size;
+    private readonly WidgetCanvasSize? dimensions;
     private readonly Border frame;
-    public WidgetPreviewFrame(WidgetSize size, View content, Color? background = null, double initialWidth = 320)
+    public WidgetPreviewFrame(WidgetSize size, View content, Color? background = null, double initialWidth = 320, WidgetCanvasSize? dimensions = null)
     {
-        this.size = size;
+        this.size = size; this.dimensions = dimensions;
         frame = new Border { Content = content, StrokeShape = new RoundRectangle { CornerRadius = 24 },
             StrokeThickness = 1, HorizontalOptions = LayoutOptions.Center };
         SettingsControls.SurfaceStroke(frame);
@@ -115,15 +116,17 @@ internal sealed class WidgetPreviewFrame : ContentView
         SizeChanged += (_, _) => ApplyWidth(Width);
     }
     internal static Size Fit(WidgetSize size, double availableWidth)
+        => Fit(WidgetDesignRules.Canvas(size), availableWidth);
+    internal static Size Fit(WidgetDesign design, double availableWidth) => Fit(WidgetDesignRules.Canvas(design), availableWidth);
+    private static Size Fit((double Width, double Height) canvas, double availableWidth)
     {
         if (!double.IsFinite(availableWidth) || availableWidth <= 0) return Size.Zero;
-        var canvas = WidgetDesignRules.Canvas(size);
         var scale = Math.Min(1, availableWidth / canvas.Width);
         return new(canvas.Width * scale, canvas.Height * scale);
     }
     private void ApplyWidth(double width)
     {
-        var bounds = Fit(size, width); if (bounds.Width == 0) return;
+        var bounds = dimensions is null ? Fit(size, width) : Fit((dimensions.Width, dimensions.Height), width); if (bounds.Width == 0) return;
         if (Math.Abs(frame.WidthRequest - bounds.Width) > .5) frame.WidthRequest = bounds.Width;
         if (Math.Abs(frame.HeightRequest - bounds.Height) > .5) frame.HeightRequest = bounds.Height;
         if (Math.Abs(HeightRequest - bounds.Height) > .5) HeightRequest = bounds.Height;

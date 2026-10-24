@@ -12,6 +12,22 @@ public sealed class WidgetDesignRepositoryTests : IDisposable
     private WidgetDesignRepository Repository() => new(Private);
     private static byte[] Png => Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aZXsAAAAASUVORK5CYII=");
     [Fact]
+    public async Task MeasuredCanvasSurvivesReopenAndPublicationWithoutRemovingSizeRecords()
+    {
+        var repo = Repository(); var draft = await PhotoDraft();
+        var saved = await repo.SaveAsync(draft with { Size = WidgetSize.Medium, CanvasDimensions = new(338, 158) }, Png);
+        await repo.AssignSlotAsync(saved.Size, 4, saved.Id);
+        Directory.CreateDirectory(Shared); var metrics = Path.Combine(Shared, "dimensions-medium.json"); await File.WriteAllTextAsync(metrics, "layout record");
+        await new WidgetDesignPublisher(Repository(), () => Shared).PublishAsync();
+        Assert.Equal(saved.CanvasDimensions, Assert.Single(await Repository().ReadAsync()).CanvasDimensions);
+        var published = JsonSerializer.Deserialize(await File.ReadAllBytesAsync(Path.Combine(Shared, "catalog.json")), WidgetDesignRules.JsonContext.WidgetCatalog)!;
+        Assert.Equal(saved.CanvasDimensions, Assert.Single(published.Designs).CanvasDimensions); Assert.Equal("layout record", await File.ReadAllTextAsync(metrics));
+        var before = await File.ReadAllBytesAsync(Path.Combine(Private, "catalog.json"));
+        await Assert.ThrowsAsync<IOException>(() => repo.SaveAsync(saved with { CanvasDimensions = new(0, 158) }, Png));
+        Assert.Equal(before, await File.ReadAllBytesAsync(Path.Combine(Private, "catalog.json")));
+        Assert.Equal(saved.Id, Assert.Single((await Repository().ReadLibraryAsync()).Slots).DesignId);
+    }
+    [Fact]
     public async Task LayerBlendModesSurviveReopenPublicationAndRejectedSave()
     {
         var repo = Repository(); var draft = await PhotoDraft();

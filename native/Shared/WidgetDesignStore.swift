@@ -1,5 +1,49 @@
 import Foundation
 
+// Four bounded layout records, separate from the user's library. No images,
+// sessions or diagnostics. A failed write must never prevent timeline delivery.
+struct WidgetDisplayMeasurement: Encodable {
+    let schemaVersion = 1
+    let size: WidgetDesignSize
+    let screenWidth: Double
+    let screenHeight: Double
+    let screenScale: Double
+    let osMajor: Int
+    let width: Double
+    let height: Double
+}
+
+struct WidgetDisplayMetricsStore {
+    let directory: URL
+    static func valid(_ value: WidgetDisplayMeasurement) -> Bool {
+        guard value.size.isSupported, value.screenWidth.isFinite, value.screenHeight.isFinite,
+            (250...600).contains(value.screenWidth), (value.screenWidth...1400).contains(value.screenHeight),
+            value.screenScale.isFinite, (1...4).contains(value.screenScale), (17...99).contains(value.osMajor),
+            value.width.isFinite, value.height.isFinite, (50...600).contains(value.width), (50...1100).contains(value.height),
+            value.width <= value.screenWidth * (value.size == .small ? 0.6 : 1.01),
+            value.size == .small || value.width >= value.screenWidth * 0.6 else { return false }
+        let ratio = value.width / value.height
+        switch value.size {
+        case .small: return (0.98...1.02).contains(ratio)
+        case .medium: return (1.5...2.8).contains(ratio)
+        case .large: return (0.75...1.2).contains(ratio)
+        case .extraLargePortrait: return (0.35...0.8).contains(ratio)
+        case .extraLarge: return false
+        }
+    }
+    func record(_ value: WidgetDisplayMeasurement) throws {
+        guard Self.valid(value) else { return }
+        let encoder = JSONEncoder(); encoder.outputFormatting = [.sortedKeys]
+        let bytes = try encoder.encode(value)
+        let url = directory.appendingPathComponent("dimensions-\(value.size.rawValue).json")
+        if let attributes = try? FileManager.default.attributesOfItem(atPath: url.path),
+            let length = attributes[.size] as? NSNumber, length.intValue <= 2048,
+            let previous = try? Data(contentsOf: url), previous == bytes { return }
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        try bytes.write(to: url, options: .atomic)
+    }
+}
+
 enum WidgetDesignSize: String, Codable {
     // extraLarge is decode-only compatibility for old shared files. It is never
     // returned to a provider or registered as a supported Home Screen family.
@@ -16,6 +60,15 @@ enum WidgetDesignSize: String, Codable {
     }
 }
 
+struct WidgetCanvasDimensions: Decodable, Equatable {
+    let width: Double
+    let height: Double
+    func matches(width actualWidth: Double, height actualHeight: Double) -> Bool {
+        width.isFinite && height.isFinite && (50...600).contains(width) && (50...1100).contains(height)
+            && abs(width - actualWidth) < 0.5 && abs(height - actualHeight) < 0.5
+    }
+}
+
 struct WidgetDesignSummary: Decodable, Equatable {
     let id: String
     let name: String
@@ -25,6 +78,7 @@ struct WidgetDesignSummary: Decodable, Equatable {
     let transparentBackground: Bool?
     let preserveCanvas: Bool?
     let backgroundHex: String?
+    let canvasDimensions: WidgetCanvasDimensions?
     var canvasBackgroundRGB: (red: Double, green: Double, blue: Double)? {
         guard let hex = backgroundHex, hex.utf8.count == 7, hex.first == "#",
               hex.dropFirst().utf8.allSatisfy({ (48...57).contains($0) || (65...70).contains($0) }),

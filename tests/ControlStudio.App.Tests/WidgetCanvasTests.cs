@@ -164,6 +164,26 @@ public sealed class WidgetCanvasTests : IDisposable
         Assert.True(canvas.PhotoSurface.Width > 0 && canvas.PhotoSurface.Height > 0);
         Assert.Equal(expected.Width / expected.Height, canvas.PhotoSurface.Width / canvas.PhotoSurface.Height, 8);
         Assert.Equal(34, canvas.WidgetBounds.X); Assert.Equal(34, canvas.WidgetBounds.Y);
-        Assert.True(canvas.WidthRequest <= 300);
+        Assert.Equal(Math.Min(expected.Width, 296), canvas.PhotoSurface.Width, 8);
+        Assert.Equal(canvas.PhotoSurface.Width + 68, canvas.WidthRequest, 8);
+    }
+    [Theory]
+    [InlineData(WidgetSize.Small, 158, 158)] [InlineData(WidgetSize.Medium, 338, 158)]
+    [InlineData(WidgetSize.Large, 338, 354)] [InlineData(WidgetSize.ExtraLargePortrait, 338, 550)]
+    public void MeasuredCanvasFitsTheViewportBeforeAddingOutsideWorkspace(WidgetSize family, double width, double height)
+    {
+        var design = WidgetDesignRules.New() with { Size = family, CanvasDimensions = new(width, height) };
+        var canvas = new WidgetCanvasView(_ => null, _ => { });
+        var viewport = new WidgetCanvasViewport(canvas, Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance); host.Attach(viewport);
+        ((IView)viewport).Arrange(new Rect(0, 0, 300, 600)); canvas.Update(design, null);
+        var expected = WidgetPreviewFrame.Fit(design, 296);
+        Assert.Equal(expected.Width + 68, canvas.WidthRequest, 8); Assert.Equal(expected.Height + 68, canvas.HeightRequest, 8);
+        Assert.Same(canvas, viewport.Content); Assert.Equal(ScrollOrientation.Horizontal, viewport.Orientation);
+        Assert.Equal(Math.Max(0, (expected.Width + 68 - 300) / 2), WidgetCanvasViewport.CenterOffset(canvas.WidthRequest, 300), 8);
+        // Normalized clipping edges still mean the complete measured widget, not the workspace.
+        Assert.Equal(width / height, expected.Width / expected.Height, 8);
+        var frame = new WidgetPreviewFrame(family, new Grid(), dimensions: design.CanvasDimensions, initialWidth: 200);
+        var border = Assert.IsType<Border>(frame.Content);
+        Assert.Equal(width / height, border.WidthRequest / border.HeightRequest, 8);
     }
 }

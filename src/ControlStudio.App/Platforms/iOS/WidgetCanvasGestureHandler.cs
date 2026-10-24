@@ -13,8 +13,7 @@ internal sealed class WidgetCanvasGestureHandler : ContentViewHandler
     private UIPanGestureRecognizer? pan;
     private UIPinchGestureRecognizer? pinch;
     private UIGestureRecognizer? owner;
-    private UIScrollView? scroll;
-    private bool wasScrollable;
+    private readonly List<(UIScrollView View, bool Enabled)> scrolls = [];
     private CoreGraphics.CGPoint pinchOrigin;
     private WidgetCanvasView Canvas => (WidgetCanvasView)VirtualView;
     protected override void ConnectHandler(NativeContentView platformView)
@@ -57,7 +56,7 @@ internal sealed class WidgetCanvasGestureHandler : ContentViewHandler
             owner = recognizer;
             if (recognizer is UIPinchGestureRecognizer resizing) { pinchOrigin = point; resizing.Scale = 1; }
             for (var parent = PlatformView.Superview; parent is not null; parent = parent.Superview)
-                if (parent is UIScrollView found) { scroll = found; wasScrollable = found.ScrollEnabled; found.ScrollEnabled = false; break; }
+                if (parent is UIScrollView found) { scrolls.Add((found, found.ScrollEnabled)); found.ScrollEnabled = false; }
             return true;
         }
         catch (Exception ex) { Report(ex); Canvas.EndInteraction(true); RestoreScroll(); return false; }
@@ -77,7 +76,7 @@ internal sealed class WidgetCanvasGestureHandler : ContentViewHandler
     private void Report(Exception ex) => MauiContext?.Services.GetService<ILogger<WidgetCanvasGestureHandler>>()?
         .LogWarning("Widget canvas gesture failed. ErrorType={ErrorType}", ex.GetType().Name);
     private void InteractionChanged(object? sender, EventArgs args) { if (!Canvas.IsInteracting) { owner = null; RestoreScroll(); } }
-    private void RestoreScroll() { if (scroll is not null) scroll.ScrollEnabled = wasScrollable; scroll = null; }
+    private void RestoreScroll() { foreach (var (view, enabled) in scrolls) view.ScrollEnabled = enabled; scrolls.Clear(); }
     protected override void DisconnectHandler(NativeContentView platformView)
     {
         Canvas.EndInteraction(true); Canvas.InteractionChanged -= InteractionChanged; RestoreScroll();

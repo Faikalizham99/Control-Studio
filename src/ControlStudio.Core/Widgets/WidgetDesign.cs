@@ -13,7 +13,8 @@ public sealed record WidgetLayer(Guid Id, string Name, string AssetKey, int Pixe
     WidgetLayerKind Kind = WidgetLayerKind.Photo, int QuarterTurns = 0, bool FlipHorizontal = false, bool FlipVertical = false, double Opacity = 1,
     bool FitPhoto = false, WidgetBlendMode BlendMode = WidgetBlendMode.Normal);
 public sealed record WidgetDesign(Guid Id, string Name, WidgetSize Size, string BackgroundHex,
-    IReadOnlyList<WidgetLayer> Layers, string RenderKey, int Revision = 0, bool TransparentBackground = false, bool PreserveCanvas = false);
+    IReadOnlyList<WidgetLayer> Layers, string RenderKey, int Revision = 0, bool TransparentBackground = false, bool PreserveCanvas = false,
+    WidgetCanvasSize? CanvasDimensions = null);
 public sealed record WidgetCatalog(int SchemaVersion, IReadOnlyList<WidgetDesign> Designs);
 
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
@@ -22,6 +23,7 @@ public sealed record WidgetCatalog(int SchemaVersion, IReadOnlyList<WidgetDesign
 [JsonSerializable(typeof(WidgetDesign))]
 [JsonSerializable(typeof(WidgetSlotCatalog))]
 [JsonSerializable(typeof(WidgetLibraryCatalog))]
+[JsonSerializable(typeof(WidgetDisplayMeasurement))]
 public partial class WidgetJsonContext : JsonSerializerContext;
 
 public static class WidgetDesignRules
@@ -63,6 +65,8 @@ public static class WidgetDesignRules
         WidgetSize.ExtraLargePortrait => (364, 594),
         _ => throw new IOException("This widget size requires a newer app.")
     };
+    public static (double Width, double Height) Canvas(WidgetDesign design) => design.CanvasDimensions is { } value
+        ? (value.Width, value.Height) : Canvas(design.Size);
     public static void Validate(WidgetDesign design)
     {
         if (design.Id == Guid.Empty || !Enum.IsDefined(design.Size) || design.Revision < 0 || !ValidKey(design.RenderKey))
@@ -71,6 +75,8 @@ public static class WidgetDesignRules
             throw new IOException("Give your widget a name of up to 60 characters.");
         if (!AppearanceValues.TryNormalizeHex(design.BackgroundHex, out var hex) || hex != design.BackgroundHex)
             throw new IOException("Choose a valid background colour.");
+        if (design.CanvasDimensions is { } dimensions && !WidgetCanvasSizes.Valid(design.Size, dimensions))
+            throw new IOException("The saved widget dimensions are invalid. Its data was not changed.");
         if (design.Layers is null || design.Layers.Count > MaximumLayers || design.Layers.Select(x => x?.Id).Distinct().Count() != design.Layers.Count)
             throw new IOException($"A widget can contain up to {MaximumLayers} photo layers.");
         foreach (var layer in design.Layers)

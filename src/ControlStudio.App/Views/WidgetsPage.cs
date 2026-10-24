@@ -118,7 +118,7 @@ internal sealed class WidgetsPage : WidgetStudioPage
             AutomationProperties.SetIsInAccessibleTree(image, false);
             var preview = new WidgetPreviewFrame(WidgetDesignRules.ForEditing(design).Size,
                 new Grid { Children = { tap, new WidgetCheckerboard { IsVisible = design.TransparentBackground }, image } },
-                design.TransparentBackground ? Colors.Transparent : Color.FromArgb(design.BackgroundHex));
+                design.TransparentBackground ? Colors.Transparent : Color.FromArgb(design.BackgroundHex), dimensions: design.CanvasDimensions);
             previews.Add((preview, image));
             preview.SizeChanged += (_, _) => UpdateVisiblePreviews();
             SemanticProperties.SetDescription(tap, $"{design.Name}. {WidgetSizeLabel(design.Size)} widget preview. Open editor.");
