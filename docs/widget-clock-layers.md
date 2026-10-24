@@ -48,6 +48,14 @@ Local verification passed:
 
 Three native Swift tests were added for the shared scene fixture, explicit time formatting, bounded scene loading and invalid-data rejection. They have **not run on this Windows machine**. Swift compilation, Xcode linking/AOT and WidgetKit rendering remain pending.
 
+### Native bridge build correction — 25 October 2026, unreleased
+
+[Test run 40108539648](https://github.com/Faikalizham99/Control-Studio/actions/runs/40108539648) passed the managed job and native Swift storage tests, then failed in the standalone bridge compilation before Xcode built the extensions. The compiler reported `cannot find type 'WidgetLayerMarker' in scope` in `WidgetDesignStore.swift`; its Decodable/Equatable failures were consequences of that missing type.
+
+The clock source had been included in both generated Xcode targets and discovered automatically by the Swift Package tests, but omitted from the explicit `swiftc` input list in `scripts/build-native.sh`. That bridge list now includes `native/Shared/WidgetClockScene.swift`. Both regular native CI and tag builds use this same script.
+
+Two packaging regressions verify that the clock/store dependency pair is included exactly once in both extension targets and that the standalone bridge input set matches every shared Swift source plus its bridge entry point. This catches future shared-source omissions independently of Swift Package test success. All **34 packaging checks** pass locally. Native compilation of the corrected script still requires the pinned macOS/Xcode environment; no successful corrected CI build or iPhone verification is claimed. The owner authorized committing and pushing main, including the previously local lock-row fix. No tag, workflow-trigger or IPA-generation change is included.
+
 Required native/device checks:
 
 - Build the shared Swift tests and both native extensions with the pinned Xcode toolchain.

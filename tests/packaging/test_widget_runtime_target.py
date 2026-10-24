@@ -1,6 +1,7 @@
 """Build-graph checks for the native widget background adapter; no Xcode required."""
 import importlib.util
 from pathlib import Path
+import shlex
 import tempfile
 import unittest
 
@@ -57,3 +58,23 @@ class WidgetRuntimeTargetTests(unittest.TestCase):
         for settings in self.settings(self.targets["ControlStudioWidgets"]):
             self.assertEqual("YES", settings["APPLICATION_EXTENSION_API_ONLY"])
             self.assertNotIn("CLANG_ENABLE_OBJC_ARC", settings)
+
+    def test_clock_scene_dependency_is_compiled_once_in_both_extensions(self):
+        for name, target in self.targets.items():
+            paths = [file["path"] for file in self.sources(target)]
+            for source in ["Shared/WidgetDesignStore.swift", "Shared/WidgetClockScene.swift"]:
+                self.assertEqual(1, paths.count(source), f"{name}: {source}")
+                self.assertTrue((ROOT / "native" / source).is_file())
+
+    def test_standalone_bridge_includes_every_shared_swift_source(self):
+        # Swift Package tests discover Shared automatically; the standalone iOS
+        # archive must explicitly include the same files and their dependencies.
+        script = (ROOT / "scripts/build-native.sh").read_text().replace("\\\n", " ")
+        commands = [shlex.split(line, comments=True) for line in script.splitlines()]
+        builds = [command for command in commands if command[:4] == ["xcrun", "--sdk", "iphoneos", "swiftc"]]
+        self.assertEqual(1, len(builds))
+        inputs = [path for path in builds[0] if path.endswith(".swift")]
+        self.assertEqual(len(inputs), len(set(inputs)), "Duplicate bridge source input")
+        expected = {path.relative_to(ROOT).as_posix() for path in (ROOT / "native/Shared").glob("*.swift")}
+        expected.add("native/ControlStudioBridge/CounterBridge.swift")
+        self.assertEqual(expected, set(inputs), "Bridge source list differs from the shared Swift module")
