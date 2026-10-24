@@ -4,7 +4,7 @@ using Microsoft.Maui.Layouts;
 
 namespace ControlStudio.App.Views;
 
-/// <summary>Live photo composition, using the same oriented geometry as the PNG renderer.</summary>
+/// <summary>Live widget composition, using the same oriented geometry as the PNG renderer.</summary>
 internal sealed class WidgetCanvasView : ContentView
 {
     private const double WorkspaceInset = 32;
@@ -31,6 +31,12 @@ internal sealed class WidgetCanvasView : ContentView
     private Point anchor;
     private int corner = -1;
     private VisualElement? measuredParent;
+    private double? viewportHeight;
+    internal void FitViewportHeight(double height)
+    {
+        if (!double.IsFinite(height) || height <= 0 || viewportHeight is { } previous && Math.Abs(previous - height) < .5) return;
+        viewportHeight = height; FitCanvas();
+    }
     public bool IsInteracting => gestureStart is not null;
     internal AbsoluteLayout PhotoSurface => canvas;
     internal AbsoluteLayout Workspace => workspace;
@@ -102,11 +108,17 @@ internal sealed class WidgetCanvasView : ContentView
         var available = measuredParent?.Width > 0 ? measuredParent.Width : 300;
         // Border.CrossPlatformArrange subtracts its stroke on each side. Reserve both
         // guides outside the photo area so the actual canvas keeps the exported aspect ratio.
-        var extra = WorkspaceInset * 2 + GuideStroke * 4;
+        var inset = viewportHeight is { } height ? Math.Clamp((height - 100) / 2, 4, WorkspaceInset) : WorkspaceInset;
+        var extra = inset * 2 + GuideStroke * 4;
         // Fit the widget itself first. The surrounding workspace may scroll;
         // its margin must never be deducted from the widget's allotted width.
         var size = WidgetPreviewFrame.Fit(design, Math.Max(1, available - GuideStroke * 4));
-        AbsoluteLayout.SetLayoutBounds(widgetBorder, new Rect(WorkspaceInset, WorkspaceInset, size.Width + GuideStroke * 2, size.Height + GuideStroke * 2));
+        if (viewportHeight is { } maximum && size.Height > Math.Max(1, maximum - extra))
+        {
+            var scale = Math.Max(1, maximum - extra) / size.Height;
+            size = new(size.Width * scale, size.Height * scale);
+        }
+        AbsoluteLayout.SetLayoutBounds(widgetBorder, new Rect(inset, inset, size.Width + GuideStroke * 2, size.Height + GuideStroke * 2));
         if (Math.Abs(WidthRequest - size.Width - extra) > .5) WidthRequest = size.Width + extra;
         if (Math.Abs(HeightRequest - size.Height - extra) > .5) HeightRequest = size.Height + extra;
         ArrangePhotos();

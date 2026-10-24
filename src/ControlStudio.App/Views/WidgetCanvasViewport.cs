@@ -7,18 +7,23 @@ internal sealed class WidgetCanvasViewport : ScrollView
 {
     private readonly WidgetCanvasView canvas;
     private readonly ILogger logger;
+    private readonly bool fitHeight;
     private bool needsCenter = true, centering;
-    public WidgetCanvasViewport(WidgetCanvasView canvas, ILogger logger)
+    public WidgetCanvasViewport(WidgetCanvasView canvas, ILogger logger, bool fitHeight = false)
     {
-        this.canvas = canvas; this.logger = logger;
+        this.canvas = canvas; this.logger = logger; this.fitHeight = fitHeight;
         Orientation = ScrollOrientation.Horizontal; HorizontalScrollBarVisibility = ScrollBarVisibility.Never;
         VerticalScrollBarVisibility = ScrollBarVisibility.Never; IsClippedToBounds = true; Content = canvas;
         AutomationId = "WidgetCanvasViewport";
         SizeChanged += Changed; canvas.SizeChanged += Changed; Loaded += Changed;
         canvas.InteractionChanged += (_, _) => { if (needsCenter && !canvas.IsInteracting) Center(); };
-        SemanticProperties.SetHint(this, "Swipe sideways on empty workspace to see outside the widget. Drag a photo to move it; only content inside the widget boundary is saved.");
+        SemanticProperties.SetHint(this, "Swipe sideways on empty workspace to see outside the widget. Drag a layer to move it; only content inside the widget boundary is saved.");
     }
-    private void Changed(object? sender, EventArgs args) { needsCenter = true; Center(); }
+    private void Changed(object? sender, EventArgs args)
+    {
+        if (fitHeight) canvas.FitViewportHeight(Height);
+        needsCenter = true; Center();
+    }
     internal static double CenterOffset(double contentWidth, double viewportWidth) => double.IsFinite(contentWidth) && double.IsFinite(viewportWidth)
         && viewportWidth > 0 ? Math.Max(0, (contentWidth - viewportWidth) / 2) : 0;
     private async void Center()

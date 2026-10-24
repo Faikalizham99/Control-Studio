@@ -22,6 +22,10 @@ internal sealed class WidgetEditorPage : ContentPage
     private readonly WidgetLayerList layerList = new();
     private readonly VerticalStackLayout precise = new() { Spacing = 6, IsVisible = false };
     private readonly ScrollView scroll = new();
+    private readonly VerticalStackLayout adjustments = new() { Spacing = 12, IsVisible = false, AutomationId = "WidgetAdjustments" };
+    private readonly Border photoSettings;
+    private readonly Label selectionHint = SettingsControls.Text("Tap a layer to select it. Add layers below.", 12, secondary: true);
+    private View? revealedPhotoTool;
     private readonly Border precisionCard;
     private readonly Label status = SettingsControls.Text("", 14, secondary: true);
     private readonly Label layersCount = SettingsControls.Text("", 13, secondary: true);
@@ -74,7 +78,7 @@ internal sealed class WidgetEditorPage : ContentPage
             if (!CanEdit) return;
             EditLayer(layer => layer with { BlendMode = mode }, closeTools: false, changesPlacement: false);
         });
-        canvas.InteractionChanged += (_, _) => { if (canvas.IsInteracting) CloseTools(); RefreshActions(); };
+        canvas.InteractionChanged += (_, _) => { if (canvas.IsInteracting) ClosePhotoTools(); RefreshActions(); };
         sizes = new WidgetSegments(["Small", "Medium", "Large", "XL"], "EditorWidgetSize", index =>
         {
             if (!CanEdit) return;
@@ -83,8 +87,11 @@ internal sealed class WidgetEditorPage : ContentPage
         });
         sizes.Update(Array.IndexOf(WidgetDesignRules.SupportedSizes.ToArray(), draft.Size));
         background = new ColourPickerView(colourPicker, "WidgetBackground", "Background"); background.SetSelection(draft.BackgroundHex);
-        clockControls = new(colourPicker);
+        clockControls = new(colourPicker, logger) { CanInteract = () => CanEdit };
         clockControls.BusyChanged += (_, _) => RefreshActions();
+        clockControls.PanelChanged += (_, _) => { ClosePhotoTools(); if (clockControls.ActiveTool is not null) RevealAdjustments(); };
+        clockControls.InvalidColour += (_, _) => ShowStatus("Enter a valid clock text colour before continuing.");
+        clockControls.DeleteRequested += (_, _) => { if (CanEdit) _ = RunAsync(RemoveLayerAsync); };
         clockControls.CentreHorizontallyRequested += (_, _) =>
         {
             if (CanEdit && CommitClockColour()) EditLayer(WidgetLayerEdits.CenterHorizontally, closeTools: false);
@@ -109,7 +116,8 @@ internal sealed class WidgetEditorPage : ContentPage
         form.Children.Add(Card(new VerticalStackLayout { Spacing = 10, Children =
         {
             nameHeading, ClipboardEditorControls.Field(name, new Thickness(12, 0)), SettingsControls.Text("Widget size", 14, secondary: true), sizes,
-            SettingsControls.Text("XL requires iOS 27 or later. Changing size keeps layer positions proportionally, but photo crops may change.", 12, secondary: true)
+            SettingsControls.Text("XL requires iOS 27 or later. Changing size keeps layer positions proportionally, but photo crops may change.", 12, secondary: true),
+            sizingCaption
         } }));
         if (original is not null && !WidgetDesignRules.IsSupported(original.Size))
             form.Children.Add(SettingsControls.Text("This design uses a retired layout. Review the new proportions, then save and assign an Extra Large slot. Cancel keeps your saved design unchanged.", 14, secondary: true));
@@ -135,15 +143,16 @@ internal sealed class WidgetEditorPage : ContentPage
         opacity.SetDynamicResource(Slider.MinimumTrackColorProperty, "AccentText"); SemanticProperties.SetDescription(opacity, "Selected photo opacity");
         opacity.ValueChanged += (_, args) => { if (!updating && CanEdit) EditLayer(layer => layer with { Opacity = args.NewValue }, closeTools: false, changesPlacement: false); };
         opacityMenu.Children.Add(opacityCaption); opacityMenu.Children.Add(opacity);
-        form.Children.Add(Card(new VerticalStackLayout { Spacing = 12, Children =
-        {
-            SettingsControls.Text("Live preview", 22, bold: true), SettingsControls.Text("Pinch to resize • Drag past the widget edges to crop", 12, secondary: true),
-            sizingCaption,
-            SettingsControls.Text("The outlined widget is the saved area. Swipe empty workspace sideways to see beyond its edges. The faint outside photo is not saved.", 12, secondary: true),
-            new WidgetCanvasViewport(canvas, logger), tools, rotateMenu, flipMenu, opacityMenu, blendMenu
-        } }));
-
-        form.Children.Add(clockControls);
+        photoSettings = Card(new VerticalStackLayout { Spacing = 12, Children = { rotateMenu, flipMenu, opacityMenu, blendMenu } });
+        photoSettings.IsVisible = false; adjustments.Children.Add(photoSettings); adjustments.Children.Add(clockControls);
+        form.Children.Insert(0, adjustments);
+        var previewTitle = SettingsControls.Text("Live preview", 22, bold: true); previewTitle.MaxLines = 1;
+        SemanticProperties.SetHeadingLevel(previewTitle, SemanticHeadingLevel.Level2);
+        selectionHint.VerticalTextAlignment = TextAlignment.Center; selectionHint.HorizontalTextAlignment = TextAlignment.Center; selectionHint.MaxLines = 1;
+        var toolbarSlot = new Grid { Children = { tools, clockControls.Toolbar, selectionHint } };
+        var previewBody = new Grid { RowSpacing = 8, RowDefinitions = { new(GridLength.Auto), new(GridLength.Star), new(64) } };
+        previewBody.Add(previewTitle); previewBody.Add(new WidgetCanvasViewport(canvas, logger, fitHeight: true), 0, 1); previewBody.Add(toolbarSlot, 0, 2);
+        var preview = Card(previewBody); preview.AutomationId = "PinnedWidgetPreview"; preview.Margin = new Thickness(16, 8, 16, 0);
         addPhoto = AsyncAction("Add layer", StudioSymbol.Plus, "AddWidgetPhoto", ChooseLayerAsync);
         var layerHeading = new Grid { ColumnDefinitions = { new(GridLength.Star), new(GridLength.Auto) } };
         var layerLabel = SettingsControls.Text("Layers", 21, bold: true); layerLabel.VerticalOptions = LayoutOptions.Center;
@@ -182,12 +191,24 @@ internal sealed class WidgetEditorPage : ContentPage
         save.Clicked += async (_, _) => await RunAsync(SaveAsync);
         cancel.Clicked += async (_, _) => await ExitAsync(); back.Clicked += async (_, _) => await ExitAsync();
         var layout = new Grid { RowDefinitions = { new(GridLength.Auto), new(GridLength.Star) } };
-        scroll.Content = form; layout.Add(ClipboardEditorControls.Header(Title, back, cancel)); layout.Add(scroll, 0, 1);
+        scroll.Content = form; scroll.AutomationId = "WidgetEditorSettingsScroll";
+        var editing = new Grid { RowDefinitions = { new(GridLength.Star), new(GridLength.Star) }, AutomationId = "WidgetEditorWorkspace" };
+        editing.Add(preview); editing.Add(scroll, 0, 1);
+        editing.SizeChanged += (_, _) => { if (editing.Height > 0) editing.RowDefinitions[0].Height = new GridLength(PreviewHeight(editing.Height)); };
+        layout.Add(ClipboardEditorControls.Header(Title, back, cancel)); layout.Add(editing, 0, 1);
         Content = new WidgetEditorSurface(layout, () => CanEdit && selected is not null, ClearLayerSelection,
-            canvas, tools, rotateMenu, flipMenu, opacityMenu, blendMenu, layerList, precise, background, clockControls);
+            canvas, tools, clockControls.Toolbar, rotateMenu, flipMenu, opacityMenu, blendMenu, layerList, precise, background, clockControls);
         selected = draft.Layers.LastOrDefault()?.Id; RefreshBackground(); RefreshLayers();
     }
     private static Border Card(View content) => ClipboardEditorControls.Surface(content, 22, 14);
+    internal static double PreviewHeight(double available) => !double.IsFinite(available) || available <= 0 ? 0
+        : Math.Min(400, Math.Max(Math.Min(220, available * .65), available * .5));
+    private async void RevealAdjustments()
+    {
+        if (!Foreground || !scroll.IsLoaded || scroll.Handler is null) return;
+        try { await scroll.ScrollToAsync(0, 0, false); }
+        catch (Exception ex) { logger.LogDebug("Widget controls reveal unavailable. ErrorType={ErrorType}", ex.GetType().Name); }
+    }
     private WidgetToolButton Tool(StudioSymbol symbol, string title, Action action, bool destructive = false)
     {
         var button = new WidgetToolButton(symbol, title, destructive); button.Clicked += (_, _) => { if (CanEdit) action(); }; return button;
@@ -198,7 +219,10 @@ internal sealed class WidgetEditorPage : ContentPage
         rotateTool.IsSelected = rotateMenu.IsVisible; flipTool.IsSelected = flipMenu.IsVisible;
         blendTool.IsSelected = blendMenu.IsVisible; opacityTool.IsSelected = opacityMenu.IsVisible;
         var active = rotateMenu.IsVisible ? rotateTool : flipMenu.IsVisible ? flipTool : blendMenu.IsVisible ? blendTool : opacityMenu.IsVisible ? opacityTool : null;
+        if (photoSettings is not null) photoSettings.IsVisible = active is not null;
+        adjustments.IsVisible = active is not null || clockControls.IsVisible;
         if (active is not null) tools.Reveal(active);
+        if (active != revealedPhotoTool) { revealedPhotoTool = active; if (active is not null) RevealAdjustments(); }
     }
     private ClipboardEditorActionButton MenuAction(string text, StudioSymbol symbol, Action action)
     {
@@ -210,7 +234,8 @@ internal sealed class WidgetEditorPage : ContentPage
         var button = new ClipboardEditorActionButton(text, ClipboardEditorControls.Icon(symbol, size: 18), id, accentCaption: true);
         button.Clicked += async (_, _) => await RunAsync(action); return button;
     }
-    private void CloseTools() { rotateMenu.IsVisible = flipMenu.IsVisible = opacityMenu.IsVisible = blendMenu.IsVisible = false; RefreshToolSelection(); }
+    private void ClosePhotoTools() { rotateMenu.IsVisible = flipMenu.IsVisible = opacityMenu.IsVisible = blendMenu.IsVisible = false; RefreshToolSelection(); }
+    private void CloseTools() { ClosePhotoTools(); clockControls.ClosePanel(); }
     private void ToggleTool(VisualElement panel) { var show = !panel.IsVisible; CloseTools(); panel.IsVisible = show; }
     private void SelectLayer(Guid id)
     {
@@ -317,6 +342,8 @@ internal sealed class WidgetEditorPage : ContentPage
             clockControls.Update(layer);
             var isPhoto = layer?.Kind == WidgetLayerKind.Photo;
             tools.IsVisible = isPhoto;
+            selectionHint.IsVisible = layer is null;
+            RefreshToolSelection();
             blendMenu.Update(isPhoto ? layer : null);
             foreach (var view in photoOnlyPrecision) view.IsVisible = isPhoto;
             if (layer is not null) blendTool.Describe("Blend", layer.Name + ", " + WidgetBlending.Name(layer.BlendMode));
@@ -473,14 +500,17 @@ internal sealed class WidgetEditorPage : ContentPage
         // Execution still checks the current navigation owner and MAUI window activation.
         var canInteract = !busy && !departed && !background.IsBusy && !clockControls.IsBusy && !canvas.IsInteracting;
         var canNavigate = canInteract && !layerList.IsReordering;
-        form.IsEnabled = !busy && !saved && !departed && !background.IsBusy && !clockControls.IsBusy;
+        form.IsEnabled = !busy && !saved && !departed && !background.IsBusy && !clockControls.IsBusy && !canvas.IsInteracting;
         // The list must stay enabled until its native drag recognizer finishes.
         layerList.IsEnabled = canInteract && !saved;
         save.IsEnabled = sizes.IsEnabled = name.IsEnabled = background.IsEnabled = canNavigate && !saved;
-        canvas.IsEnabled = !layerList.IsReordering;
+        // The pinned canvas is outside the disabled settings form, so apply
+        // operation guards explicitly without disabling an active gesture.
+        canvas.IsEnabled = !busy && !saved && !departed && !background.IsBusy && !clockControls.IsBusy && !layerList.IsReordering;
         back.IsEnabled = cancel.IsEnabled = canNavigate;
         addPhoto.IsEnabled = canNavigate && !saved && draft.Layers.Count < WidgetDesignRules.MaximumLayers;
         var layer = draft.Layers.FirstOrDefault(x => x.Id == selected);
+        clockControls.SetAvailable(canNavigate && !saved && layer?.Kind == WidgetLayerKind.Clock);
         opacityTool.IsEnabled = deleteTool.IsEnabled = blendTool.IsEnabled = blendMenu.IsEnabled = tools.IsEnabled = canNavigate && !saved && layer?.Kind == WidgetLayerKind.Photo;
         resetTool.IsEnabled = rotateTool.IsEnabled = flipTool.IsEnabled = rotateMenu.IsEnabled = flipMenu.IsEnabled = canNavigate && !saved && layer is { Kind: WidgetLayerKind.Photo, Locked: false };
         precise.IsEnabled = canNavigate && !saved && layer is { Locked: false };

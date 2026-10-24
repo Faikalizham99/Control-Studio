@@ -48,7 +48,7 @@ internal sealed class WidgetToolButton : ContentView
     private string description;
     public bool IsSelected { get => selected.IsVisible; set { selected.IsVisible = value; Scale = 1; UpdateDescription(); } }
     public event EventHandler? Clicked;
-    public WidgetToolButton(StudioSymbol symbol, string title, bool destructive = false)
+    public WidgetToolButton(StudioSymbol symbol, string title, bool destructive = false, string? automationId = null)
     {
         this.destructive = destructive; description = title;
         WidthRequest = HeightRequest = MinimumWidthRequest = MinimumHeightRequest = 48;
@@ -58,7 +58,7 @@ internal sealed class WidgetToolButton : ContentView
         var active = new StudioGlyph(symbol, false) { WidthRequest = 23, HeightRequest = 23, HorizontalOptions = LayoutOptions.Center, VerticalOptions = LayoutOptions.Center };
         selected = new AccentSurface(active, 19) { IsVisible = false, InputTransparent = true };
         selected.BindForeground(active, StudioGlyph.TintProperty);
-        tap = SettingsControls.TapTarget(title, "Clipboard" + title.Replace(" ", "")); tap.CornerRadius = 19;
+        tap = SettingsControls.TapTarget(title, automationId ?? "Clipboard" + title.Replace(" ", "")); tap.CornerRadius = 19;
         tap.Clicked += (_, args) => { if (IsEnabled) Clicked?.Invoke(this, args); };
         tap.Pressed += (_, _) => { if (IsEnabled) Scale = .95; }; tap.Released += (_, _) => Scale = 1;
         Content = new Grid { Children = { tap, idle, selected } }; UpdateDescription();

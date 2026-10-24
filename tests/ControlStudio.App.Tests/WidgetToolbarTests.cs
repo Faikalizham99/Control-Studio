@@ -44,6 +44,24 @@ public sealed class WidgetToolbarTests : IDisposable
         tool.IsSelected = false; Assert.False(surface.IsVisible); Assert.DoesNotContain("expanded", SemanticProperties.GetDescription(tap));
     }
     [Fact]
+    public void ClockDeleteUsesTheExistingDestructiveActionAndRespectsAvailabilityAndLockSemantics()
+    {
+        var controls = new WidgetClockControls(new ClockPicker());
+        host.Attach(new VerticalStackLayout { Children = { controls.Toolbar, controls } });
+        controls.Update(ControlStudio.Core.Widgets.WidgetClocks.New() with { Locked = true }); controls.SetAvailable(true);
+        var button = Descendants(controls.Toolbar).OfType<Button>().Single(x => x.AutomationId == "ClockToolDelete");
+        Assert.Contains("confirmation", SemanticProperties.GetHint(button));
+        var deleted = 0; controls.DeleteRequested += (_, _) => deleted++;
+        ((IButtonController)button).SendClicked(); Assert.Equal(1, deleted); Assert.Null(controls.ActiveTool);
+        controls.SetAvailable(false); ((IButtonController)button).SendClicked(); Assert.Equal(1, deleted);
+        controls.SetAvailable(true); controls.CanInteract = () => false; ((IButtonController)button).SendClicked(); Assert.Equal(1, deleted);
+        controls.CanInteract = () => true; ((IButtonController)button).SendClicked(); Assert.Equal(2, deleted);
+    }
+    private sealed class ClockPicker : IColourPicker
+    {
+        public Task<string> PickAsync(string initialHex, Action<string> preview) => Task.FromResult(initialHex);
+    }
+    [Fact]
     public void DeleteRemainsDestructiveAndDisabledToolsIgnoreClicks()
     {
         var tool = new WidgetToolButton(StudioSymbol.Delete, "Delete selected photo", destructive: true); host.Attach(tool);

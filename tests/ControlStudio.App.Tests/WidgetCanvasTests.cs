@@ -242,6 +242,32 @@ public sealed class WidgetCanvasTests : IDisposable
         Assert.Equal(canvas.PhotoSurface.Width + 68, canvas.WidthRequest, 8);
     }
     [Theory]
+    [InlineData(WidgetSize.Small)] [InlineData(WidgetSize.Medium)] [InlineData(WidgetSize.Large)] [InlineData(WidgetSize.ExtraLargePortrait)]
+    public void PinnedPreviewFitsHeightWithoutChangingWidgetProportionsOrSavedGeometry(WidgetSize family)
+    {
+        var clock = WidgetClocks.New(); var design = WidgetDesignRules.New() with { Size = family, Layers = [clock] };
+        var canvas = new WidgetCanvasView(_ => null, _ => { });
+        var viewport = new WidgetCanvasViewport(canvas, Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance, fitHeight: true); host.Attach(viewport);
+        canvas.Update(design, clock.Id);
+        foreach (var height in new[] { 40d, 100d, 180d, 320d, 700d })
+        {
+            ((IView)viewport).Arrange(new Rect(0, 0, 300, height));
+            var border = Assert.IsType<Border>(canvas.Workspace.Children[1]); var bounds = AbsoluteLayout.GetLayoutBounds(border);
+            var expected = WidgetDesignRules.Canvas(design);
+            Assert.Equal(expected.Width / expected.Height, (bounds.Width - 2) / (bounds.Height - 2), 8);
+            Assert.True(canvas.HeightRequest <= height + .001); Assert.True(bounds.Width - 2 <= expected.Width);
+            Assert.Equal(design, Assert.IsType<WidgetCompositeView>(Assert.IsType<Grid>(border.Content).Children[2]).Design);
+        }
+    }
+    [Theory]
+    [InlineData(240)] [InlineData(350)] [InlineData(650)] [InlineData(1000)]
+    public void PinnedPreviewBudgetLeavesSettingsRoomOnCompactAndTallScreens(double height)
+    {
+        var preview = WidgetEditorPage.PreviewHeight(height);
+        Assert.InRange(preview, 1, 400); Assert.True(preview <= height * .65);
+        Assert.True(height - preview >= height * .35 - .001);
+    }
+    [Theory]
     [InlineData(WidgetSize.Small, 158, 158)] [InlineData(WidgetSize.Medium, 338, 158)]
     [InlineData(WidgetSize.Large, 338, 354)] [InlineData(WidgetSize.ExtraLargePortrait, 338, 550)]
     public void MeasuredCanvasFitsTheViewportBeforeAddingOutsideWorkspace(WidgetSize family, double width, double height)

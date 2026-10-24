@@ -2,7 +2,7 @@ using Microsoft.Maui.Graphics;
 
 namespace ControlStudio.App.Views;
 
-internal enum StudioSymbol { Widgets, Clipboard, Counter, Bars, Calendar, Photo, Text, Link, Chevron, Edit, Delete, Open, Preview, Tag, Expand, Clear, EyeOff, Pin, PinFilled, Check, LayerUp, LayerDown, Plus, Hash, Refresh, RotateLeft, RotateRight, Flip, Opacity, Drag, More, Search, Layers, Blend, Lock, Unlock, Clock, CenterHorizontal }
+internal enum StudioSymbol { Widgets, Clipboard, Counter, Bars, Calendar, Photo, Text, Link, Chevron, Edit, Delete, Open, Preview, Tag, Expand, Clear, EyeOff, Pin, PinFilled, Check, LayerUp, LayerDown, Plus, Hash, Refresh, RotateLeft, RotateRight, Flip, Opacity, Drag, More, Search, Layers, Blend, Lock, Unlock, Clock, CenterHorizontal, Font, Palette }
 
 internal sealed class StudioGlyph : GraphicsView, IDrawable
 {
@@ -166,6 +166,17 @@ internal sealed class StudioGlyph : GraphicsView, IDrawable
             canvas.DrawPath(shackle); canvas.DrawCircle(12, 15, 1); canvas.DrawLine(12, 16, 12, 18);
         }
         else if (symbol == StudioSymbol.Clock) { canvas.DrawCircle(12, 12, 9); Lines(canvas, 12, 6, 12, 12, 16, 14); }
+        else if (symbol == StudioSymbol.Font)
+        {
+            Lines(canvas, 2, 20, 8, 4, 14, 20); canvas.DrawLine(4, 15, 12, 15);
+            canvas.DrawEllipse(16, 11, 6, 8); canvas.DrawLine(22, 11, 22, 20);
+        }
+        else if (symbol == StudioSymbol.Palette)
+        {
+            var shape = new PathF(); shape.MoveTo(12, 2); shape.CurveTo(0, 2, -1, 21, 10, 22);
+            shape.CurveTo(17, 23, 10, 16, 16, 16); shape.CurveTo(25, 17, 25, 2, 12, 2); shape.Close(); canvas.DrawPath(shape);
+            canvas.DrawCircle(7, 8, 1); canvas.DrawCircle(14, 6, 1); canvas.DrawCircle(19, 10, 1); canvas.DrawCircle(5, 14, 1);
+        }
         else if (symbol == StudioSymbol.CenterHorizontal)
         {
             canvas.DrawLine(12, 2, 12, 22);
