@@ -387,6 +387,7 @@ internal sealed class WidgetEditorPage : ContentPage
         var layer = draft.Layers.FirstOrDefault(x => x.Id == id); if (layer is null) return;
         var index = draft.Layers.ToList().FindIndex(x => x.Id == layer.Id);
         var choices = new List<string> { "Rename", layer.Locked ? "Unlock layer" : "Lock layer" };
+        if (draft.Layers.Count < WidgetDesignRules.MaximumLayers) choices.Insert(1, "Duplicate layer");
         if (selected == id) choices.Add("Deselect layer");
         if (!layer.Locked)
         {
@@ -401,6 +402,7 @@ internal sealed class WidgetEditorPage : ContentPage
         if (rows.TryGetValue(id, out var row)) scroll.PreserveAnchor(row);
         switch (choice)
         {
+            case "Duplicate layer": DuplicateLayer(id); return;
             case "Lock layer": ReplaceLayer(layer with { Locked = true }); RefreshLayerState(id); return;
             case "Unlock layer": ReplaceLayer(layer with { Locked = false }); RefreshLayerState(id); return;
             case "Deselect layer": CloseTools(); selected = null; precise.IsVisible = false; break;
@@ -424,6 +426,15 @@ internal sealed class WidgetEditorPage : ContentPage
             case "Delete layer": await RemoveLayerAsync(id); return;
         }
         RefreshLayers();
+    }
+    private void DuplicateLayer(Guid id)
+    {
+        var (updated, copy) = WidgetLayerEdits.Duplicate(draft, id);
+        rows.TryGetValue(id, out var sourceRow);
+        CloseTools(); precise.IsVisible = false; draft = updated; selected = copy.Id;
+        RefreshLayers();
+        if (sourceRow is not null && rows.TryGetValue(copy.Id, out var copyRow)) scroll.TransferAnchor(sourceRow, copyRow);
+        ShowStatus(copy.Name + " created. The copy is selected.");
     }
     private void MoveLayer(Guid id, int delta)
     {

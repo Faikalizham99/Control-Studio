@@ -1,8 +1,34 @@
+using System.Globalization;
+
 namespace ControlStudio.Core.Widgets;
 
 /// <summary>Finite workspace transforms shared by gestures and accessible controls.</summary>
 public static class WidgetLayerEdits
 {
+    public static (WidgetDesign Design, WidgetLayer Copy) Duplicate(WidgetDesign design, Guid source)
+    {
+        WidgetDesignRules.Validate(design);
+        if (design.Layers.Count >= WidgetDesignRules.MaximumLayers)
+            throw new IOException($"A widget can contain up to {WidgetDesignRules.MaximumLayers} layers. Remove a layer before duplicating.");
+        var layers = design.Layers.ToList(); var index = layers.FindIndex(layer => layer.Id == source);
+        if (index < 0) throw new IOException("This layer is no longer available.");
+        var original = layers[index]; var names = layers.Select(layer => layer.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        string name; var ordinal = 1;
+        do
+        {
+            var suffix = ordinal == 1 ? " copy" : " copy " + ordinal.ToString(CultureInfo.InvariantCulture);
+            var budget = 40 - suffix.Length;
+            var length = original.Name.Length <= budget ? original.Name.Length
+                : StringInfo.ParseCombiningCharacters(original.Name).LastOrDefault(start => start <= budget);
+            var stem = original.Name[..length].TrimEnd();
+            name = (stem.Length == 0 ? "Layer" : stem) + suffix; ordinal++;
+        } while (names.Contains(name));
+        var copy = original with { Id = Guid.NewGuid(), Name = name };
+        // Layer order runs from back to front. A copy sits directly above its source.
+        layers.Insert(index + 1, copy);
+        var updated = design with { Layers = layers.ToArray() }; WidgetDesignRules.Validate(updated);
+        return (updated, copy);
+    }
     private static double Clamp(double value, double minimum, double maximum) => Math.Clamp(value, minimum, maximum);
     public static WidgetLayer Reset(WidgetLayer layer, WidgetSize size, WidgetCanvasSize? dimensions = null)
     {

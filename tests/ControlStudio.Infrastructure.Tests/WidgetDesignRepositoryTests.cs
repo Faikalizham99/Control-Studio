@@ -12,6 +12,20 @@ public sealed class WidgetDesignRepositoryTests : IDisposable
     private WidgetDesignRepository Repository() => new(Private);
     private static byte[] Png => Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aZXsAAAAASUVORK5CYII=");
     [Fact]
+    public async Task DuplicatePhotosShareOneSourceAndDeletingEitherLayerKeepsItUntilTheLastReferenceIsGone()
+    {
+        var repo = Repository(); var original = await PhotoDraft(); var result = WidgetLayerEdits.Duplicate(original, original.Layers[0].Id);
+        var saved = await repo.SaveAsync(result.Design, Png); await repo.AssignSlotAsync(saved.Size, 5, saved.Id);
+        var reopened = Assert.Single(await Repository().ReadAsync()); Assert.Equal(result.Design.Layers, reopened.Layers);
+        Assert.Equal(reopened.Layers[0].AssetKey, reopened.Layers[1].AssetKey); Assert.Single(Directory.GetFiles(Path.Combine(Private, "photos"), "*.png"));
+        var copyOnly = await repo.SaveAsync(saved with { Layers = [saved.Layers[1]] }, Png);
+        await repo.RemoveDraftPhotosAsync([original.Layers[0].AssetKey]); Assert.NotNull(repo.AssetPath(original.Layers[0].AssetKey));
+        await new WidgetDesignPublisher(repo, () => Shared).PublishAsync();
+        Assert.False(Directory.Exists(Path.Combine(Shared, "photos"))); Assert.NotNull(repo.AssetPath(copyOnly.Layers[0].AssetKey));
+        var empty = await repo.SaveAsync(copyOnly with { Layers = [] }, Png); Assert.Null(repo.AssetPath(original.Layers[0].AssetKey));
+        Assert.Equal(empty.Id, Assert.Single((await Repository().ReadLibraryAsync()).Slots).DesignId);
+    }
+    [Fact]
     public async Task PhotoLockPersistsAcrossReopenPublicationUnlockAndRejectedSave()
     {
         var repo = Repository(); var draft = await PhotoDraft();

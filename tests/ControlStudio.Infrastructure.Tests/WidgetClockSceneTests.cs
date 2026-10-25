@@ -17,6 +17,21 @@ public sealed class WidgetClockSceneTests : IDisposable
         var key = await Repo().ImportPhotoAsync(Png); var photo = new WidgetLayer(Guid.NewGuid(), "Bottom", key, 1, 1, new());
         return WidgetDesignRules.New() with { Layers = [photo, WidgetClocks.New(), photo with { Id = Guid.NewGuid(), Name = "Top" }] };
     }
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public async Task DuplicatedLiveLayersPublishDistinctIDsAndKeepIndependentOptions(bool dateLayer)
+    {
+        var layer = dateLayer ? WidgetDates.New() with { Date = new(ShowWeekday: true, WeekdayStyle: WidgetWeekdayStyle.Full) } : WidgetClocks.New();
+        var duplicate = WidgetLayerEdits.Duplicate(WidgetDesignRules.New() with { Layers = [layer] }, layer.Id);
+        var repo = Repo(); var saved = await repo.SaveAsync(duplicate.Design, Png, scene: Export(duplicate.Design));
+        await new WidgetDesignPublisher(repo, () => Shared).PublishAsync();
+        var scene = JsonSerializer.Deserialize(await File.ReadAllBytesAsync(Path.Combine(Shared, "renders", saved.RenderKey + ".scene.json")), WidgetDesignRules.JsonContext.WidgetScene)!;
+        var ids = scene.Parts.Select(part => (part.Clock ?? part.Date)!.Id).ToArray(); Assert.Equal(new[] { layer.Id, duplicate.Copy.Id }, ids); Assert.Equal(2, ids.Distinct().Count());
+        var edited = dateLayer ? duplicate.Copy with { Date = duplicate.Copy.Date! with { ShowWeekday = false } }
+            : duplicate.Copy with { Clock = duplicate.Copy.Clock! with { ShowSeconds = false } };
+        var changed = saved with { Layers = [layer, edited] }; await repo.SaveAsync(changed, Png, scene: Export(changed));
+        Assert.Equal(layer, Assert.Single(await Repo().ReadAsync()).Layers[0]); Assert.Equal(edited, Assert.Single(await Repo().ReadAsync()).Layers[1]);
+    }
     [Fact]
     public async Task WeekdayCanBeDisabledAndReenabledWithoutLosingItsStyleOrSlot()
     {

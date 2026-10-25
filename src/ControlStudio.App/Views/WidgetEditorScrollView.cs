@@ -88,6 +88,13 @@ internal sealed class WidgetEditorScrollView : ScrollView
         return null;
     }
     public void CancelAnchor() { anchor = fallback = null; generation++; }
+    public void TransferAnchor(View source, View replacement)
+    {
+        // The newly inserted row has no geometry until layout. Retain the
+        // source's captured screen position rather than revealing an offscreen row.
+        if (anchor != source) return;
+        anchor = replacement; fallback = null; generation++;
+    }
     private void Hold(double y)
     {
         if (heldContent is null) return;

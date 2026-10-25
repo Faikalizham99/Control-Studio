@@ -33,6 +33,56 @@ public sealed class PickerCancellationTests : IDisposable
     private static WidgetEditorPage Editor(Store store, string source = "Photo Library", ColourPicker? colours = null)
         => new(store, colours ?? new(), NullLogger.Instance, WidgetDesignRules.New() with { Layers = [Photo()] }, choosePhotoSource: () => Task.FromResult<string?>(source));
     [Theory]
+    [InlineData(WidgetLayerKind.Photo)] [InlineData(WidgetLayerKind.Clock)] [InlineData(WidgetLayerKind.Date)]
+    public void DuplicateMenuTargetsItsOwnLayerSelectsAnIndependentCopyAndSavesOnlyOnRequest(WidgetLayerKind kind)
+    {
+        var source = kind switch
+        {
+            WidgetLayerKind.Photo => Photo() with { Zoom = 2, CropX = .2, QuarterTurns = 3, FlipHorizontal = true, BlendMode = WidgetBlendMode.SoftLight },
+            WidgetLayerKind.Clock => WidgetClocks.New() with { Clock = new(false, true, WidgetClockFont.SfProRounded, "#12ABEF", .6, WidgetClockAlignment.Right, false, WidgetClockWeight.Light) },
+            _ => WidgetDates.New() with { Date = new(WidgetDateFormat.ShortDate, WidgetClockFont.SfProRounded, "#12ABEF", .6, WidgetClockAlignment.Right, WidgetClockWeight.Light, true, WidgetWeekdayStyle.Full) }
+        };
+        source = source with { Locked = true, Visible = false, Opacity = .4 };
+        var other = WidgetClocks.New("Other clock"); var original = WidgetDesignRules.New() with { Layers = [source, other] }; var store = new Store();
+        string[]? offered = null;
+        var page = new WidgetEditorPage(store, new ColourPicker(), NullLogger.Instance, original,
+            chooseLayerAction: (_, choices) => { offered = choices; return Task.FromResult<string?>("Duplicate layer"); }); Open(page);
+        ((IButtonController)Button(page, "ClockToolFont")).SendClicked();
+        var sourceRow = Descendants(page).OfType<WidgetLayerRow>().Single(row => row.LayerId == source.Id);
+        var menu = Descendants(sourceRow).OfType<ClipboardIconButton>().Single(control => control.AutomationId == "WidgetLayerOptions" + source.Id.ToString("N"));
+        var scroll = Descendants(page).OfType<WidgetEditorScrollView>().Single(); ((IView)scroll).Arrange(new Rect(0, 0, 350, 600)); scroll.SetScrolledPosition(0, 1000);
+        ((IButtonController)Descendants(menu).OfType<Button>().Single()).SendClicked();
+        Assert.Contains("Duplicate layer", offered!);
+        var composition = Descendants(page).OfType<WidgetCompositeView>().Single(); var copied = composition.Design!.Layers[1];
+        Assert.Equal(new[] { source, copied, other }, composition.Design.Layers); Assert.Equal(source with { Id = copied.Id, Name = copied.Name }, copied);
+        Assert.NotEqual(source.Id, copied.Id); Assert.Contains("selected", SemanticProperties.GetDescription(Button(page, "SelectWidgetLayer" + copied.Id.ToString("N"))));
+        var rows = Descendants(page).OfType<WidgetLayerList>().Single().Rows.ToArray(); Assert.Equal(new[] { other.Id, copied.Id, source.Id }, rows.Select(row => row.LayerId));
+        Assert.Same(sourceRow, rows.Last()); Assert.Equal(1000, scroll.ScrollY); Assert.Equal(0, store.Picks); Assert.Equal(0, store.Saves);
+        var copyRow = rows[1];
+        var placementLock = Descendants(copyRow).OfType<ClipboardIconButton>().Single(control => control.AutomationId == "WidgetLayerLock" + copied.Id.ToString("N"));
+        ((IButtonController)Descendants(placementLock).OfType<Button>().Single()).SendClicked(); Descendants(copyRow).OfType<Switch>().Single().IsToggled = true;
+        Assert.True(composition.Design.Layers[0].Locked); Assert.False(composition.Design.Layers[0].Visible);
+        Assert.False(composition.Design.Layers[1].Locked); Assert.True(composition.Design.Layers[1].Visible);
+        Assert.Equal(source, original.Layers[0]); Assert.Equal(2, original.Layers.Count); Assert.Equal(other, composition.Design.Layers[2]);
+        ((IButtonController)Button(page, "SaveWidgetDesign")).SendClicked(); Assert.Equal(3, store.Saved!.Layers.Count); Assert.Equal(source, store.Saved.Layers[0]);
+        Assert.Equal(copied.AssetKey, store.Saved.Layers[1].AssetKey); Assert.Equal(copied.Clock, store.Saved.Layers[1].Clock); Assert.Equal(copied.Date, store.Saved.Layers[1].Date);
+    }
+    [Theory]
+    [InlineData(7)] [InlineData(8)]
+    public void DuplicateMenuAndLateCallbackBothRespectTheEightLayerLimit(int count)
+    {
+        var layers = Enumerable.Range(1, count).Select(index => WidgetClocks.New("Clock " + index)).ToArray(); var store = new Store(); string[]? offered = null;
+        var page = new WidgetEditorPage(store, new ColourPicker(), NullLogger.Instance, WidgetDesignRules.New() with { Layers = layers },
+            chooseLayerAction: (_, choices) => { offered = choices; return Task.FromResult<string?>("Duplicate layer"); }); Open(page);
+        var row = Descendants(page).OfType<WidgetLayerRow>().Single(value => value.LayerId == layers[0].Id);
+        var menu = Descendants(row).OfType<ClipboardIconButton>().Single(value => value.AutomationId == "WidgetLayerOptions" + layers[0].Id.ToString("N"));
+        ((IButtonController)Descendants(menu).OfType<Button>().Single()).SendClicked();
+        var design = Descendants(page).OfType<WidgetCompositeView>().Single().Design!; Assert.Equal(8, design.Layers.Count);
+        if (count == 7) Assert.Contains("Duplicate layer", offered!);
+        else { Assert.DoesNotContain("Duplicate layer", offered!); Assert.Equal(layers, design.Layers); }
+        Assert.Equal(0, store.Saves); Assert.True(Button(page, "SaveWidgetDesign").IsEnabled); Assert.False(Button(page, "AddWidgetPhoto").IsEnabled);
+    }
+    [Theory]
     [InlineData(AppTheme.Light)] [InlineData(AppTheme.Dark)]
     public void WeekdayControlsRetainChoiceAcrossPresetsAndDoNotCollapseOrEditClocks(AppTheme theme)
     {

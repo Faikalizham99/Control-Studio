@@ -47,6 +47,28 @@ public sealed class WidgetEditorScrollTests : IDisposable
         ((IView)row).Arrange(new Rect(0, 50, 350, 70)); scroll.SetScrolledPosition(0, 1100);
         return (scroll, branch, row, handler);
     }
+    [Fact]
+    public void InsertedCopyCanTakeTheSourcesScreenPositionWithoutRevealingTheOriginalAgain()
+    {
+        var (scroll, branch, source, handler) = Anchored(); scroll.PreserveAnchor(source);
+        var copy = new Border(); branch.Children.Add(copy); scroll.TransferAnchor(source, copy);
+        ((IView)branch).Arrange(new Rect(0, 1000, 350, 500));
+        ((IView)source).Arrange(new Rect(0, 150, 350, 70)); ((IView)copy).Arrange(new Rect(0, 50, 350, 70));
+        scroll.CompleteReflow(); Assert.Equal(900, scroll.ScrollY);
+        Assert.Equal(150, branch.Y + copy.Y - scroll.ScrollY); Assert.Single(handler.Requests);
+        scroll.CompleteReflow(); Assert.Single(handler.Requests);
+    }
+    [Fact]
+    public void CopyAnchorCannotRestoreAPositionAfterManualScrollOrAQueuedSupersededAction()
+    {
+        var queue = new Queue<Action>(); using var queuedHost = new MauiTestContext(queue);
+        var (scroll, branch, source, handler) = Anchored(queuedHost); queue.Clear(); scroll.PreserveAnchor(source); scroll.CompleteReflow();
+        var copy = new Border(); branch.Children.Add(copy); scroll.TransferAnchor(source, copy);
+        ((IView)copy).Arrange(new Rect(0, 10, 350, 70));
+        while (queue.TryDequeue(out var callback)) callback(); Assert.Empty(handler.Requests);
+        scroll.CompleteReflow(); scroll.SetScrolledPosition(0, 800);
+        while (queue.TryDequeue(out var callback)) callback(); Assert.Empty(handler.Requests);
+    }
     [Theory]
     [InlineData(900, 800)] [InlineData(1500, 1400)] [InlineData(1200, 1100)]
     public void AnchorCompensatesForContentAboveTheRowOnceWithoutRevealingIt(double nextTop, double expectedOffset)
