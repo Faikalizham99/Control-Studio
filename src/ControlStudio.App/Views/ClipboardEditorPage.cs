@@ -26,6 +26,7 @@ public sealed class ClipboardEditorPage : ContentPage
     private readonly ClipboardEditorActionButton back = new("", new ProfileGlyph(ProfileSymbol.Back, "AccentText"), "ClipboardEditorBack");
     private readonly ClipboardEditorActionButton cancel = new("Cancel", null, "ClipboardEditorCancel", accentCaption: true);
     private readonly VerticalStackLayout body = new() { Spacing = 12 };
+    private readonly WidgetEditorScrollView scroll = new();
     private readonly View photoPlaceholder;
     private string? photoKey;
     private bool busy, departed, saved;
@@ -76,7 +77,8 @@ public sealed class ClipboardEditorPage : ContentPage
         } };
         var layout = new Grid { RowDefinitions = { new(GridLength.Auto), new(GridLength.Star) } };
         layout.Add(ClipboardEditorControls.Header(Title, back, cancel));
-        layout.Add(new ScrollView { Content = form }, 0, 1); Content = layout;
+        scroll.Content = form; scroll.AutomationId = "ClipboardEditorScroll";
+        layout.Add(scroll, 0, 1); Content = layout;
         SemanticProperties.SetDescription(name, "Clipboard item name");
         SemanticProperties.SetDescription(text, "Text to save and copy");
         SemanticProperties.SetDescription(url, "Link to save and open");
@@ -91,6 +93,7 @@ public sealed class ClipboardEditorPage : ContentPage
         headerColours.IsVisible = !useAppAccent.IsToggled;
         useAppAccent.Toggled += (_, args) =>
         {
+            scroll.PreserveViewport();
             headerColourHex = args.Value ? null : headerColours.SelectedHex;
             headerColours.IsVisible = !args.Value; RefreshHeaderPreview();
         };
@@ -334,6 +337,6 @@ public sealed class ClipboardEditorPage : ContentPage
     protected override void OnNavigatedFrom(NavigatedFromEventArgs args)
     {
         base.OnNavigatedFrom(args);
-        if (!Navigation.NavigationStack.Contains(this)) { departed = true; if (!busy) DiscardDraftPhoto(); }
+        if (!Navigation.NavigationStack.Contains(this)) { departed = true; scroll.ReleaseViewport(); if (!busy) DiscardDraftPhoto(); }
     }
 }

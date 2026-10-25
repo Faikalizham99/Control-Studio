@@ -7,6 +7,7 @@ internal sealed class WidgetClockFontPicker : ContentView
 {
     private readonly List<(WidgetClockFont Font, Button Tap, View Idle, View Selected, WidgetClockWeightPicker Weights, WidgetClockFontLabel[] Samples)> choices = [];
     public WidgetClockFont SelectedFont { get; private set; }
+    public event Action<View>? PositionChanging;
     public WidgetClockFontPicker(Action<WidgetClockFont> select, Action<WidgetClockWeight>? selectWeight = null)
     {
         AutomationId = "ClockFontPicker";
@@ -27,9 +28,10 @@ internal sealed class WidgetClockFontPicker : ContentView
             var tap = SettingsControls.TapTarget(title, "ClockFont" + (int)font);
             tap.MinimumHeightRequest = 48;
             SemanticProperties.SetHint(tap, "Apply this font to the clock. Sample digits: 12:34:56.");
-            tap.Clicked += (_, _) => { if (IsEnabled && SelectedFont != font) select(font); };
             var row = new Grid { MinimumHeightRequest = 48, Children = { tap, idle, selected } };
+            tap.Clicked += (_, _) => { if (IsEnabled && SelectedFont != font) { PositionChanging?.Invoke(row); select(font); } };
             var weights = new WidgetClockWeightPicker(font, weight => { if (IsEnabled && SelectedFont == font) selectWeight?.Invoke(weight); });
+            weights.PositionChanging += view => PositionChanging?.Invoke(view);
             choices.Add((font, tap, idle, selected, weights, idleBody.Children.Concat(selectedBody.Children).OfType<WidgetClockFontLabel>().ToArray()));
             rows.Children.Add(new VerticalStackLayout { Spacing = 6, Children = { row, weights } });
         }

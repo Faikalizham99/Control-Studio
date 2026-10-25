@@ -32,6 +32,92 @@ public sealed class PickerCancellationTests : IDisposable
         typeof(NavigationPage), BindingFlags.Instance | BindingFlags.NonPublic, null, [false, root], null)!;
     private static WidgetEditorPage Editor(Store store, string source = "Photo Library", ColourPicker? colours = null)
         => new(store, colours ?? new(), NullLogger.Instance, WidgetDesignRules.New() with { Layers = [Photo()] }, choosePhotoSource: () => Task.FromResult<string?>(source));
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public void LayerLockAndVisibilityKeepTheirControlsMountedAndTheCurrentPanelOpen(bool clockLayer)
+    {
+        var layer = clockLayer ? WidgetClocks.New() : Photo(); var other = Photo() with { Name = "Other photo" }; var store = new Store();
+        var original = WidgetDesignRules.New() with { Layers = [other, layer] };
+        var page = new WidgetEditorPage(store, new ColourPicker(), NullLogger.Instance, original); Open(page);
+        void Click(string id) => ((IButtonController)Button(page, id)).SendClicked();
+        Click(clockLayer ? "ClockToolFont" : "ClipboardAdjustphotoopacity");
+        var panel = clockLayer ? (View)Descendants(page).OfType<WidgetClockControls>().Single() : (View)Descendants(page).OfType<Slider>().Single(x => SemanticProperties.GetDescription(x) == "Selected photo opacity").Parent!;
+        var rows = Descendants(page).OfType<WidgetLayerRow>().ToArray(); var row = rows.Single(x => x.LayerId == layer.Id);
+        var toggle = Descendants(row).OfType<Switch>().Single(); var lockControl = Descendants(row).OfType<ClipboardIconButton>().Single(x => x.AutomationId == "WidgetLayerLock" + layer.Id.ToString("N"));
+        var composition = Descendants(page).OfType<WidgetCompositeView>().Single();
+        for (var i = 0; i < 2; i++)
+        {
+            ((IButtonController)Descendants(lockControl).OfType<Button>().Single()).SendClicked();
+            Assert.Equal(i == 0, composition.Design!.Layers.Last().Locked); Assert.True(panel.IsVisible);
+            toggle.IsToggled = !toggle.IsToggled; Assert.Equal(toggle.IsToggled, composition.Design.Layers.Last().Visible);
+            Assert.True(panel.IsVisible); Assert.Equal(rows, Descendants(page).OfType<WidgetLayerRow>().ToArray());
+            Assert.Same(toggle, Descendants(row).OfType<Switch>().Single());
+            Assert.Contains("selected", SemanticProperties.GetDescription(Button(page, "SelectWidgetLayer" + layer.Id.ToString("N"))));
+        }
+        Assert.Equal(0, store.Saves); Assert.Equal(layer, original.Layers.Last());
+    }
+    [Theory]
+    [InlineData("Cancel")] [InlineData(null)]
+    public void BrowsingAnotherLayersOptionsDoesNotChangeSelectionOrCloseSettings(string? result)
+    {
+        var first = Photo(); var second = WidgetClocks.New(); var store = new Store(); var calls = 0;
+        var page = new WidgetEditorPage(store, new ColourPicker(), NullLogger.Instance, WidgetDesignRules.New() with { Layers = [first, second] },
+            chooseLayerAction: (_, _) => { calls++; return Task.FromResult(result); }); Open(page);
+        ((IButtonController)Button(page, "ClockToolFont")).SendClicked();
+        var controls = Descendants(page).OfType<WidgetClockControls>().Single();
+        var otherRow = Descendants(page).OfType<WidgetLayerRow>().Single(x => x.LayerId == first.Id);
+        var options = Descendants(otherRow).OfType<ClipboardIconButton>().Single(x => x.AutomationId == "WidgetLayerOptions" + first.Id.ToString("N"));
+        ((IButtonController)Descendants(options).OfType<Button>().Single()).SendClicked();
+        Assert.Equal(1, calls); Assert.True(controls.IsVisible); Assert.Equal(WidgetClockTool.Font, controls.ActiveTool);
+        Assert.Contains("selected", SemanticProperties.GetDescription(Button(page, "SelectWidgetLayer" + second.Id.ToString("N"))));
+        Assert.DoesNotContain("selected", SemanticProperties.GetDescription(Button(page, "SelectWidgetLayer" + first.Id.ToString("N"))));
+        Assert.Equal(0, store.Saves); Assert.True(Button(page, "SaveWidgetDesign").IsEnabled);
+    }
+    [Fact]
+    public void MenuLockKeepsPrecisionMountedAndDisabledUntilUnlocked()
+    {
+        var photo = Photo(); var action = "Size, position & crop"; var store = new Store();
+        var page = new WidgetEditorPage(store, new ColourPicker(), NullLogger.Instance, WidgetDesignRules.New() with { Layers = [photo] }, chooseLayerAction: (_, _) => Task.FromResult<string?>(action)); Open(page);
+        var row = Descendants(page).OfType<WidgetLayerRow>().Single();
+        var options = Descendants(row).OfType<ClipboardIconButton>().Single(x => x.AutomationId == "WidgetLayerOptions" + photo.Id.ToString("N"));
+        void Menu() => ((IButtonController)Descendants(options).OfType<Button>().Single()).SendClicked();
+        Menu(); var precise = Descendants(page).OfType<VerticalStackLayout>().Single(x => x.Children.OfType<Label>().Any(l => l.Text == photo.Name + " · Size, position & crop"));
+        Assert.True(precise.IsVisible); Assert.True(precise.IsEnabled);
+        action = "Lock layer"; Menu(); Assert.True(precise.IsVisible); Assert.False(precise.IsEnabled);
+        var frame = Descendants(page).OfType<WidgetCompositeView>().Single().Design!.Layers[0].Frame;
+        action = "Unlock layer"; Menu(); Assert.True(precise.IsVisible); Assert.True(precise.IsEnabled);
+        Assert.Equal(frame, Descendants(page).OfType<WidgetCompositeView>().Single().Design!.Layers[0].Frame); Assert.Equal(0, store.Saves);
+    }
+    [Fact]
+    public void InactiveLayerActionsDoNotRefreshOrSelectOverTheCurrentClock()
+    {
+        var photo = Photo(); var clock = WidgetClocks.New(); var store = new Store();
+        var page = new WidgetEditorPage(store, new ColourPicker(), NullLogger.Instance, WidgetDesignRules.New() with { Layers = [photo, clock] },
+            chooseLayerAction: (_, _) => Task.FromResult<string?>("Lock layer")); Open(page);
+        ((IButtonController)Button(page, "ClockToolFont")).SendClicked();
+        var controls = Descendants(page).OfType<WidgetClockControls>().Single(); var refreshes = 0; controls.LayoutChanging += (_, _) => refreshes++;
+        var row = Descendants(page).OfType<WidgetLayerRow>().Single(x => x.LayerId == photo.Id);
+        var options = Descendants(row).OfType<ClipboardIconButton>().Single(x => x.AutomationId == "WidgetLayerOptions" + photo.Id.ToString("N"));
+        ((IButtonController)Descendants(options).OfType<Button>().Single()).SendClicked();
+        Descendants(row).OfType<Switch>().Single().IsToggled = false;
+        Assert.Equal(0, refreshes); Assert.Equal(WidgetClockTool.Font, controls.ActiveTool); Assert.True(controls.IsVisible);
+        var changed = Descendants(page).OfType<WidgetCompositeView>().Single().Design!;
+        Assert.True(changed.Layers[0].Locked); Assert.False(changed.Layers[0].Visible); Assert.Equal(clock, changed.Layers[1]);
+        Assert.Contains("selected", SemanticProperties.GetDescription(Button(page, "SelectWidgetLayer" + clock.Id.ToString("N")))); Assert.Equal(0, store.Saves);
+    }
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public async Task CancelledAddLayerKeepsExistingPhotoAndClockSettingsAcrossCoverage(bool clockLayer)
+    {
+        var layer = clockLayer ? WidgetClocks.New() : Photo(); WidgetEditorPage? page = null; var store = new Store();
+        page = new WidgetEditorPage(store, new ColourPicker(), NullLogger.Instance, WidgetDesignRules.New() with { Layers = [layer] },
+            chooseLayerType: () => { ((IPageController)page!).SendDisappearing(); ((IWindow)host.App.Windows[0]).Deactivated(); return Task.FromResult<string?>("Cancel"); }); Open(page);
+        ((IButtonController)Button(page, clockLayer ? "ClockToolFont" : "ClipboardBlendselectedphoto")).SendClicked();
+        await page.AddLayerAsync(); ((IWindow)host.App.Windows[0]).Activated(); ((IPageController)page).SendAppearing();
+        if (clockLayer) Assert.Equal(WidgetClockTool.Font, Descendants(page).OfType<WidgetClockControls>().Single().ActiveTool);
+        else Assert.True(Descendants(page).OfType<WidgetBlendPanel>().Single().IsVisible);
+        Assert.True(Button(page, "SaveWidgetDesign").IsEnabled); Assert.Equal(layer, Descendants(page).OfType<WidgetCompositeView>().Single().Design!.Layers[0]); Assert.Equal(0, store.Saves);
+    }
     [Fact]
     public void PhotoAndClockSettingsKeepViewportAndManualStripPositionsWithoutScrollRequests()
     {
@@ -129,7 +215,7 @@ public sealed class PickerCancellationTests : IDisposable
         var controls = Descendants(page).OfType<WidgetClockControls>().Single(); var canvas = Descendants(page).OfType<WidgetCanvasView>().Single();
         var originalParent = canvas.Parent; var preview = Descendants(page).OfType<Border>().Single(x => x.AutomationId == "WidgetEditorLivePreview");
         var settings = Descendants(page).OfType<ScrollView>().Single(x => x.AutomationId == "WidgetEditorSettingsScroll");
-        var form = Assert.IsType<VerticalStackLayout>(settings.Content);
+        var form = Assert.IsType<WidgetEditorForm>(settings.Content);
         var adjustments = Descendants(page).OfType<VerticalStackLayout>().Single(x => x.AutomationId == "WidgetAdjustments");
         Assert.Same(form, preview.Parent); Assert.Same(form, adjustments.Parent);
         Assert.Equal(form.Children.IndexOf(preview) + 1, form.Children.IndexOf(adjustments));
@@ -174,7 +260,7 @@ public sealed class PickerCancellationTests : IDisposable
         ((IPageController)page).SendDisappearing(); Assert.Equal(WidgetClockTool.Colour, controls.ActiveTool);
         pending.SetException(new IOException("picker dismissed")); await picking;
         Assert.True(canvas.IsEnabled); Assert.True(controls.Toolbar.IsEnabled); Assert.Equal(WidgetClockTool.Colour, controls.ActiveTool);
-        ((IWindow)host.App.Windows[0]).Deactivated(); Assert.Null(controls.ActiveTool);
+        ((IWindow)host.App.Windows[0]).Deactivated(); Assert.Equal(WidgetClockTool.Colour, controls.ActiveTool);
         ((IWindow)host.App.Windows[0]).Activated();
         ((IButtonController)Button(page, "ClockToolTime")).SendClicked(); Assert.Equal(WidgetClockTool.Time, controls.ActiveTool);
     }
@@ -440,7 +526,7 @@ public sealed class PickerCancellationTests : IDisposable
         Assert.True(Button(page, "SaveWidgetDesign").IsEnabled); Assert.Equal(new[] { second.Id, first.Id }, list.Rows.Select(x => x.LayerId));
     }
     [Fact]
-    public void SingleRowToolsKeepAdjustmentPanelsOpenAndClearTheirHighlightOnDoneOrBackground()
+    public void SingleRowToolsKeepPanelsAndHighlightAcrossBackgroundAndClearOnDone()
     {
         var page = Editor(new Store()); Open(page);
         WidgetToolButton Tool(string id) => Assert.IsType<WidgetToolButton>(Button(page, id).Parent!.Parent);
@@ -460,7 +546,7 @@ public sealed class PickerCancellationTests : IDisposable
         slider.Value = .35; Assert.Equal(.35, composition.Design!.Layers[0].Opacity); Assert.True(opacity.IsSelected);
         Assert.Contains("35", SemanticProperties.GetDescription(Button(page, "ClipboardAdjustphotoopacity")));
         opacity.Scale = .95;
-        ((IWindow)host.App.Windows[0]).Deactivated(); Assert.False(opacity.IsSelected); Assert.Equal(1, opacity.Scale); ((IWindow)host.App.Windows[0]).Activated();
+        ((IWindow)host.App.Windows[0]).Deactivated(); Assert.True(opacity.IsSelected); Assert.Equal(1, opacity.Scale); ((IWindow)host.App.Windows[0]).Activated();
         Click("ClipboardResetselectedphoto"); Assert.Equal(1, composition.Design!.Layers[0].Opacity); Assert.Equal(WidgetBlendMode.Normal, composition.Design.Layers[0].BlendMode);
         Assert.All(Descendants(page).OfType<WidgetToolButton>(), tool => Assert.False(tool.IsSelected));
     }
@@ -514,7 +600,8 @@ public sealed class PickerCancellationTests : IDisposable
         var composition = Descendants(page).OfType<WidgetCompositeView>().Single();
         Assert.Equal(WidgetBlendMode.Multiply, composition.Design!.Layers[0].BlendMode);
         Assert.Equal(WidgetBlendMode.SoftLight, composition.Design.Layers[1].BlendMode);
-        ((IWindow)host.App.Windows[0]).Deactivated(); Assert.Null(composition.Design); Assert.False(panel.IsVisible);
+        ((IWindow)host.App.Windows[0]).Deactivated(); Assert.Null(composition.Design); Assert.True(panel.IsVisible);
+        Assert.All(Descendants(panel).OfType<WidgetBlendThumbnail>(), picture => Assert.False(picture.IsPreviewActive));
         ((IWindow)host.App.Windows[0]).Activated(); Assert.Equal(WidgetBlendMode.SoftLight, composition.Design!.Layers[1].BlendMode);
         await page.AddPhotoAsync(); Assert.Equal(2, composition.Design.Layers.Count); Assert.True(Button(page, "SaveWidgetDesign").IsEnabled);
         ((IButtonController)Button(page, "SaveWidgetDesign")).SendClicked();

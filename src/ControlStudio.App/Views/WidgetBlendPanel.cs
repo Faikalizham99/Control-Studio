@@ -12,7 +12,9 @@ internal sealed class WidgetBlendPanel : ContentView
         ColumnDefinitions = { new(GridLength.Star), new(GridLength.Star) } };
     private readonly List<(WidgetBlendMode Mode, WidgetBlendChoice Cell, WidgetBlendThumbnail Picture)> choices = [];
     private WidgetLayer? layer;
+    private bool foreground = true;
     public event EventHandler? LayoutChanging;
+    public event Action<View>? PositionChanging;
     public WidgetBlendPanel(Action<WidgetBlendMode> choose, Func<WidgetBlendMode, ImageSource?>? sampleSource = null)
     {
         AutomationId = "WidgetBlendPanel"; IsVisible = false;
@@ -28,7 +30,7 @@ internal sealed class WidgetBlendPanel : ContentView
             choices.Add((mode, cell, picture));
         }
         var done = new ClipboardEditorActionButton("Done", ClipboardEditorControls.Icon(StudioSymbol.Check), "CloseWidgetBlendPanel");
-        done.Clicked += (_, _) => { if (IsEnabled && IsVisible) { LayoutChanging?.Invoke(this, EventArgs.Empty); IsVisible = false; } };
+        done.Clicked += (_, _) => { if (IsEnabled && IsVisible) { PositionChanging?.Invoke(done); LayoutChanging?.Invoke(this, EventArgs.Empty); IsVisible = false; } };
         Content = new VerticalStackLayout { Spacing = 10, Children = { summary,
             SettingsControls.Text("Blue/orange examples show each effect. Photo layers blend together until a clock layer separates them. Clock text and wallpaper are not included in photo blending.", 12, secondary: true),
             notice, groups, modes, done } };
@@ -65,6 +67,7 @@ internal sealed class WidgetBlendPanel : ContentView
     }
     private void RefreshPictures()
     {
-        foreach (var choice in choices) choice.Picture.SetActive(IsVisible && layer is not null && WidgetBlending.Group(choice.Mode) == groups.SelectedIndex);
+        foreach (var choice in choices) choice.Picture.SetActive(foreground && IsVisible && layer is not null && WidgetBlending.Group(choice.Mode) == groups.SelectedIndex);
     }
+    public void SetForeground(bool value) { foreground = value; RefreshPictures(); }
 }

@@ -1,5 +1,7 @@
 # Widget editor settings scroll stability — 0.2.35 (37)
 
+A [follow-up in 0.2.36](widget-editor-scroll-followup.md) addresses layer-row anchoring and unnecessary panel closure. The release record below describes 0.2.35; the follow-up adds bounded instant position compensation for necessary reflow.
+
 The owner reported that tapping photo or clock settings moved the page up or down. The primary cause was the editor's `RevealAdjustments` call: each newly opened panel requested `ScrollToAsync(..., MakeVisible, false)` against the full page scroll introduced in 0.2.33. Different panel positions/heights produced different destinations. Photo-tool refreshes, clock-toolbar changes, blend groups and every weight update also requested automatic horizontal reveals. Hidden or not-yet-arranged element requests can be deferred by MAUI, making movement appear later than the initiating tap.
 
 Normal editor settings now issue no programmatic scroll requests, including the layer menu's precision controls. Photo tools, clock tools, blend groups and weight choices leave horizontal movement to the user. The current weight is shown in the weight heading, even when its chip is offscreen. Controls, highlighting, accessible descriptions and manual scrolling remain available.

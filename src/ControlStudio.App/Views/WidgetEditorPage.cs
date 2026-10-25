@@ -9,6 +9,7 @@ internal sealed class WidgetEditorPage : ContentPage
     private readonly IWidgetEditorStore studio;
     private readonly Func<Task<string?>> choosePhotoSource;
     private readonly Func<Task<string?>> chooseLayerType;
+    private readonly Func<string, string[], Task<string?>>? chooseLayerAction;
     private readonly ILogger logger;
     private WidgetDesign draft;
     private Guid? selected;
@@ -18,7 +19,7 @@ internal sealed class WidgetEditorPage : ContentPage
     private readonly WidgetCanvasView canvas;
     private readonly ProfileNameEntry name = new() { MaxLength = 60, Placeholder = "My widget", BackgroundColor = Colors.Transparent, FontSize = 17, HeightRequest = 44 };
     private readonly WidgetSegments sizes;
-    private readonly VerticalStackLayout form = new() { Padding = new Thickness(16, 8, 16, 28), Spacing = 14 };
+    private readonly WidgetEditorForm form = new() { Padding = new Thickness(16, 8, 16, 28), Spacing = 14 };
     private readonly WidgetLayerList layerList = new();
     private readonly VerticalStackLayout precise = new() { Spacing = 6, IsVisible = false };
     private readonly WidgetEditorScrollView scroll = new();
@@ -56,11 +57,12 @@ internal sealed class WidgetEditorPage : ContentPage
     private bool Foreground => EditorPageActivity.IsForeground(this);
     private bool CanEdit => Foreground && !busy && !saved && !departed && !background.IsBusy && !clockControls.IsBusy && !canvas.IsInteracting && !layerList.IsReordering;
 
-    public WidgetEditorPage(IWidgetEditorStore studio, IColourPicker colourPicker, ILogger logger, WidgetDesign? original = null, WidgetSize initialSize = WidgetSize.Small, Func<Task<string?>>? choosePhotoSource = null, Func<Task<string?>>? chooseLayerType = null)
+    public WidgetEditorPage(IWidgetEditorStore studio, IColourPicker colourPicker, ILogger logger, WidgetDesign? original = null, WidgetSize initialSize = WidgetSize.Small, Func<Task<string?>>? choosePhotoSource = null, Func<Task<string?>>? chooseLayerType = null, Func<string, string[], Task<string?>>? chooseLayerAction = null)
     {
         this.studio = studio; this.logger = logger;
         this.choosePhotoSource = choosePhotoSource ?? (() => DisplayActionSheetAsync("Add photo layer", "Cancel", null, "Photo Library", "Files"));
         this.chooseLayerType = chooseLayerType ?? (() => DisplayActionSheetAsync("Add layer", "Cancel", null, "Photo", "Clock"));
+        this.chooseLayerAction = chooseLayerAction;
         draft = WidgetDesignRules.ForEditing(original ?? (WidgetDesignRules.New() with { Size = initialSize, TransparentBackground = OperatingSystem.IsIOSVersionAtLeast(26) }));
         ApplyCanvasSizing();
         Title = original is null ? "New widget" : "Edit widget"; AutomationId = "WidgetEditorPage"; WidgetStudioStyle.Page(this);
@@ -78,6 +80,7 @@ internal sealed class WidgetEditorPage : ContentPage
             EditLayer(layer => layer with { BlendMode = mode }, closeTools: false, changesPlacement: false);
         });
         blendMenu.LayoutChanging += (_, _) => scroll.PreserveViewport();
+        blendMenu.PositionChanging += view => scroll.PreserveAnchor(view);
         canvas.InteractionChanged += (_, _) => { if (canvas.IsInteracting) ClosePhotoTools(); RefreshActions(); };
         sizes = new WidgetSegments(["Small", "Medium", "Large", "XL"], "EditorWidgetSize", index =>
         {
@@ -90,6 +93,7 @@ internal sealed class WidgetEditorPage : ContentPage
         clockControls = new(colourPicker) { CanInteract = () => CanEdit };
         clockControls.BusyChanged += (_, _) => RefreshActions();
         clockControls.LayoutChanging += (_, _) => scroll.PreserveViewport();
+        clockControls.PositionChanging += view => scroll.PreserveAnchor(view);
         clockControls.PanelChanged += (_, _) => ClosePhotoTools();
         clockControls.InvalidColour += (_, _) => ShowStatus("Enter a valid clock text colour before continuing.");
         clockControls.DeleteRequested += (_, _) => { if (CanEdit) _ = RunAsync(RemoveLayerAsync); };
@@ -191,6 +195,7 @@ internal sealed class WidgetEditorPage : ContentPage
         cancel.Clicked += async (_, _) => await ExitAsync(); back.Clicked += async (_, _) => await ExitAsync();
         var layout = new Grid { RowDefinitions = { new(GridLength.Auto), new(GridLength.Star) } };
         scroll.Content = form; scroll.AutomationId = "WidgetEditorSettingsScroll";
+        form.Arranged += (_, _) => scroll.CompleteReflow();
         layout.Add(ClipboardEditorControls.Header(Title, back, cancel)); layout.Add(scroll, 0, 1);
         Content = new WidgetEditorSurface(layout, () => CanEdit && selected is not null, ClearLayerSelection,
             canvas, tools, clockControls.Toolbar, rotateMenu, flipMenu, opacityMenu, blendMenu, layerList, precise, background, clockControls);
@@ -199,7 +204,7 @@ internal sealed class WidgetEditorPage : ContentPage
     private static Border Card(View content) => ClipboardEditorControls.Surface(content, 22, 14);
     private WidgetToolButton Tool(StudioSymbol symbol, string title, Action action, bool destructive = false)
     {
-        var button = new WidgetToolButton(symbol, title, destructive); button.Clicked += (_, _) => { if (CanEdit) { scroll.PreserveViewport(); action(); } }; return button;
+        var button = new WidgetToolButton(symbol, title, destructive); button.Clicked += (_, _) => { if (CanEdit) { scroll.PreserveAnchor(button); action(); } }; return button;
     }
     private void RefreshToolSelection()
     {
@@ -213,12 +218,12 @@ internal sealed class WidgetEditorPage : ContentPage
     private ClipboardEditorActionButton MenuAction(string text, StudioSymbol symbol, Action action)
     {
         var button = new ClipboardEditorActionButton(text, ClipboardEditorControls.Icon(symbol, size: 18), "Widget" + text.Replace(" ", ""));
-        button.Clicked += (_, _) => { if (CanEdit) { scroll.PreserveViewport(); action(); } }; return button;
+        button.Clicked += (_, _) => { if (CanEdit) { scroll.PreserveAnchor(button); action(); } }; return button;
     }
     private ClipboardEditorActionButton AsyncAction(string text, StudioSymbol symbol, string id, Func<Task> action)
     {
         var button = new ClipboardEditorActionButton(text, ClipboardEditorControls.Icon(symbol, size: 18), id, accentCaption: true);
-        button.Clicked += async (_, _) => await RunAsync(action); return button;
+        button.Clicked += async (_, _) => { if (CanEdit) { scroll.PreserveAnchor(button); await RunAsync(action); } }; return button;
     }
     private void ClosePhotoTools() { scroll.PreserveViewport(); rotateMenu.IsVisible = flipMenu.IsVisible = opacityMenu.IsVisible = blendMenu.IsVisible = false; RefreshToolSelection(); }
     private void CloseTools() { ClosePhotoTools(); clockControls.ClosePanel(); }
@@ -253,8 +258,9 @@ internal sealed class WidgetEditorPage : ContentPage
         if (!CanEdit) return;
         if (!CommitClockColour()) return;
         var layer = draft.Layers.FirstOrDefault(x => x.Id == id); if (layer is null) return;
-        if (selected == id) { CloseTools(); precise.IsVisible = false; }
-        ReplaceLayer(layer with { Locked = !layer.Locked }); RefreshLayers();
+        // Locking placement does not change the selected layer or close its
+        // appearance tools. Keep precision controls mounted, but disabled.
+        ReplaceLayer(layer with { Locked = !layer.Locked }); RefreshLayerState(id);
         try { if (Foreground) SemanticScreenReader.Default.Announce(layer.Name + (layer.Locked ? " unlocked." : " locked. Unlock in Layers to move or resize.")); }
         catch (Exception ex) { logger.LogDebug("Widget lock announcement unavailable. ErrorType={ErrorType}", ex.GetType().Name); }
     }
@@ -303,6 +309,7 @@ internal sealed class WidgetEditorPage : ContentPage
     private void UpdateCanvas() => canvas.Update(draft, selected);
     private void RefreshLayers()
     {
+        scroll.PreserveViewport();
         layerList.CancelReorder();
         layersCount.Text = $"{draft.Layers.Count} {(draft.Layers.Count == 1 ? "layer" : "layers")}";
         foreach (var id in rows.Keys.Where(id => !draft.Layers.Any(x => x.Id == id)).ToArray())
@@ -317,9 +324,10 @@ internal sealed class WidgetEditorPage : ContentPage
                     {
                         if (!CanEdit) return;
                         var current = draft.Layers.FirstOrDefault(x => x.Id == id); if (current is null) return;
-                        ReplaceLayer(current with { Visible = visible }); RefreshLayers();
-                    }, id => { if (CanEdit && CommitClockColour()) { selected = id; RefreshLayers(); _ = RunAsync(LayerMenuAsync); } },
+                        ReplaceLayer(current with { Visible = visible }); RefreshLayerState(id);
+                    }, id => { if (CanEdit && CommitClockColour()) _ = RunAsync(() => LayerMenuAsync(id)); },
                     ReorderLayers, ToggleLayerLock);
+                row.ActionStarting += (_, _) => scroll.PreserveAnchor(row);
                 rows.Add(layer.Id, row); layerList.Items.Add(row);
             }
             var currentIndex = layerList.Items.IndexOf(row);
@@ -328,9 +336,16 @@ internal sealed class WidgetEditorPage : ContentPage
         }
         RefreshControls(); RefreshActions(); UpdateCanvas();
     }
+    private void RefreshLayerState(Guid id)
+    {
+        if (rows.TryGetValue(id, out var row) && draft.Layers.FirstOrDefault(x => x.Id == id) is { } layer) row.Update(layer, selected == id);
+        if (selected == id) RefreshControls();
+        RefreshActions(); UpdateCanvas();
+    }
     private void ReorderLayers(Guid source, Guid target)
     {
         if (!CanEdit) return;
+        scroll.CancelAnchor();
         draft = draft with { Layers = WidgetLayerEdits.Reorder(draft.Layers, source, target) }; RefreshLayers();
     }
     private void RefreshControls()
@@ -367,46 +382,53 @@ internal sealed class WidgetEditorPage : ContentPage
         }
         finally { updating = false; }
     }
-    private async Task LayerMenuAsync()
+    private async Task LayerMenuAsync(Guid id)
     {
-        var layer = draft.Layers.FirstOrDefault(x => x.Id == selected); if (layer is null) return;
+        var layer = draft.Layers.FirstOrDefault(x => x.Id == id); if (layer is null) return;
         var index = draft.Layers.ToList().FindIndex(x => x.Id == layer.Id);
-        var choices = new List<string> { "Rename", layer.Locked ? "Unlock layer" : "Lock layer", "Deselect layer" };
+        var choices = new List<string> { "Rename", layer.Locked ? "Unlock layer" : "Lock layer" };
+        if (selected == id) choices.Add("Deselect layer");
         if (!layer.Locked)
         {
             choices.Add(layer.Kind == WidgetLayerKind.Photo ? "Size, position & crop" : "Size & position"); choices.Add("Centre on widget");
             if (layer.Kind == WidgetLayerKind.Photo) choices.Add(layer.FitPhoto ? "Crop to frame" : "Show full photo");
         }
         if (index < draft.Layers.Count - 1) choices.Add("Move forward"); if (index > 0) choices.Add("Move backward");
-        var choice = await DisplayActionSheetAsync(layer.Name, "Cancel", "Delete layer", choices.ToArray());
+        var choice = chooseLayerAction is null ? await DisplayActionSheetAsync(layer.Name, "Cancel", "Delete layer", choices.ToArray())
+            : await chooseLayerAction(layer.Name, choices.ToArray());
         if (!Foreground || departed) return;
+        if (choice is null or "Cancel") return;
+        if (rows.TryGetValue(id, out var row)) scroll.PreserveAnchor(row);
         switch (choice)
         {
-            case "Lock layer": ReplaceLayer(layer with { Locked = true }); precise.IsVisible = false; break;
-            case "Unlock layer": ReplaceLayer(layer with { Locked = false }); break;
-            case "Deselect layer": selected = null; precise.IsVisible = false; break;
+            case "Lock layer": ReplaceLayer(layer with { Locked = true }); RefreshLayerState(id); return;
+            case "Unlock layer": ReplaceLayer(layer with { Locked = false }); RefreshLayerState(id); return;
+            case "Deselect layer": CloseTools(); selected = null; precise.IsVisible = false; break;
             case "Rename":
                 var title = await DisplayPromptAsync("Layer name", "Use up to 40 characters.", initialValue: layer.Name, maxLength: 40);
                 if (!Foreground || departed || title is null) return;
+                if (rows.TryGetValue(id, out var renamedRow)) scroll.PreserveAnchor(renamedRow);
                 var changed = layer with { Name = title.Trim() }; var next = draft with { Layers = draft.Layers.Select(x => x.Id == layer.Id ? changed : x).ToArray() };
-                WidgetDesignRules.Validate(next); draft = next; break;
+                WidgetDesignRules.Validate(next); draft = next; RefreshLayerState(id); return;
             case "Size, position & crop":
             case "Size & position":
                 scroll.PreserveViewport();
+                if (selected != id) { CloseTools(); selected = id; }
                 precise.IsVisible = true;
                 break;
-            case "Move forward": MoveLayer(1); break;
+            case "Move forward": MoveLayer(id, 1); break;
             case "Centre on widget": ReplaceLayer(WidgetLayerEdits.Center(layer)); break;
             case "Show full photo": if (!layer.Locked) ReplaceLayer(layer with { FitPhoto = true }); break;
             case "Crop to frame": if (!layer.Locked) ReplaceLayer(layer with { FitPhoto = false }); break;
-            case "Move backward": MoveLayer(-1); break;
-            case "Delete layer": await RemoveLayerAsync(); break;
+            case "Move backward": MoveLayer(id, -1); break;
+            case "Delete layer": await RemoveLayerAsync(id); return;
         }
         RefreshLayers();
     }
-    private void MoveLayer(int delta)
+    private void MoveLayer(Guid id, int delta)
     {
-        var layers = draft.Layers.ToList(); var index = layers.FindIndex(x => x.Id == selected); var target = index + delta;
+        scroll.CancelAnchor();
+        var layers = draft.Layers.ToList(); var index = layers.FindIndex(x => x.Id == id); var target = index + delta;
         if (index >= 0 && target >= 0 && target < layers.Count) draft = draft with { Layers = WidgetLayerEdits.Reorder(layers, layers[index].Id, layers[target].Id) };
     }
     internal Task AddPhotoAsync() => RunAsync(PickPhotoAsync);
@@ -443,11 +465,16 @@ internal sealed class WidgetEditorPage : ContentPage
         layer = WidgetLayerEdits.Reset(layer with { Name = "Photo " + ordinal }, draft.Size, draft.CanvasDimensions);
         draft = draft with { Layers = draft.Layers.Append(layer).ToArray() }; selected = layer.Id; RefreshLayers();
     }
-    private async Task RemoveLayerAsync()
+    private Task RemoveLayerAsync() => RemoveLayerAsync(selected);
+    private async Task RemoveLayerAsync(Guid? id)
     {
-        var layer = draft.Layers.FirstOrDefault(x => x.Id == selected); if (layer is null) return;
+        var layer = draft.Layers.FirstOrDefault(x => x.Id == id); if (layer is null) return;
         if (!await DisplayAlertAsync("Delete layer?", layer.Kind == WidgetLayerKind.Photo ? "Remove this layer from your widget draft? Your original photo is kept." : "Remove this clock from your widget draft?", "Delete", "Cancel") || !Foreground || departed) return;
-        CloseTools(); draft = draft with { Layers = draft.Layers.Where(x => x.Id != layer.Id).ToArray() }; selected = draft.Layers.LastOrDefault()?.Id; RefreshLayers();
+        if (rows.TryGetValue(layer.Id, out var row)) scroll.PreserveAnchor(row);
+        if (selected == layer.Id) CloseTools();
+        draft = draft with { Layers = draft.Layers.Where(x => x.Id != layer.Id).ToArray() };
+        if (selected == layer.Id) selected = draft.Layers.LastOrDefault()?.Id;
+        RefreshLayers();
         if (ownedPhotos.Contains(layer.AssetKey) && !draft.Layers.Any(x => x.AssetKey == layer.AssetKey))
         {
             try { await studio.RemoveDraftPhotosAsync([layer.AssetKey]); ownedPhotos.Remove(layer.AssetKey); }
@@ -465,7 +492,7 @@ internal sealed class WidgetEditorPage : ContentPage
         }
         else if (choice == "Solid colour") SetTransparent(false);
     }
-    private void SetTransparent(bool value) { draft = draft with { TransparentBackground = value }; RefreshBackground(); UpdateCanvas(); }
+    private void SetTransparent(bool value) { scroll.PreserveViewport(); draft = draft with { TransparentBackground = value }; RefreshBackground(); UpdateCanvas(); }
     private void RefreshBackground()
     {
         backgroundStatus.Text = "Background: " + (draft.TransparentBackground ? "Transparent" : "Solid colour");
@@ -516,7 +543,7 @@ internal sealed class WidgetEditorPage : ContentPage
     private async Task RunAsync(Func<Task> operation)
     {
         if (!CanEdit) return;
-        CloseTools(); busy = true; RefreshActions();
+        busy = true; RefreshActions();
         try { await operation(); }
         catch (Exception ex)
         { logger.LogWarning("Widget editor operation failed. ErrorType={ErrorType}", ex.GetType().Name); if (!departed) ShowStatus(ex is IOException ? ex.Message : "The widget could not be updated. Try again."); }
@@ -529,6 +556,7 @@ internal sealed class WidgetEditorPage : ContentPage
     }
     private void ShowStatus(string message)
     {
+        scroll.PreserveViewport();
         status.Text = message; status.IsVisible = true;
         try { if (Foreground) SemanticScreenReader.Default.Announce(message); }
         catch (Exception ex) { logger.LogDebug("Widget announcement unavailable. ErrorType={ErrorType}", ex.GetType().Name); }
@@ -553,8 +581,16 @@ internal sealed class WidgetEditorPage : ContentPage
         try { await CloseSavedAsync(); }
         catch (Exception ex) { logger.LogWarning("Widget editor dismissal failed. ErrorType={ErrorType}", ex.GetType().Name); ShowStatus("Your widget is saved. Tap Back to return."); }
     }
-    private async void WindowActivated(object? sender, EventArgs args) { TimeZoneInfo.ClearCachedData(); RefreshActions(); if (Foreground && !saved && !busy) ResumeCanvas(); if (saved && !busy) await TryCloseSavedAsync(); }
-    private void WindowDeactivated(object? sender, EventArgs args) { layerList.CancelReorder(); canvas.EndInteraction(true); canvas.SuspendComposition(); CloseTools(); RefreshActions(); }
+    private void SuspendEditor()
+    {
+        scroll.CancelAnchor(); layerList.CancelReorder(); canvas.EndInteraction(true); canvas.SuspendComposition();
+        blendMenu.SetForeground(false);
+        clockControls.ResetPressedState();
+        foreach (var tool in new[] { resetTool, rotateTool, flipTool, opacityTool, deleteTool, blendTool }) tool.Scale = 1;
+        RefreshActions();
+    }
+    private async void WindowActivated(object? sender, EventArgs args) { TimeZoneInfo.ClearCachedData(); RefreshActions(); blendMenu.SetForeground(Foreground); if (Foreground && !saved && !busy) ResumeCanvas(); if (saved && !busy) await TryCloseSavedAsync(); }
+    private void WindowDeactivated(object? sender, EventArgs args) => SuspendEditor();
     protected override async void OnAppearing()
     {
         base.OnAppearing();
@@ -563,7 +599,7 @@ internal sealed class WidgetEditorPage : ContentPage
             StopObservingWindow(); observedWindow = Window;
             if (observedWindow is not null) { observedWindow.Activated += WindowActivated; observedWindow.Deactivated += WindowDeactivated; }
         }
-        RefreshActions(); if (Foreground && !saved && !busy) ResumeCanvas(); if (saved && !busy) await TryCloseSavedAsync();
+        RefreshActions(); blendMenu.SetForeground(Foreground); if (Foreground && !saved && !busy) ResumeCanvas(); if (saved && !busy) await TryCloseSavedAsync();
     }
     private void StopObservingWindow()
     {
@@ -572,7 +608,7 @@ internal sealed class WidgetEditorPage : ContentPage
     }
     protected override void OnDisappearing()
     {
-        layerList.CancelReorder(); canvas.EndInteraction(true); canvas.SuspendComposition(); CloseTools(); RefreshActions();
+        SuspendEditor();
         // A native picker can cover this page without removing it from MAUI navigation.
         // Keep activation recovery subscribed until this editor actually leaves the stack.
         base.OnDisappearing();

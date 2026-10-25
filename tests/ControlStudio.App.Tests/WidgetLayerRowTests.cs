@@ -9,6 +9,27 @@ public sealed class WidgetLayerRowTests : IDisposable
 {
     private readonly MauiTestContext host = new();
     [Fact]
+    public void SelectionKeepsBorderGeometryAndOnlyUserActionsCaptureAnAnchor()
+    {
+        var layer = new WidgetLayer(Guid.NewGuid(), "Photo", Guid.NewGuid().ToString("N"), 640, 480, new());
+        var starting = 0; var actions = 0;
+        var row = new WidgetLayerRow(layer, null, "editor", _ => actions++, (_, _) => actions++, _ => actions++, (_, _) => { }, _ => actions++); host.Attach(row);
+        row.ActionStarting += (_, _) => { starting++; Assert.Equal(actions + 1, starting); };
+        var border = Assert.IsType<Border>(row.Content); var stroke = border.StrokeThickness;
+        row.Update(layer with { Locked = true, Visible = false }, true); row.Update(layer, false);
+        Assert.Equal(stroke, border.StrokeThickness); Assert.Equal(0, starting);
+        var grid = Assert.IsType<Grid>(border.Content); var header = Assert.IsType<CardActionHeader>(grid.Children[1]);
+        var buttons = Assert.IsType<ActionButtonRow>(header.Children[1]);
+        Assert.IsType<Switch>(buttons.Children[0]).IsToggled = false;
+        foreach (var control in buttons.Children.OfType<ClipboardIconButton>())
+            ((IButtonController)Assert.IsType<Grid>(control.Content).Children.OfType<Button>().Single()).SendClicked();
+        Assert.Equal(3, starting); Assert.Equal(3, actions);
+        row.SetReordering(true);
+        foreach (var control in buttons.Children.OfType<ClipboardIconButton>())
+            ((IButtonController)Assert.IsType<Grid>(control.Content).Children.OfType<Button>().Single()).SendClicked();
+        Assert.Equal(3, starting);
+    }
+    [Fact]
     public void RefreshingLayerPreservesPhotoAndSwitchWithoutSendingVisibilityChanges()
     {
         var layer = new WidgetLayer(Guid.NewGuid(), "First", Guid.NewGuid().ToString("N"), 640, 480, new()); var changes = 0; Guid? selected = null;

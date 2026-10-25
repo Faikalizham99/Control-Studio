@@ -31,6 +31,7 @@ internal sealed class WidgetClockControls : ContentView
     public event EventHandler? DeleteRequested;
     public event EventHandler? PanelChanged;
     public event EventHandler? LayoutChanging;
+    public event Action<View>? PositionChanging;
     public event EventHandler? InvalidColour;
     private bool CanUse => available && IsEnabled && !IsBusy && layer is not null && (CanInteract?.Invoke() ?? true);
     public WidgetClockControls(IColourPicker picker)
@@ -39,6 +40,7 @@ internal sealed class WidgetClockControls : ContentView
         format = new(["12-hour", "24-hour"], "ClockFormat", index => Edit(WidgetClockTool.Time, x => x with { TwentyFourHour = index == 1 }));
         fonts = new(font => Edit(WidgetClockTool.Font, x => WidgetClockWeights.ChangeFont(x, font)),
             weight => { if (layer?.Clock is { } clock && WidgetClockWeights.Available(clock.Font).Contains(weight)) Edit(WidgetClockTool.Font, x => x with { Weight = weight }); });
+        fonts.PositionChanging += view => PositionChanging?.Invoke(view);
         alignment = new(["Left", "Centre", "Right"], "ClockAlignment", index => Edit(WidgetClockTool.Position, x => x with { Alignment = (WidgetClockAlignment)index }));
         seconds.Toggled += (_, args) => Edit(WidgetClockTool.Time, x => x with { ShowSeconds = args.Value });
         amPm.Toggled += (_, args) => { if (layer?.Clock?.TwentyFourHour == false) Edit(WidgetClockTool.Time, x => x with { ShowAmPm = args.Value }); };
@@ -92,6 +94,7 @@ internal sealed class WidgetClockControls : ContentView
     private void Toggle(WidgetClockTool tool)
     {
         if (!CanUse || !ValidateColour()) return;
+        PositionChanging?.Invoke(tools[tool].Button);
         SetPanel(ActiveTool == tool ? null : tool);
     }
     private void SetPanel(WidgetClockTool? tool)
@@ -107,6 +110,7 @@ internal sealed class WidgetClockControls : ContentView
         }
     }
     public void ClosePanel() { if (!IsBusy) SetPanel(null); }
+    public void ResetPressedState() { foreach (var item in tools.Values) item.Button.Scale = 1; delete.Scale = 1; }
     public void SetAvailable(bool value)
     {
         available = value; IsEnabled = value; Toolbar.IsEnabled = value;

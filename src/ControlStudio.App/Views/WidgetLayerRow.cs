@@ -15,6 +15,7 @@ internal sealed class WidgetLayerRow : ContentView
     private readonly ClipboardIconButton placementLock;
     public Guid LayerId { get; }
     public View DragHandle { get; }
+    public event EventHandler? ActionStarting;
     private bool updating, reordering, layerVisible;
     public WidgetLayerRow(WidgetLayer layer, string? path, string dragScope, Action<Guid> select,
         Action<Guid, bool> show, Action<Guid> menu, Action<Guid, Guid> reorder, Action<Guid>? toggleLock = null)
@@ -23,12 +24,12 @@ internal sealed class WidgetLayerRow : ContentView
         photo.Source = path; name.MaxLines = 2; name.LineBreakMode = LineBreakMode.TailTruncation;
         var thumbnail = ClipboardEditorControls.Field(layer.Kind == WidgetLayerKind.Clock ? ClipboardEditorControls.Icon(StudioSymbol.Clock, size: 28) : photo, 0); thumbnail.WidthRequest = thumbnail.HeightRequest = 48;
         thumbnail.VerticalOptions = LayoutOptions.Center;
-        var thumbnailTap = new TapGestureRecognizer(); thumbnailTap.Tapped += (_, _) => { if (IsEnabled && !reordering) select(layer.Id); };
+        var thumbnailTap = new TapGestureRecognizer(); thumbnailTap.Tapped += (_, _) => Act(() => select(layer.Id));
         thumbnail.GestureRecognizers.Add(thumbnailTap);
         var title = new VerticalStackLayout { Spacing = 2, VerticalOptions = LayoutOptions.Center,
             InputTransparent = true, Children = { name, detail } };
         tap = SettingsControls.TapTarget("Select " + layer.Name, "SelectWidgetLayer" + layer.Id.ToString("N"));
-        tap.Clicked += (_, _) => { if (IsEnabled && !reordering) select(layer.Id); };
+        tap.Clicked += (_, _) => Act(() => select(layer.Id));
         var selection = new Grid { ColumnSpacing = 8, ColumnDefinitions = { new(48), new(GridLength.Star) } };
         var labels = new Grid { Children = { tap, title } }; selection.Add(thumbnail); selection.Add(labels, 1);
         AutomationProperties.SetIsInAccessibleTree(title, false); AutomationProperties.SetIsInAccessibleTree(thumbnail, false);
@@ -53,16 +54,23 @@ internal sealed class WidgetLayerRow : ContentView
         GestureRecognizers.Add(drop);
 #endif
         SemanticProperties.SetDescription(visible, "Show " + layer.Name);
-        visible.Toggled += (_, args) => { if (!updating && IsEnabled && !reordering) show(layer.Id, args.Value); };
+        visible.AutomationId = "WidgetLayerVisible" + layer.Id.ToString("N");
+        visible.Toggled += (_, args) => { if (!updating) Act(() => show(layer.Id, args.Value)); };
         more = new ClipboardIconButton(StudioSymbol.More, "Layer actions") { VerticalOptions = LayoutOptions.Center }; more.Describe("Layer actions", layer.Name);
-        more.Clicked += (_, _) => { if (IsEnabled && !reordering) menu(layer.Id); };
+        more.AutomationId = "WidgetLayerOptions" + layer.Id.ToString("N");
+        more.Clicked += (_, _) => Act(() => menu(layer.Id));
         placementLock = new ClipboardIconButton(StudioSymbol.Unlock, "Toggle photo lock") { AutomationId = "WidgetLayerLock" + layer.Id.ToString("N") };
-        placementLock.Clicked += (_, _) => { if (IsEnabled && !reordering) toggleLock?.Invoke(layer.Id); };
+        placementLock.Clicked += (_, _) => Act(() => toggleLock?.Invoke(layer.Id));
         var actions = new ActionButtonRow(visible, placementLock, more);
         var header = new CardActionHeader(selection, actions);
         var row = new Grid { ColumnSpacing = ActionSpacing.Gap, ColumnDefinitions = { new(44), new(GridLength.Star) } };
         row.Add(drag); row.Add(header, 1);
-        surface = WidgetStudioStyle.Card(row, new Thickness(6, 8), 16); Content = surface; Update(layer, false);
+        surface = WidgetStudioStyle.Card(row, new Thickness(6, 8), 16); surface.StrokeThickness = 2; Content = surface; Update(layer, false);
+    }
+    private void Act(Action action)
+    {
+        if (!IsEnabled || reordering) return;
+        ActionStarting?.Invoke(this, EventArgs.Empty); action();
     }
     private static bool ValidDrag(DataPackagePropertySet properties, string scope) => properties.TryGetValue("WidgetLayerScope", out var value) && value is string text && text == scope;
     private static bool ValidDrag(DataPackagePropertySetView properties, string scope) => properties.TryGetValue("WidgetLayerScope", out var value) && value is string text && text == scope;
@@ -74,7 +82,6 @@ internal sealed class WidgetLayerRow : ContentView
             : layer.BlendMode == WidgetBlendMode.Normal ? "Image" : "Image · " + WidgetBlending.Name(layer.BlendMode);
         placementLock.Symbol = layer.Locked ? StudioSymbol.Lock : StudioSymbol.Unlock;
         placementLock.Describe((layer.Locked ? "Unlock " : "Lock ") + kind + " layer", layer.Name + (layer.Locked ? ", locked" : ", unlocked"));
-        surface.StrokeThickness = selected ? 2 : 1;
         if (selected) surface.SetDynamicResource(Border.StrokeProperty, "AccentText");
         else { surface.RemoveDynamicResource(Border.StrokeProperty); SettingsControls.SurfaceStroke(surface); }
         SemanticProperties.SetDescription(tap, "Select " + layer.Name + (selected ? ", selected" : "") + (layer.Visible ? "" : ", hidden") + (layer.Locked ? ", locked" : ""));

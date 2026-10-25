@@ -9,6 +9,7 @@ internal sealed class WidgetClockWeightPicker : ContentView
     private readonly List<(WidgetClockWeight Weight, View Cell, Button Tap, View Idle, View Selected)> choices = [];
     private readonly Label caption = SettingsControls.Text("Weight", 13, bold: true);
     public WidgetClockWeight SelectedWeight { get; private set; }
+    public event Action<View>? PositionChanging;
     public WidgetClockWeightPicker(WidgetClockFont font, Action<WidgetClockWeight> select)
     {
         this.font = font; AutomationId = "ClockWeights" + (int)font;
@@ -29,8 +30,8 @@ internal sealed class WidgetClockWeightPicker : ContentView
             AutomationProperties.SetIsInAccessibleTree(idleCaption, false); AutomationProperties.SetIsInAccessibleTree(activeCaption, false);
             var tap = SettingsControls.TapTarget(weight + " clock weight", "ClockWeight" + (int)font + weight);
             tap.MinimumHeightRequest = 48;
-            tap.Clicked += (_, _) => { if (IsEnabled && SelectedWeight != weight) select(weight); };
             var cell = new Grid { MinimumHeightRequest = 48, MinimumWidthRequest = 100, Children = { tap, idle, active } };
+            tap.Clicked += (_, _) => { if (IsEnabled && SelectedWeight != weight) { PositionChanging?.Invoke(cell); select(weight); } };
             choices.Add((weight, cell, tap, idle, active));
         }
         var strip = new WidgetHorizontalStrip(choices.Select(x => x.Cell), "ClockWeightOptions" + (int)font, spacing: ActionSpacing.Gap);
