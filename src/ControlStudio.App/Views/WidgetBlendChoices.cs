@@ -79,6 +79,5 @@ internal sealed class WidgetBlendGroups : ContentView
             cells[i].MarkSelected(i == index);
             SemanticProperties.SetDescription(cells[i].Tap, WidgetBlending.Groups[i] + " group" + (i == index ? ", selected" : ""));
         }
-        strip.Reveal(cells[index]);
     }
 }

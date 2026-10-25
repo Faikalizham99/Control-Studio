@@ -33,6 +33,50 @@ public sealed class PickerCancellationTests : IDisposable
     private static WidgetEditorPage Editor(Store store, string source = "Photo Library", ColourPicker? colours = null)
         => new(store, colours ?? new(), NullLogger.Instance, WidgetDesignRules.New() with { Layers = [Photo()] }, choosePhotoSource: () => Task.FromResult<string?>(source));
     [Fact]
+    public void PhotoAndClockSettingsKeepViewportAndManualStripPositionsWithoutScrollRequests()
+    {
+        var photo = Photo(); var clock = WidgetClocks.New(); var store = new Store();
+        var page = new WidgetEditorPage(store, new ColourPicker(), NullLogger.Instance, WidgetDesignRules.New() with { Layers = [photo, clock] }); Open(page);
+        var scroll = Descendants(page).OfType<WidgetEditorScrollView>().Single();
+        ((IView)scroll).Arrange(new Rect(0, 0, 350, 600)); scroll.SetScrolledPosition(0, 900);
+        var canvas = Descendants(page).OfType<WidgetCanvasView>().Single(); var parent = canvas.Parent; var bounds = new Size(canvas.WidthRequest, canvas.HeightRequest);
+        var requests = 0; foreach (var viewport in Descendants(page).OfType<ScrollView>()) viewport.ScrollToRequested += (_, _) => requests++;
+        void Click(string id) => ((IButtonController)Button(page, id)).SendClicked();
+        void Stable(double offset)
+        {
+            Assert.Equal(offset, scroll.ScrollY); Assert.Equal(0, requests); Assert.Same(parent, canvas.Parent);
+            Assert.Equal(bounds, new Size(canvas.WidthRequest, canvas.HeightRequest));
+            Assert.True(scroll.Content.MinimumHeightRequest >= offset + scroll.Height);
+        }
+        Click("ClockToolFont"); Click("ClockFont7"); Click("ClockWeight7Light"); Stable(900);
+        var strips = Descendants(page).OfType<WidgetHorizontalStrip>().SelectMany(x => Descendants(x).OfType<ScrollView>()).ToArray();
+        foreach (var strip in strips) strip.SetScrolledPosition(110, 0);
+        Click("ClockWeight7Heavy"); Click("ClockToolOpacity"); Stable(900);
+        Assert.All(strips, strip => Assert.Equal(110, strip.ScrollX));
+        scroll.SetScrolledPosition(0, 700); Click("ClockToolTime"); Stable(700);
+        Click("SelectWidgetLayer" + photo.Id.ToString("N"));
+        foreach (var tool in new[] { "ClipboardRotateselectedphoto", "ClipboardFlipselectedphoto", "ClipboardAdjustphotoopacity", "ClipboardBlendselectedphoto" })
+        { Click(tool); Stable(700); }
+        scroll.SetScrolledPosition(0, 1200); scroll.ReleaseViewport();
+        Click("WidgetBlendGroup1"); Stable(1200); Click("CloseWidgetBlendPanel"); Stable(1200);
+        Assert.Equal(0, store.Saves);
+    }
+    [Fact]
+    public void SwitchingClockPanelsCapturesViewportAndShowsDestinationBeforeHidingSource()
+    {
+        var page = new WidgetEditorPage(new Store(), new ColourPicker(), NullLogger.Instance, WidgetDesignRules.New() with { Layers = [WidgetClocks.New()] }); Open(page);
+        var scroll = Descendants(page).OfType<WidgetEditorScrollView>().Single(); ((IView)scroll).Arrange(new Rect(0, 0, 350, 600));
+        ((IButtonController)Button(page, "ClockToolFont")).SendClicked(); scroll.SetScrolledPosition(0, 1100); scroll.ReleaseViewport();
+        var source = Descendants(page).OfType<Border>().Single(x => x.AutomationId == "ClockPanelFont");
+        var destination = Descendants(page).OfType<Border>().Single(x => x.AutomationId == "ClockPanelTime"); var hidden = false;
+        source.PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName != nameof(source.IsVisible) || source.IsVisible) return;
+            hidden = true; Assert.True(destination.IsVisible); Assert.True(scroll.Content.MinimumHeightRequest >= 1700);
+        };
+        ((IButtonController)Button(page, "ClockToolTime")).SendClicked(); Assert.True(hidden); Assert.Equal(1100, scroll.ScrollY);
+    }
+    [Fact]
     public void RoundedSystemWeightEditsRespectLocksActivityAndSupportedFontChanges()
     {
         var clock = WidgetClocks.New() with { Locked = true }; var original = WidgetDesignRules.New() with { Layers = [clock] }; var store = new Store();

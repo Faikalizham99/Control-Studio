@@ -7,7 +7,7 @@ internal sealed class WidgetClockWeightPicker : ContentView
 {
     private readonly WidgetClockFont font;
     private readonly List<(WidgetClockWeight Weight, View Cell, Button Tap, View Idle, View Selected)> choices = [];
-    private readonly WidgetHorizontalStrip? strip;
+    private readonly Label caption = SettingsControls.Text("Weight", 13, bold: true);
     public WidgetClockWeight SelectedWeight { get; private set; }
     public WidgetClockWeightPicker(WidgetClockFont font, Action<WidgetClockWeight> select)
     {
@@ -33,20 +33,20 @@ internal sealed class WidgetClockWeightPicker : ContentView
             var cell = new Grid { MinimumHeightRequest = 48, MinimumWidthRequest = 100, Children = { tap, idle, active } };
             choices.Add((weight, cell, tap, idle, active));
         }
-        strip = new WidgetHorizontalStrip(choices.Select(x => x.Cell), "ClockWeightOptions" + (int)font, spacing: ActionSpacing.Gap);
-        Content = new VerticalStackLayout { Spacing = 6, Children = { SettingsControls.Text("Weight", 13, bold: true), strip } };
+        var strip = new WidgetHorizontalStrip(choices.Select(x => x.Cell), "ClockWeightOptions" + (int)font, spacing: ActionSpacing.Gap);
+        Content = new VerticalStackLayout { Spacing = 6, Children = { caption, strip } };
         Update(WidgetClockWeights.Default(font));
     }
     public void Update(WidgetClockWeight weight)
     {
         if (!WidgetClockWeights.Available(font).Contains(weight)) throw new ArgumentOutOfRangeException(nameof(weight));
         SelectedWeight = weight;
+        caption.Text = "Weight · " + weight;
         foreach (var choice in choices)
         {
             var selected = choice.Weight == weight;
             choice.Selected.IsVisible = selected; choice.Idle.IsVisible = !selected;
             SemanticProperties.SetDescription(choice.Tap, WidgetClockFonts.Title(font) + ", " + choice.Weight + (selected ? ", selected" : ""));
-            if (selected) strip?.Reveal(choice.Cell);
         }
     }
 }

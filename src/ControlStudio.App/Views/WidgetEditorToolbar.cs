@@ -1,41 +1,17 @@
-using Microsoft.Extensions.Logging;
-
 namespace ControlStudio.App.Views;
 
 /// <summary>One line of natural-size controls; scrolling never shrinks their hit targets.</summary>
 internal sealed class WidgetHorizontalStrip : ContentView
 {
-    private readonly ScrollView scroll;
-    private readonly ILogger? logger;
-    private View? reveal;
-    private bool pending, scrolling;
-    public WidgetHorizontalStrip(IEnumerable<View> items, string id, ILogger? logger = null, double spacing = 4)
+    public WidgetHorizontalStrip(IEnumerable<View> items, string id, double spacing = 4)
     {
-        this.logger = logger; AutomationId = id;
+        AutomationId = id;
         var row = new HorizontalStackLayout { Spacing = spacing, Padding = 4 };
         foreach (var item in items) row.Children.Add(item);
-        scroll = new ScrollView { Orientation = ScrollOrientation.Horizontal, Content = row, IsClippedToBounds = true,
+        var scroll = new ScrollView { Orientation = ScrollOrientation.Horizontal, Content = row, IsClippedToBounds = true,
             HorizontalScrollBarVisibility = ScrollBarVisibility.Default, VerticalScrollBarVisibility = ScrollBarVisibility.Never };
         Content = WidgetStudioStyle.Card(scroll, 0, 27);
-        row.SizeChanged += StripSized; scroll.SizeChanged += StripSized; Loaded += StripSized;
         SemanticProperties.SetHint(this, "Swipe horizontally for more options.");
-    }
-    public void Reveal(View item) { reveal = item; pending = true; TryReveal(); }
-    private void StripSized(object? sender, EventArgs args) { if (reveal is not null) pending = true; TryReveal(); }
-    private async void TryReveal()
-    {
-        if (!pending || scrolling || !IsLoaded || scroll.Handler is null || scroll.Width <= 0 || reveal?.Width is not > 0) return;
-        scrolling = true;
-        try
-        {
-            while (pending && IsLoaded && scroll.Handler is not null && reveal?.Width > 0)
-            {
-                pending = false;
-                await scroll.ScrollToAsync(reveal, ScrollToPosition.MakeVisible, false);
-            }
-        }
-        catch (Exception ex) { logger?.LogDebug("Widget options reveal unavailable. ErrorType={ErrorType}", ex.GetType().Name); }
-        finally { scrolling = false; }
     }
 }
 

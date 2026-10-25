@@ -1,5 +1,4 @@
 using ControlStudio.Core.Widgets;
-using Microsoft.Extensions.Logging;
 
 namespace ControlStudio.App.Views;
 
@@ -31,9 +30,10 @@ internal sealed class WidgetClockControls : ContentView
     public event EventHandler? CentreHorizontallyRequested;
     public event EventHandler? DeleteRequested;
     public event EventHandler? PanelChanged;
+    public event EventHandler? LayoutChanging;
     public event EventHandler? InvalidColour;
     private bool CanUse => available && IsEnabled && !IsBusy && layer is not null && (CanInteract?.Invoke() ?? true);
-    public WidgetClockControls(IColourPicker picker, ILogger? logger = null)
+    public WidgetClockControls(IColourPicker picker)
     {
         AutomationId = "WidgetClockControls"; IsVisible = false;
         format = new(["12-hour", "24-hour"], "ClockFormat", index => Edit(WidgetClockTool.Time, x => x with { TwentyFourHour = index == 1 }));
@@ -81,7 +81,7 @@ internal sealed class WidgetClockControls : ContentView
         Add(WidgetClockTool.Opacity, StudioSymbol.Opacity, "Opacity", opacityLabel, opacity);
         delete = new WidgetToolButton(StudioSymbol.Delete, "Delete clock layer", destructive: true, automationId: "ClockToolDelete");
         delete.Clicked += (_, _) => { if (CanUse && ValidateColour()) DeleteRequested?.Invoke(this, EventArgs.Empty); };
-        Toolbar = new WidgetHorizontalStrip(tools.Values.Select(x => (View)x.Button).Append(delete), "ClockEditorToolbar", logger) { IsVisible = false };
+        Toolbar = new WidgetHorizontalStrip(tools.Values.Select(x => (View)x.Button).Append(delete), "ClockEditorToolbar") { IsVisible = false };
         Content = panels;
     }
     private bool ValidateColour()
@@ -97,11 +97,12 @@ internal sealed class WidgetClockControls : ContentView
     private void SetPanel(WidgetClockTool? tool)
     {
         var changed = ActiveTool != tool; ActiveTool = tool;
-        foreach (var (key, item) in tools) { item.Panel.IsVisible = key == tool; item.Button.IsSelected = key == tool; }
+        if (changed) LayoutChanging?.Invoke(this, EventArgs.Empty);
+        if (tool is { } next) tools[next].Panel.IsVisible = true;
+        foreach (var (key, item) in tools) { if (key != tool) item.Panel.IsVisible = false; item.Button.IsSelected = key == tool; }
         IsVisible = layer is not null && tool is not null;
         if (changed)
         {
-            if (tool is { } selected) Toolbar.Reveal(tools[selected].Button);
             PanelChanged?.Invoke(this, EventArgs.Empty);
         }
     }
@@ -123,6 +124,7 @@ internal sealed class WidgetClockControls : ContentView
     }
     public void Update(WidgetLayer? value)
     {
+        LayoutChanging?.Invoke(this, EventArgs.Empty);
         updating = true;
         try
         {

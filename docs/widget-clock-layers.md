@@ -1,6 +1,6 @@
 # Clock layers — 0.2.31 (33)
 
-The original clock-editor follow-ups are included in **0.2.32 (34)**; later preview and font updates are labelled below through **0.2.34 (36)**. Individual implementation records retain their test counts and historical approval scope. The owner authorized the v0.2.34 release and will monitor the IPA build.
+The original clock-editor follow-ups are included in **0.2.32 (34)**; later preview, font and scrolling updates are labelled below through **0.2.35 (37)**. Individual implementation records retain their test counts and historical approval scope. The owner authorized the v0.2.35 release and will monitor the IPA build.
 
 The owner approved adding Clock alongside Photo in the existing widget editor, then authorized committing and pushing main and the new v0.2.31 tag. App and extension versions are 0.2.31 (33). The owner will monitor the IPA build. IPA workflow triggers remain unchanged.
 
@@ -81,6 +81,10 @@ The optional nullable `weight` field is stored per clock in catalogs and scene f
 Review covered real-weight availability, all font/weight round trips, legacy defaults, incompatible switches, locks/placement, unsaved drafts, closed/stale control callbacks, background recovery, accessibility targets and accent contrast in Light/Dark. Local verification passed: **306 App + 169 Core + 78 Infrastructure + 39 packaging = 592 checks**, source/project generation and managed iOS compilation with zero warnings/errors. Two additional Swift tests cover default/explicit weights, Regular face names and invalid/unavailable values, but have not run on Windows. Xcode/AOT and physical iPhone checks remain required for exact glyphs/weights across picker/editor/saved preview/Home Screen, horizontal scrolling, large text/VoiceOver, seconds/AM-PM, mixed clocks and lifecycle performance. The owner authorized committing, pushing main and pushing the new v0.2.34 tag. App and extension versions are 0.2.34 (36); the owner will monitor the IPA build. Workflow triggers remain unchanged.
 
 References: [Apple rounded font descriptors](https://developer.apple.com/documentation/uikit/uifontdescriptor/withdesign%28_%3A%29), [SwiftUI system font weights/designs](https://developer.apple.com/documentation/swiftui/font/system%28size%3Aweight%3Adesign%3A%29-697b2) and [.NET iOS rounded descriptor binding](https://learn.microsoft.com/en-us/dotnet/api/uikit.uifontdescriptor.createwithdesign).
+
+## Settings scroll stability — included in 0.2.35
+
+Photo/clock settings, font weights and blend controls no longer request automatic scrolling. Panel transitions protect the current viewport against content shrinking, while keeping manual scrolling and full-size preview geometry. See [root cause, behaviour and verification](widget-editor-scroll.md).
 
 ## Editor behaviour
 
