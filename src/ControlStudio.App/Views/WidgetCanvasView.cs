@@ -59,9 +59,12 @@ internal sealed class WidgetCanvasView : ContentView
         composite.ClockTicked += (_, time) =>
         {
             if (design is null) return;
-            foreach (var layer in design.Layers.Where(x => x.Kind == WidgetLayerKind.Clock))
-                if (photos.TryGetValue(layer.Id, out var view)) view.Clock.Text = WidgetClocks.Text(layer.Clock!, time);
-            if (design.Layers.FirstOrDefault(x => x.Id == selected) is { Kind: WidgetLayerKind.Clock } active) ghost.Clock.Text = WidgetClocks.Text(active.Clock!, time);
+            foreach (var layer in design.Layers.Where(WidgetTextLayers.IsText))
+                if (photos.TryGetValue(layer.Id, out var view)) { view.Clock.Text = WidgetTextLayers.Text(layer, time); Place(view, layer, 0, 0); }
+            if (design.Layers.FirstOrDefault(x => x.Id == selected) is { } active && WidgetTextLayers.IsText(active))
+            {
+                ghost.Clock.Text = WidgetTextLayers.Text(active, time); var origin = Origin(canvas, workspace); Place(ghost, active, origin.X, origin.Y);
+            }
         };
         renderError.IsVisible = false; renderError.Margin = 12; renderError.InputTransparent = true;
         renderError.HorizontalTextAlignment = renderError.VerticalTextAlignment = TextAlignment.Center;
@@ -141,7 +144,7 @@ internal sealed class WidgetCanvasView : ContentView
         }
         FitCanvas();
         var active = value.Layers.FirstOrDefault(x => x.Id == selectedId && x.Visible);
-        var mixed = value.Layers.Any(x => x.Kind == WidgetLayerKind.Clock);
+        var mixed = value.Layers.Any(WidgetTextLayers.IsText);
         SemanticProperties.SetDescription(this, $"{WidgetDesignRules.SizeName(value.Size)} widget preview. {value.Layers.Count(x => x.Visible)} visible {(mixed ? "layers" : "photo layers")}."
             + (active is null ? mixed ? " No layer selected." : " No photo selected." : $" Selected {active.Name}." + (active.Locked ? " Locked. Unlock in Layers to move or resize." : "")));
     }
@@ -165,8 +168,12 @@ internal sealed class WidgetCanvasView : ContentView
         else
         {
 #if IOS
-            if (active.Kind == WidgetLayerKind.Photo && (ghostAsset != active.AssetKey || ghost.Image.Source is null)) ghost.Image.Source = path(active.AssetKey);
-            ghostAsset = active.AssetKey;
+            if (active.Kind == WidgetLayerKind.Photo)
+            {
+                if (ghostAsset != active.AssetKey || ghost.Image.Source is null) ghost.Image.Source = path(active.AssetKey);
+                ghostAsset = active.AssetKey;
+            }
+            else { ghost.Image.Source = null; ghostAsset = null; }
 #else
             // One selected-layer ghost reuses the existing source, rather than duplicating every layer.
             if (!ReferenceEquals(ghost.Image.Source, photos[active.Id].Image.Source)) ghost.Image.Source = photos[active.Id].Image.Source;
@@ -179,10 +186,11 @@ internal sealed class WidgetCanvasView : ContentView
     }
     private static void Configure(PhotoView photo, WidgetLayer layer)
     {
-        photo.Image.IsVisible = layer.Kind == WidgetLayerKind.Photo; photo.Clock.IsVisible = layer.Kind == WidgetLayerKind.Clock;
-        if (layer.Clock is { } clock)
+        photo.Image.IsVisible = layer.Kind == WidgetLayerKind.Photo; photo.Clock.IsVisible = WidgetTextLayers.IsText(layer);
+        if (WidgetTextLayers.IsText(layer))
         {
-            photo.Clock.Text = WidgetClocks.Text(clock, DateTimeOffset.Now); photo.Clock.TextColor = Color.FromArgb(clock.ColourHex);
+            var clock = WidgetTextLayers.Style(layer);
+            photo.Clock.Text = WidgetTextLayers.Text(layer, DateTimeOffset.Now); photo.Clock.TextColor = Color.FromArgb(clock.ColourHex);
             photo.Clock.Opacity = layer.Opacity; photo.Clock.Typeface = clock;
             photo.Clock.HorizontalTextAlignment = clock.Alignment switch { WidgetClockAlignment.Left => TextAlignment.Start, WidgetClockAlignment.Right => TextAlignment.End, _ => TextAlignment.Center };
         }
@@ -195,8 +203,9 @@ internal sealed class WidgetCanvasView : ContentView
     {
         var width = layer.Frame.Width * canvas.Width; var height = layer.Frame.Height * canvas.Height;
         AbsoluteLayout.SetLayoutBounds(photo.Frame, new Rect(x + layer.Frame.X * canvas.Width, y + layer.Frame.Y * canvas.Height, width, height));
-        if (layer.Clock is { } clock)
+        if (WidgetTextLayers.IsText(layer))
         {
+            var clock = WidgetTextLayers.Style(layer);
             photo.Clock.FontSize = Math.Max(.5, Math.Min(height * clock.FontScale, width / Math.Max(1, photo.Clock.Text.Length * .65)));
             AbsoluteLayout.SetLayoutBounds(photo.Clock, new Rect(0, 0, width, height)); return;
         }
@@ -250,7 +259,7 @@ internal sealed class WidgetCanvasView : ContentView
     {
         if (!double.IsFinite(scale) || scale <= 0 || !double.IsFinite(dx) || !double.IsFinite(dy)) return;
         if (gestureStart is not null && canvas.Width > 0 && canvas.Height > 0)
-            change?.Invoke(gestureStart.Kind == WidgetLayerKind.Clock ? WidgetLayerEdits.ScaleCentered(gestureStart, scale)
+            change?.Invoke(WidgetTextLayers.IsText(gestureStart) ? WidgetLayerEdits.ScaleCentered(gestureStart, scale)
                 : WidgetLayerEdits.Move(WidgetLayerEdits.Scale(gestureStart, scale, anchor.X, anchor.Y), dx / canvas.Width, dy / canvas.Height));
     }
     public void EndInteraction(bool cancel)

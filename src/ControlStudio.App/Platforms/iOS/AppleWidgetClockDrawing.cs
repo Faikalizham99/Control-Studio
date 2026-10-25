@@ -9,7 +9,7 @@ internal static class AppleWidgetClockDrawing
 {
     public static void Draw(WidgetLayer layer, string text, CGRect frame, CGContext graphics)
     {
-        var clock = layer.Clock!;
+        var clock = WidgetTextLayers.Style(layer);
         var size = Math.Min(1024, frame.Height * clock.FontScale);
         using var candidate = AppleWidgetClockFonts.Create(clock, size);
         using var sample = new NSString(text);

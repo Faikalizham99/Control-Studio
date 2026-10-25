@@ -32,7 +32,7 @@ internal sealed class WidgetBlendPanel : ContentView
         var done = new ClipboardEditorActionButton("Done", ClipboardEditorControls.Icon(StudioSymbol.Check), "CloseWidgetBlendPanel");
         done.Clicked += (_, _) => { if (IsEnabled && IsVisible) { PositionChanging?.Invoke(done); LayoutChanging?.Invoke(this, EventArgs.Empty); IsVisible = false; } };
         Content = new VerticalStackLayout { Spacing = 10, Children = { summary,
-            SettingsControls.Text("Blue/orange examples show each effect. Photo layers blend together until a clock layer separates them. Clock text and wallpaper are not included in photo blending.", 12, secondary: true),
+            SettingsControls.Text("Blue/orange examples show each effect. Photo layers blend together until a clock or date layer separates them. Text and wallpaper are not included in photo blending.", 12, secondary: true),
             notice, groups, modes, done } };
         PropertyChanged += (_, args) => { if (args.PropertyName == nameof(IsVisible)) RefreshPictures(); };
         ShowGroup(0);

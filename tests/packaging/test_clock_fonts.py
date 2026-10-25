@@ -64,13 +64,13 @@ def glyph(data, character):
 
 
 class ClockFontTests(unittest.TestCase):
-    def test_fonts_match_pinned_bytes_postscript_names_and_clock_characters(self):
+    def test_fonts_match_pinned_bytes_postscript_names_and_clock_date_characters(self):
         for font in MANIFEST["fonts"]:
             with self.subTest(font=font["id"]):
                 data = (FOLDER / font["file"]).read_bytes()
                 self.assertEqual(font["sha256"], hashlib.sha256(data).hexdigest())
                 self.assertIn(font["postScriptName"], names(data))
-                for character in "0123456789: AMPabcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ":
+                for character in "0123456789:,/ AMPabcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ":
                     self.assertNotEqual(0, glyph(data, character), repr(character))
                 licence = (FOLDER / font["licence"]).read_text(encoding="utf-8")
                 self.assertIn("SIL OPEN FONT LICENSE", licence)

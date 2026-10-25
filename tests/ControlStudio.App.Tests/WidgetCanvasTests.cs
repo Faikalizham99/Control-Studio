@@ -7,6 +7,24 @@ namespace ControlStudio.App.Tests;
 [Collection("MAUI controls")]
 public sealed class WidgetCanvasTests : IDisposable
 {
+    [Fact]
+    public void DateCanvasTicksWithoutPhotoAccessAndPinchesAroundItsCentre()
+    {
+        var date = WidgetDates.New() with { Date = new(WidgetDateFormat.Numeric), Frame = new(.1, .35, .8, .3) };
+        var draft = WidgetDesignRules.New() with { Layers = [date] }; var photoReads = 0; WidgetCanvasView? view = null;
+        view = new WidgetCanvasView(_ => { photoReads++; return null; }, _ => { }, layer => { draft = draft with { Layers = [layer] }; view!.Update(draft, layer.Id); });
+        host.Attach(view); view.Update(draft, date.Id); ((IView)view.PhotoSurface).Arrange(new Rect(0, 0, 170, 170));
+        var widget = Assert.IsType<Border>(view.Workspace.Children[1]);
+        var composite = Assert.IsType<Grid>(widget.Content).Children.OfType<WidgetCompositeView>().Single();
+        var frame = Assert.IsType<AbsoluteLayout>(view.PhotoSurface.Children.Single()); var label = frame.Children.OfType<WidgetClockFontLabel>().Single();
+        var next = new DateTimeOffset(2027, 1, 1, 12, 0, 0, TimeSpan.Zero); composite.TickClock(next);
+        Assert.Equal(WidgetDates.Text(date.Date!, next), label.Text); Assert.Equal(0, photoReads);
+        Assert.True(view.BeginInteraction(85, 85, true)); view.Pinch(1.5, 100, -100); view.EndInteraction(false);
+        var changed = draft.Layers.Single(); Assert.Equal(.5, changed.Frame.X + changed.Frame.Width / 2, 8); Assert.Equal(.5, changed.Frame.Y + changed.Frame.Height / 2, 8);
+        Assert.Equal(date.Date, changed.Date); Assert.Null(changed.Clock);
+        view.Update(draft with { Layers = [changed with { Locked = true }] }, date.Id); Assert.False(view.BeginInteraction(85, 85, true));
+        Assert.Equal(0, photoReads);
+    }
     private readonly MauiTestContext host = new();
     [Fact]
     public void ClockPinchKeepsCentreDespiteOffCentreFingersAndStillAllowsSingleFingerMovement()

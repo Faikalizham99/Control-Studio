@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.Json.Serialization;
 
 namespace ControlStudio.Core.Widgets;
 
@@ -31,15 +32,16 @@ public static class WidgetClocks
     }
 }
 
-/// <summary>Consecutive photos are blended together; live clocks separate those static groups.</summary>
-public sealed record WidgetSceneStep(IReadOnlyList<WidgetLayer> Photos, WidgetLayer? Clock);
-public sealed record WidgetScenePart(int? ImageIndex = null, WidgetLayer? Clock = null);
+/// <summary>Consecutive photos are blended together; live text separates those static groups.</summary>
+public sealed record WidgetSceneStep(IReadOnlyList<WidgetLayer> Photos, WidgetLayer? TextLayer);
+public sealed record WidgetScenePart(int? ImageIndex = null, WidgetLayer? Clock = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] WidgetLayer? Date = null);
 public sealed record WidgetScene(int SchemaVersion, double Width, double Height, IReadOnlyList<WidgetScenePart> Parts);
 public sealed record WidgetSceneExport(WidgetScene Scene, IReadOnlyDictionary<int, byte[]> Images);
 public static class WidgetScenes
 {
     public const int MaximumBytes = 32_768, MaximumPixels = 3_000_000, MaximumImageBytes = 4_000_000;
-    public static bool IsLive(WidgetDesign design) => design.Layers.Any(x => x.Kind == WidgetLayerKind.Clock && x.Visible && x.Opacity > 0);
+    public static bool IsLive(WidgetDesign design) => design.Layers.Any(x => WidgetTextLayers.IsText(x) && x.Visible && x.Opacity > 0);
     public static IReadOnlyList<WidgetSceneStep> Steps(WidgetDesign design)
     {
         var result = new List<WidgetSceneStep>(); var photos = new List<WidgetLayer>();
@@ -58,13 +60,15 @@ public static class WidgetScenes
     public static WidgetScene Manifest(WidgetDesign design)
     {
         var canvas = WidgetDesignRules.Canvas(design);
-        return new(1, canvas.Width, canvas.Height, Steps(design).Select((step, index) => step.Clock is null
-            ? new WidgetScenePart(index) : new WidgetScenePart(Clock: step.Clock)).ToArray());
+        return new(design.Layers.Any(x => x.Kind == WidgetLayerKind.Date && x.Visible && x.Opacity > 0) ? 2 : 1,
+            canvas.Width, canvas.Height, Steps(design).Select((step, index) => step.TextLayer is null
+            ? new WidgetScenePart(index) : step.TextLayer.Kind == WidgetLayerKind.Date
+                ? new WidgetScenePart(Date: step.TextLayer) : new WidgetScenePart(Clock: step.TextLayer)).ToArray());
     }
     public static void Validate(WidgetScene scene, WidgetDesign design)
     {
         var expected = Manifest(design);
-        if (!IsLive(design) || scene.SchemaVersion != 1 || scene.Width != expected.Width || scene.Height != expected.Height
+        if (!IsLive(design) || scene.SchemaVersion != expected.SchemaVersion || scene.Width != expected.Width || scene.Height != expected.Height
             || scene.Parts is null || !scene.Parts.SequenceEqual(expected.Parts))
             throw new IOException("The live widget scene is invalid. Save the design again.");
     }

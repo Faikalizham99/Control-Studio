@@ -33,6 +33,103 @@ public sealed class PickerCancellationTests : IDisposable
     private static WidgetEditorPage Editor(Store store, string source = "Photo Library", ColourPicker? colours = null)
         => new(store, colours ?? new(), NullLogger.Instance, WidgetDesignRules.New() with { Layers = [Photo()] }, choosePhotoSource: () => Task.FromResult<string?>(source));
     [Theory]
+    [InlineData(AppTheme.Light)] [InlineData(AppTheme.Dark)]
+    public void WeekdayControlsRetainChoiceAcrossPresetsAndDoNotCollapseOrEditClocks(AppTheme theme)
+    {
+        host.App.UserAppTheme = theme;
+        var clock = WidgetClocks.New(); var date = WidgetDates.New() with { Date = new(Format: WidgetDateFormat.ShortDate) }; var store = new Store();
+        var page = new WidgetEditorPage(store, new ColourPicker(), NullLogger.Instance, WidgetDesignRules.New() with { Layers = [clock, date] }); Open(page);
+        void Click(string id) => ((IButtonController)Button(page, id)).SendClicked();
+        Click("ClockToolTime");
+        var controls = Descendants(page).OfType<WidgetClockControls>().Single();
+        var toggle = Descendants(controls).OfType<Switch>().Single(x => x.AutomationId == "DateShowWeekday");
+        var styles = Descendants(controls).OfType<WidgetSegments>().Single(x => x.AutomationId == "DateWeekdayStyle");
+        Assert.True(toggle.IsToggled); Assert.True(styles.IsEnabled); Click("DateWeekdayStyle1"); Click("DateFormat2");
+        var composition = Descendants(page).OfType<WidgetCompositeView>().Single();
+        Assert.True(composition.Design!.Layers.Last().Date!.ShowWeekday); Assert.Equal(WidgetWeekdayStyle.Full, composition.Design.Layers.Last().Date!.WeekdayStyle);
+        var scroll = Descendants(page).OfType<WidgetEditorScrollView>().Single(); ((IView)scroll).Arrange(new Rect(0, 0, 350, 600)); scroll.SetScrolledPosition(0, 1000);
+        var requests = 0; scroll.ScrollToRequested += (_, _) => requests++;
+        toggle.IsToggled = false; Assert.False(styles.IsEnabled); Assert.True(styles.IsVisible);
+        Click("DateWeekdayStyle0"); // A disabled style choice cannot overwrite the retained full style.
+        Assert.Equal(WidgetWeekdayStyle.Full, composition.Design.Layers.Last().Date!.WeekdayStyle);
+        Click("DateFormat1"); Assert.False(composition.Design.Layers.Last().Date!.ShowWeekday);
+        Assert.False(toggle.IsToggled); Assert.Equal(1000, scroll.ScrollY); Assert.Equal(0, requests);
+        toggle.IsToggled = true;
+        var options = composition.Design.Layers.Last().Date!;
+        Assert.True(styles.IsEnabled); Assert.Equal(WidgetWeekdayStyle.Full, options.WeekdayStyle);
+        Assert.Equal(WidgetDateFormat.ShortDate, options.Format);
+        var expected = WidgetDates.Text(options, DateTimeOffset.Now);
+        Assert.Contains(Descendants(controls).OfType<Label>(), label => label.Text == expected);
+        Assert.Equal(clock, composition.Design.Layers[0]); Assert.Equal(0, store.Saves);
+        Click("SaveWidgetDesign"); Assert.Equal(options, store.Saved!.Layers.Last().Date);
+        Assert.Equal(clock, store.Saved.Layers[0]);
+    }
+    [Fact]
+    public async Task DateLayerReusesTheTextToolbarWithOnlyDateFormatsAndSavesItsOwnOptions()
+    {
+        var clock = WidgetClocks.New(); var photo = Photo(); var original = WidgetDesignRules.New() with { Layers = [photo, clock] }; var store = new Store();
+        var page = new WidgetEditorPage(store, new ColourPicker(), NullLogger.Instance, original, chooseLayerType: () => Task.FromResult<string?>("Date")); Open(page); await page.AddLayerAsync();
+        void Click(string id) => ((IButtonController)Button(page, id)).SendClicked();
+        var controls = Assert.Single(Descendants(page).OfType<WidgetClockControls>());
+        var composition = Descendants(page).OfType<WidgetCompositeView>().Single(); var date = composition.Design!.Layers.Last();
+        Assert.Equal(WidgetLayerKind.Date, date.Kind); Assert.Equal("Date 1", date.Name); Assert.Null(date.Clock); Assert.NotNull(date.Date);
+        Click("ClockToolTime"); Assert.True(controls.IsVisible);
+        Assert.Contains(Descendants(controls).OfType<Label>(), label => label.Text == "Date format");
+        Assert.All(Descendants(controls).OfType<Button>().Where(x => x.AutomationId?.StartsWith("ClockFormat") == true), button => Assert.False(Visible(button)));
+        Assert.False(Visible(Descendants(controls).OfType<Switch>().Single(x => x.AutomationId == "ClockShowSeconds")));
+        Assert.False(Visible(Descendants(controls).OfType<Switch>().Single(x => x.AutomationId == "ClockShowAmPm")));
+        Assert.Equal(4, Descendants(controls).OfType<Button>().Count(x => x.AutomationId?.StartsWith("DateFormat") == true && Visible(x)));
+        Click("DateFormat2"); Click("ClockToolFont"); Click("ClockFont7"); Click("ClockWeight7Light");
+        Assert.Contains(Descendants(controls).OfType<WidgetClockFontLabel>(), label => label.Text == "25 Oct");
+        Click("ClockToolColour"); Descendants(controls).OfType<HexColorEntry>().Single().Text = "#12ABEF";
+        Click("ClockToolPosition"); Click("ClockAlignment0"); Click("CentreClockHorizontally");
+        Click("ClockToolOpacity"); Descendants(controls).OfType<Slider>().Single(x => x.AutomationId == "ClockOpacity").Value = .6;
+        var edited = composition.Design.Layers.Last(); Assert.Equal(WidgetDateFormat.Numeric, edited.Date!.Format);
+        Assert.Equal(WidgetClockFont.SfProRounded, edited.Date.Font); Assert.Equal(WidgetClockWeight.Light, edited.Date.Weight);
+        Assert.Equal("#12ABEF", edited.Date.ColourHex); Assert.Equal(WidgetClockAlignment.Left, edited.Date.Alignment); Assert.Equal(.6, edited.Opacity);
+        Assert.Equal(clock, composition.Design.Layers[1]); Assert.Equal(photo, composition.Design.Layers[0]); Assert.Equal(0, store.Saves);
+        Click("SaveWidgetDesign"); Assert.Equal(edited.Date, store.Saved!.Layers.Last().Date); Assert.Null(store.Saved.Layers.Last().Clock); Assert.Equal(clock, store.Saved.Layers[1]);
+        static bool Visible(Element element)
+        {
+            for (Element? current = element; current is not null; current = current.Parent) if (current is View view && !view.IsVisible) return false;
+            return true;
+        }
+    }
+    [Fact]
+    public async Task DateColourValidationAndPickerCancellationPreserveLayerAndControls()
+    {
+        var pending = new TaskCompletionSource<string>(); var picker = new ColourPicker { Pick = (_, _) => pending.Task };
+        var page = new WidgetEditorPage(new Store(), picker, NullLogger.Instance, WidgetDesignRules.New() with { Layers = [WidgetDates.New()] }); Open(page);
+        ((IButtonController)Button(page, "ClockToolColour")).SendClicked();
+        var controls = Descendants(page).OfType<WidgetClockControls>().Single(); var hex = Descendants(controls).OfType<HexColorEntry>().Single();
+        hex.Text = "#bad"; ((IButtonController)Button(page, "ClockToolFont")).SendClicked(); Assert.Equal(WidgetClockTool.Colour, controls.ActiveTool);
+        hex.Text = "#12ABEF";
+        ((IButtonController)Button(page, "ClockToolFont")).SendClicked(); ((IButtonController)Button(page, "ClockToolColour")).SendClicked();
+        var native = Descendants(controls).OfType<ColourPickerView>().Single(); var task = native.PickAsync();
+        Assert.False(Button(page, "SaveWidgetDesign").IsEnabled); ((IPageController)page).SendDisappearing(); pending.SetException(new IOException("cancelled")); await task;
+        Assert.True(Button(page, "SaveWidgetDesign").IsEnabled); Assert.Equal(WidgetClockTool.Colour, controls.ActiveTool);
+        var layer = Descendants(page).OfType<WidgetCompositeView>().Single().Design!.Layers.Single();
+        Assert.Equal(WidgetLayerKind.Date, layer.Kind); Assert.Null(layer.Clock); Assert.Equal("#12ABEF", layer.Date!.ColourHex);
+    }
+    [Fact]
+    public void DateLocksVisibilityAndSelectionRetainScrollAndUseCalendarSemantics()
+    {
+        var date = WidgetDates.New(); var clock = WidgetClocks.New();
+        var page = new WidgetEditorPage(new Store(), new ColourPicker(), NullLogger.Instance, WidgetDesignRules.New() with { Layers = [clock, date] }); Open(page);
+        ((IButtonController)Button(page, "ClockToolFont")).SendClicked();
+        var scroll = Descendants(page).OfType<WidgetEditorScrollView>().Single(); ((IView)scroll).Arrange(new Rect(0, 0, 350, 600)); scroll.SetScrolledPosition(0, 1000);
+        var row = Descendants(page).OfType<WidgetLayerRow>().Single(x => x.LayerId == date.Id);
+        Assert.Contains(Descendants(row).OfType<StudioGlyph>(), glyph => glyph.Symbol == StudioSymbol.Calendar);
+        var control = Descendants(row).OfType<ClipboardIconButton>().Single(x => x.AutomationId == "WidgetLayerLock" + date.Id.ToString("N"));
+        var tap = Descendants(control).OfType<Button>().Single(); ((IButtonController)tap).SendClicked();
+        Assert.Contains("Unlock date layer", SemanticProperties.GetDescription(tap)); Assert.True(Descendants(page).OfType<WidgetClockControls>().Single().IsVisible);
+        Descendants(row).OfType<Switch>().Single().IsToggled = false;
+        Assert.Equal(1000, scroll.ScrollY); Assert.Same(row, Descendants(page).OfType<WidgetLayerRow>().Single(x => x.LayerId == date.Id));
+        var design = Descendants(page).OfType<WidgetCompositeView>().Single().Design!; Assert.True(design.Layers.Last().Locked); Assert.False(design.Layers.Last().Visible);
+        ((IButtonController)Button(page, "SelectWidgetLayer" + clock.Id.ToString("N"))).SendClicked();
+        ((IButtonController)Button(page, "ClockToolTime")).SendClicked(); Assert.Contains(Descendants(page).OfType<WidgetClockFontLabel>(), label => label.Text == "12:34:56");
+    }
+    [Theory]
     [InlineData(false)] [InlineData(true)]
     public void LayerLockAndVisibilityKeepTheirControlsMountedAndTheCurrentPanelOpen(bool clockLayer)
     {

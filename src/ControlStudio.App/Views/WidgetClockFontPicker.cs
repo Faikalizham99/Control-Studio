@@ -8,6 +8,7 @@ internal sealed class WidgetClockFontPicker : ContentView
     private readonly List<(WidgetClockFont Font, Button Tap, View Idle, View Selected, WidgetClockWeightPicker Weights, WidgetClockFontLabel[] Samples)> choices = [];
     public WidgetClockFont SelectedFont { get; private set; }
     public event Action<View>? PositionChanging;
+    private string sampleText = "12:34:56";
     public WidgetClockFontPicker(Action<WidgetClockFont> select, Action<WidgetClockWeight>? selectWeight = null)
     {
         AutomationId = "ClockFontPicker";
@@ -51,5 +52,15 @@ internal sealed class WidgetClockFontPicker : ContentView
             if (selected) choice.Weights.Update(WidgetClockWeights.Resolve(typeface));
             SemanticProperties.SetDescription(choice.Tap, WidgetClockFonts.Title(choice.Font) + (selected ? ", selected" : ""));
         }
+    }
+    public void SetSample(string text)
+    {
+        if (sampleText == text) return;
+        foreach (var choice in choices)
+        {
+            foreach (var label in choice.Samples.Where(x => x.Text == sampleText)) label.Text = text;
+            SemanticProperties.SetHint(choice.Tap, "Apply this font to the text layer. Sample: " + text + ".");
+        }
+        sampleText = text;
     }
 }

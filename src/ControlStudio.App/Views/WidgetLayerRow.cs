@@ -22,7 +22,7 @@ internal sealed class WidgetLayerRow : ContentView
     {
         LayerId = layer.Id;
         photo.Source = path; name.MaxLines = 2; name.LineBreakMode = LineBreakMode.TailTruncation;
-        var thumbnail = ClipboardEditorControls.Field(layer.Kind == WidgetLayerKind.Clock ? ClipboardEditorControls.Icon(StudioSymbol.Clock, size: 28) : photo, 0); thumbnail.WidthRequest = thumbnail.HeightRequest = 48;
+        var thumbnail = ClipboardEditorControls.Field(WidgetTextLayers.IsText(layer) ? ClipboardEditorControls.Icon(layer.Kind == WidgetLayerKind.Date ? StudioSymbol.Calendar : StudioSymbol.Clock, size: 28) : photo, 0); thumbnail.WidthRequest = thumbnail.HeightRequest = 48;
         thumbnail.VerticalOptions = LayoutOptions.Center;
         var thumbnailTap = new TapGestureRecognizer(); thumbnailTap.Tapped += (_, _) => Act(() => select(layer.Id));
         thumbnail.GestureRecognizers.Add(thumbnailTap);
@@ -77,8 +77,8 @@ internal sealed class WidgetLayerRow : ContentView
     public void Update(WidgetLayer layer, bool selected)
     {
         updating = true; name.Text = layer.Name; visible.IsToggled = layerVisible = layer.Visible; updating = false;
-        var kind = layer.Kind == WidgetLayerKind.Clock ? "clock" : "photo";
-        detail.Text = layer.Kind == WidgetLayerKind.Clock ? "Clock"
+        var kind = WidgetTextLayers.IsText(layer) ? WidgetTextLayers.Name(layer) : "photo";
+        detail.Text = WidgetTextLayers.IsText(layer) ? layer.Kind.ToString()
             : layer.BlendMode == WidgetBlendMode.Normal ? "Image" : "Image · " + WidgetBlending.Name(layer.BlendMode);
         placementLock.Symbol = layer.Locked ? StudioSymbol.Lock : StudioSymbol.Unlock;
         placementLock.Describe((layer.Locked ? "Unlock " : "Lock ") + kind + " layer", layer.Name + (layer.Locked ? ", locked" : ", unlocked"));

@@ -78,7 +78,7 @@ public sealed class WidgetClockTests
         var bottom = Photo(); var top = Photo(); var clock = WidgetClocks.New(); var next = WidgetClocks.New("Clock 2");
         var design = WidgetDesignRules.New() with { Layers = [bottom, clock, top, next] };
         var steps = WidgetScenes.Steps(design); Assert.Equal(4, steps.Count); Assert.Equal(bottom, steps[0].Photos.Single());
-        Assert.Equal(clock, steps[1].Clock); Assert.Equal(top, steps[2].Photos.Single()); Assert.Equal(next, steps[3].Clock);
+        Assert.Equal(clock, steps[1].TextLayer); Assert.Equal(top, steps[2].Photos.Single()); Assert.Equal(next, steps[3].TextLayer);
         var scene = WidgetScenes.Manifest(design); WidgetScenes.Validate(scene, design);
         Assert.Equal(new int?[] { 0, null, 2, null }, scene.Parts.Select(x => x.ImageIndex));
         Assert.Throws<IOException>(() => WidgetScenes.Validate(scene with { Parts = scene.Parts.Reverse().ToArray() }, design));

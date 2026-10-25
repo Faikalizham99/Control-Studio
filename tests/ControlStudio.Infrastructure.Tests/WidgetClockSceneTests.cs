@@ -17,6 +17,41 @@ public sealed class WidgetClockSceneTests : IDisposable
         var key = await Repo().ImportPhotoAsync(Png); var photo = new WidgetLayer(Guid.NewGuid(), "Bottom", key, 1, 1, new());
         return WidgetDesignRules.New() with { Layers = [photo, WidgetClocks.New(), photo with { Id = Guid.NewGuid(), Name = "Top" }] };
     }
+    [Fact]
+    public async Task WeekdayCanBeDisabledAndReenabledWithoutLosingItsStyleOrSlot()
+    {
+        var repo = Repo(); var date = WidgetDates.New() with { Date = new(Format: WidgetDateFormat.Numeric, ShowWeekday: true, WeekdayStyle: WidgetWeekdayStyle.Full) };
+        var draft = WidgetDesignRules.New() with { Layers = [date] }; var saved = await repo.SaveAsync(draft, Png, scene: Export(draft));
+        await repo.AssignSlotAsync(saved.Size, 4, saved.Id);
+        var off = saved with { Layers = [saved.Layers[0] with { Date = date.Date! with { ShowWeekday = false } }] };
+        var updated = await repo.SaveAsync(off, Png, scene: Export(off)); await new WidgetDesignPublisher(Repo(), () => Shared).PublishAsync();
+        var reopened = Assert.Single(await Repo().ReadAsync()); Assert.False(reopened.Layers[0].Date!.ShowWeekday);
+        Assert.Equal(WidgetWeekdayStyle.Full, reopened.Layers[0].Date!.WeekdayStyle);
+        var scene = JsonSerializer.Deserialize(await File.ReadAllBytesAsync(Path.Combine(Shared, "renders", updated.RenderKey + ".scene.json")), WidgetDesignRules.JsonContext.WidgetScene)!;
+        Assert.False(scene.Parts[0].Date!.Date!.ShowWeekday); Assert.Equal(WidgetWeekdayStyle.Full, scene.Parts[0].Date!.Date!.WeekdayStyle);
+        var on = reopened with { Layers = [reopened.Layers[0] with { Date = reopened.Layers[0].Date! with { ShowWeekday = true } }] };
+        await repo.SaveAsync(on, Png, scene: Export(on)); Assert.True(Assert.Single(await Repo().ReadAsync()).Layers[0].Date!.ShowWeekday);
+        Assert.Equal(saved.Id, Assert.Single((await Repo().ReadLibraryAsync()).Slots).DesignId);
+    }
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public async Task DatesReopenAndPublishAsLiveTextWithoutSourceAssets(bool mixed)
+    {
+        var repo = Repo(); var date = WidgetDates.New() with { Date = new(WidgetDateFormat.ShortDate, WidgetClockFont.SfProRounded, "#12ABEF", .6, WidgetClockAlignment.Left, WidgetClockWeight.Light, true, WidgetWeekdayStyle.Full), Locked = true };
+        var draft = WidgetDesignRules.New() with { Layers = mixed ? [WidgetClocks.New(), date] : [date] };
+        var saved = await repo.SaveAsync(draft, Png, scene: Export(draft)); await repo.AssignSlotAsync(saved.Size, 2, saved.Id);
+        var reopened = Assert.Single(await Repo().ReadAsync()); Assert.Equal(date, reopened.Layers.Last()); Assert.Null(reopened.Layers.Last().Clock);
+        await new WidgetDesignPublisher(Repo(), () => Shared).PublishAsync();
+        var scene = JsonSerializer.Deserialize(await File.ReadAllBytesAsync(Path.Combine(Shared, "renders", saved.RenderKey + ".scene.json")), WidgetDesignRules.JsonContext.WidgetScene)!;
+        Assert.Equal(2, scene.SchemaVersion); Assert.Equal(date, scene.Parts.Last().Date); WidgetScenes.Validate(scene, saved);
+        Assert.False(Directory.Exists(Path.Combine(Private, "photos"))); Assert.False(Directory.Exists(Path.Combine(Shared, "photos")));
+        var hiddenDraft = saved with { Layers = saved.Layers.Select(layer => layer with { Visible = false }).ToArray() };
+        var hidden = await repo.SaveAsync(hiddenDraft, Png); Assert.Null(repo.ScenePath(hidden.RenderKey));
+        var visibleDraft = hidden with { Layers = hidden.Layers.Select(layer => layer with { Visible = true }).ToArray() };
+        await Assert.ThrowsAsync<IOException>(() => repo.SaveAsync(visibleDraft, Png));
+        var restored = await repo.SaveAsync(visibleDraft, Png, scene: Export(visibleDraft)); Assert.NotNull(repo.ScenePath(restored.RenderKey));
+        Assert.Equal(saved.Id, Assert.Single((await Repo().ReadLibraryAsync()).Slots).DesignId);
+    }
     [Theory]
     [InlineData(WidgetClockFont.Rounded)] [InlineData(WidgetClockFont.RocknRollOne)]
     [InlineData(WidgetClockFont.DelaGothicOne)] [InlineData(WidgetClockFont.KaiseiDecol)]

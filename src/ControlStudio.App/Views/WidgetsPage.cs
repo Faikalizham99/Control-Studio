@@ -141,7 +141,7 @@ internal sealed class WidgetsPage : WidgetStudioPage
             preview.SizeChanged += (_, _) => UpdateVisiblePreviews();
             SemanticProperties.SetDescription(tap, $"{design.Name}. {WidgetSizeLabel(design.Size)} widget preview. Open editor.");
             var cardBody = new VerticalStackLayout { Spacing = 14, Children = { header, preview } };
-            if (WidgetScenes.IsLive(design)) cardBody.Children.Add(SettingsControls.Text("Saved preview. The clock runs in the editor and on your Home Screen.", 12, secondary: true));
+            if (WidgetScenes.IsLive(design)) cardBody.Children.Add(SettingsControls.Text("Saved preview. Clock and date layers update in the editor and on your Home Screen.", 12, secondary: true));
             designs.Children.Add(WidgetStudioStyle.Card(cardBody));
         }
         UpdateVisiblePreviews();

@@ -61,7 +61,7 @@ internal sealed class WidgetEditorPage : ContentPage
     {
         this.studio = studio; this.logger = logger;
         this.choosePhotoSource = choosePhotoSource ?? (() => DisplayActionSheetAsync("Add photo layer", "Cancel", null, "Photo Library", "Files"));
-        this.chooseLayerType = chooseLayerType ?? (() => DisplayActionSheetAsync("Add layer", "Cancel", null, "Photo", "Clock"));
+        this.chooseLayerType = chooseLayerType ?? (() => DisplayActionSheetAsync("Add layer", "Cancel", null, "Photo", "Clock", "Date"));
         this.chooseLayerAction = chooseLayerAction;
         draft = WidgetDesignRules.ForEditing(original ?? (WidgetDesignRules.New() with { Size = initialSize, TransparentBackground = OperatingSystem.IsIOSVersionAtLeast(26) }));
         ApplyCanvasSizing();
@@ -95,7 +95,7 @@ internal sealed class WidgetEditorPage : ContentPage
         clockControls.LayoutChanging += (_, _) => scroll.PreserveViewport();
         clockControls.PositionChanging += view => scroll.PreserveAnchor(view);
         clockControls.PanelChanged += (_, _) => ClosePhotoTools();
-        clockControls.InvalidColour += (_, _) => ShowStatus("Enter a valid clock text colour before continuing.");
+        clockControls.InvalidColour += (_, _) => ShowStatus("Enter a valid text colour before continuing.");
         clockControls.DeleteRequested += (_, _) => { if (CanEdit) _ = RunAsync(RemoveLayerAsync); };
         clockControls.CentreHorizontallyRequested += (_, _) =>
         {
@@ -104,8 +104,8 @@ internal sealed class WidgetEditorPage : ContentPage
         clockControls.Changed += changed =>
         {
             if (saved || departed || canvas.IsInteracting || layerList.IsReordering) return;
-            var current = draft.Layers.FirstOrDefault(x => x.Id == changed.Id && x.Kind == WidgetLayerKind.Clock); if (current is null) return;
-            ReplaceLayer(current with { Clock = changed.Clock, Opacity = changed.Opacity }); RefreshControls();
+            var current = draft.Layers.FirstOrDefault(x => x.Id == changed.Id && WidgetTextLayers.IsText(x)); if (current is null) return;
+            ReplaceLayer(current with { Clock = changed.Clock, Date = changed.Date, Opacity = changed.Opacity }); RefreshControls();
             if (Foreground) UpdateCanvas(); else canvas.SuspendComposition();
         };
         layerList.CanStart = () => CanEdit;
@@ -439,19 +439,19 @@ internal sealed class WidgetEditorPage : ContentPage
         name.Unfocus(); var choice = await chooseLayerType();
         if (!Foreground || departed) return;
         if (choice == "Photo") await PickPhotoAsync();
-        else if (choice == "Clock")
+        else if (choice is "Clock" or "Date")
         {
-            if (OperatingSystem.IsIOS() && !OperatingSystem.IsIOSVersionAtLeast(18)) { ShowStatus("Live clocks require iOS 18 or later."); return; }
-            var ordinal = 1; while (draft.Layers.Any(x => x.Name == "Clock " + ordinal)) ordinal++;
+            if (OperatingSystem.IsIOS() && !OperatingSystem.IsIOSVersionAtLeast(18)) { ShowStatus("Live text layers require iOS 18 or later."); return; }
+            var ordinal = 1; while (draft.Layers.Any(x => x.Name == choice + " " + ordinal)) ordinal++;
             var colour = Application.Current?.Resources.TryGetValue("Accent", out var accent) == true && accent is Color value ? AppearanceColors.ToRgbHex(value) : "#007AFF";
-            var layer = WidgetClocks.New("Clock " + ordinal, colour);
+            var layer = choice == "Date" ? WidgetDates.New("Date " + ordinal, colour) : WidgetClocks.New("Clock " + ordinal, colour);
             draft = draft with { Layers = draft.Layers.Append(layer).ToArray() }; selected = layer.Id; RefreshLayers();
         }
     }
     private bool CommitClockColour()
     {
         if (clockControls.CommitPendingColour()) return true;
-        ShowStatus("Enter a valid clock text colour before continuing."); return false;
+        ShowStatus("Enter a valid text colour before continuing."); return false;
     }
     private async Task PickPhotoAsync()
     {
@@ -469,7 +469,7 @@ internal sealed class WidgetEditorPage : ContentPage
     private async Task RemoveLayerAsync(Guid? id)
     {
         var layer = draft.Layers.FirstOrDefault(x => x.Id == id); if (layer is null) return;
-        if (!await DisplayAlertAsync("Delete layer?", layer.Kind == WidgetLayerKind.Photo ? "Remove this layer from your widget draft? Your original photo is kept." : "Remove this clock from your widget draft?", "Delete", "Cancel") || !Foreground || departed) return;
+        if (!await DisplayAlertAsync("Delete layer?", layer.Kind == WidgetLayerKind.Photo ? "Remove this layer from your widget draft? Your original photo is kept." : "Remove this " + WidgetTextLayers.Name(layer) + " from your widget draft?", "Delete", "Cancel") || !Foreground || departed) return;
         if (rows.TryGetValue(layer.Id, out var row)) scroll.PreserveAnchor(row);
         if (selected == layer.Id) CloseTools();
         draft = draft with { Layers = draft.Layers.Where(x => x.Id != layer.Id).ToArray() };
@@ -535,7 +535,7 @@ internal sealed class WidgetEditorPage : ContentPage
         back.IsEnabled = cancel.IsEnabled = canNavigate;
         addPhoto.IsEnabled = canNavigate && !saved && draft.Layers.Count < WidgetDesignRules.MaximumLayers;
         var layer = draft.Layers.FirstOrDefault(x => x.Id == selected);
-        clockControls.SetAvailable(canNavigate && !saved && layer?.Kind == WidgetLayerKind.Clock);
+        clockControls.SetAvailable(canNavigate && !saved && layer is not null && WidgetTextLayers.IsText(layer));
         opacityTool.IsEnabled = deleteTool.IsEnabled = blendTool.IsEnabled = blendMenu.IsEnabled = tools.IsEnabled = canNavigate && !saved && layer?.Kind == WidgetLayerKind.Photo;
         resetTool.IsEnabled = rotateTool.IsEnabled = flipTool.IsEnabled = rotateMenu.IsEnabled = flipMenu.IsEnabled = canNavigate && !saved && layer is { Kind: WidgetLayerKind.Photo, Locked: false };
         precise.IsEnabled = canNavigate && !saved && layer is { Locked: false };

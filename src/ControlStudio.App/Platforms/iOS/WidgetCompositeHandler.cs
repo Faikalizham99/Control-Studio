@@ -59,8 +59,8 @@ internal sealed class WidgetCompositeHandler : ViewHandler<WidgetCompositeView, 
             }
             catch (Exception ex)
             {
-                Clear(); MauiContext?.Services.GetService<ILogger<WidgetCompositeHandler>>()?.LogWarning("Clock preview update failed. ErrorType={ErrorType}", ex.GetType().Name);
-                VirtualView.Failed("The clock preview could not update. Reopen this editor to retry.");
+                Clear(); MauiContext?.Services.GetService<ILogger<WidgetCompositeHandler>>()?.LogWarning("Live text preview update failed. ErrorType={ErrorType}", ex.GetType().Name);
+                VirtualView.Failed("The live text preview could not update. Reopen this editor to retry.");
             }
         });
         timer.FireDate = NSDate.FromTimeIntervalSinceNow(interval - DateTimeOffset.Now.ToUnixTimeMilliseconds() % (long)(interval * 1000) / 1000d);

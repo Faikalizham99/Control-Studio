@@ -97,10 +97,10 @@ public sealed class WidgetDesignRepository
         if (thumbnail is not null) ValidatePng(thumbnail);
         if (WidgetScenes.IsLive(draft))
         {
-            if (scene is null) throw new IOException("The live clock scene is missing. Save this design from the widget editor.");
+            if (scene is null) throw new IOException("The live text scene is missing. Save this design from the widget editor.");
             ValidateScene(scene, draft);
         }
-        else if (scene is not null) throw new IOException("This design does not need a live clock scene.");
+        else if (scene is not null) throw new IOException("This design does not need a live text scene.");
         await gate.WaitAsync(token);
         try
         {

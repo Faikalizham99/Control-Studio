@@ -30,7 +30,10 @@ struct StudioSlotProvider: TimelineProvider {
     }
     func getTimeline(in context: Context, completion: @escaping (Timeline<StudioSlotEntry>) -> Void) {
         let entry = current(context.family)
-        captureSize(context) { completion(Timeline(entries: [entry], policy: .after(Date().addingTimeInterval(900)))) }
+        let now = Date()
+        let refresh = entry.scene?.parts.contains(where: { $0.date != nil }) == true
+            ? min(now.addingTimeInterval(900), WidgetDateStyle.nextDay(after: now)) : now.addingTimeInterval(900)
+        captureSize(context) { completion(Timeline(entries: [entry], policy: .after(refresh))) }
     }
     private func captureSize(_ context: Context, completion: @escaping () -> Void) {
         guard !context.isPreview else { completion(); return }
@@ -79,8 +82,8 @@ struct StudioSlotProvider: TimelineProvider {
             }
             let rgb = design.canvasBackgroundRGB
             let background = rgb.map { Color(red: $0.red, green: $0.green, blue: $0.blue) } ?? Color(uiColor: .systemBackground)
-            if design.hasLiveClock {
-                guard #available(iOS 18.0, *) else { return StudioSlotEntry(date: .now, slot: slot, message: "Live clocks require iOS 18 or later.") }
+            if design.hasLiveText {
+                guard #available(iOS 18.0, *) else { return StudioSlotEntry(date: .now, slot: slot, message: "Live text layers require iOS 18 or later.") }
                 let (scene, data) = try store.scene(for: design)
                 var images: [Int: UIImage] = [:]
                 for (index, bytes) in data {
@@ -156,16 +159,21 @@ private struct StudioClockSceneView: View {
                     if let index = part.imageIndex, let image = images[index] {
                         Image(uiImage: image).resizable().widgetAccentedRenderingMode(.fullColor).frame(width: width, height: height)
                     } else if let layer = part.clock {
-                        liveText(layer.clock)
-                            .font(font(layer.clock, size: min(1024, layer.frame.height * height * layer.clock.fontScale), height: layer.frame.height * height))
-                            .lineLimit(1).minimumScaleFactor(0.01)
-                            .foregroundStyle(colour(layer.clock)).multilineTextAlignment(textAlignment(layer.clock.alignment))
-                            .frame(width: layer.frame.width * width, height: layer.frame.height * height, alignment: alignment(layer.clock.alignment))
-                            .clipped().opacity(layer.opacity).offset(x: layer.frame.x * width, y: layer.frame.y * height)
+                        textLayer(liveText(layer.clock), style: layer.clock, frame: layer.frame, opacity: layer.opacity, width: width, height: height)
+                    } else if let layer = part.date {
+                        textLayer(Text(.currentDate, format: layer.date.formatStyle()), style: layer.date.textStyle,
+                            frame: layer.frame, opacity: layer.opacity, width: width, height: height)
                     }
                 }
             }.frame(width: width, height: height, alignment: .topLeading).clipped().position(x: geometry.size.width / 2, y: geometry.size.height / 2)
         }
+    }
+    private func textLayer(_ text: Text, style: WidgetClockStyle, frame: WidgetClockFrame, opacity: Double, width: CGFloat, height: CGFloat) -> some View {
+        text.font(font(style, size: min(1024, frame.height * height * style.fontScale), height: frame.height * height))
+            .lineLimit(1).minimumScaleFactor(0.01)
+            .foregroundStyle(colour(style)).multilineTextAlignment(textAlignment(style.alignment))
+            .frame(width: frame.width * width, height: frame.height * height, alignment: alignment(style.alignment))
+            .clipped().opacity(opacity).offset(x: frame.x * width, y: frame.y * height)
     }
     private func liveText(_ clock: WidgetClockStyle) -> Text {
         if #available(iOS 18.0, *) {

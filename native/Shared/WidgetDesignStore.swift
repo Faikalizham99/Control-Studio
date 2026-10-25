@@ -81,6 +81,7 @@ struct WidgetDesignSummary: Decodable, Equatable {
     let canvasDimensions: WidgetCanvasDimensions?
     var layers: [WidgetLayerMarker]? = nil
     var hasLiveClock: Bool { layers?.contains(where: { $0.liveClock }) ?? false }
+    var hasLiveText: Bool { layers?.contains(where: { $0.liveText }) ?? false }
     var canvasBackgroundRGB: (red: Double, green: Double, blue: Double)? {
         guard let hex = backgroundHex, hex.utf8.count == 7, hex.first == "#",
               hex.dropFirst().utf8.allSatisfy({ (48...57).contains($0) || (65...70).contains($0) }),

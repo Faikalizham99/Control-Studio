@@ -52,10 +52,10 @@ internal sealed class WidgetPhotoCompositor : IDisposable
             for (var index = 0; index < steps.Count; index++)
             {
                 var step = steps[index];
-                if (step.Clock is { } clock)
+                if (step.TextLayer is { } clock)
                 {
                     var input = Rasterize(clock, size, timestamp);
-                    result = CIBlendKernel.SourceOver.Apply(input, result) ?? throw new IOException("This clock could not be rendered.");
+                    result = CIBlendKernel.SourceOver.Apply(input, result) ?? throw new IOException("This text layer could not be rendered.");
                     intermediates.Add(result);
                 }
                 else
@@ -90,7 +90,7 @@ internal sealed class WidgetPhotoCompositor : IDisposable
             var images = new Dictionary<int, byte[]>(); long pixels = 0, bytes = 0;
             for (var index = 0; index < steps.Count; index++)
             {
-                if (steps[index].Clock is not null) continue;
+                if (steps[index].TextLayer is not null) continue;
                 using var image = Render(design with { Layers = steps[index].Photos, TransparentBackground = index != 0 || design.TransparentBackground }, maximumEdge: edge);
                 using var png = image.AsPNG() ?? throw new IOException("A photo group could not be prepared.");
                 pixels += (long)image.CGImage!.Width * (long)image.CGImage.Height; bytes += (long)png.Length;
@@ -105,11 +105,11 @@ internal sealed class WidgetPhotoCompositor : IDisposable
     private CIImage Rasterize(WidgetLayer layer, CGSize size, DateTimeOffset time)
     {
         var geometry = layer with { Name = "", BlendMode = WidgetBlendMode.Normal, Locked = false };
-        var clockText = layer.Clock is { } clock ? WidgetClocks.Text(clock, time) : "";
+        var clockText = WidgetTextLayers.IsText(layer) ? WidgetTextLayers.Text(layer, time) : "";
         if (rasters.TryGetValue(layer.Id, out var cached) && cached.Layer == geometry && cached.Size == size && cached.ClockText == clockText) return cached.Input;
         // Evict before allocating a replacement; a gesture never accumulates old full-canvas buffers.
         if (cached is not null) { cached.Dispose(); rasters.Remove(layer.Id); }
-        if (layer.Kind == WidgetLayerKind.Clock)
+        if (WidgetTextLayers.IsText(layer))
         {
             using var clockFormat = UIGraphicsImageRendererFormat.DefaultFormat; clockFormat.Scale = 1; clockFormat.Opaque = false;
             using var clockRenderer = new UIGraphicsImageRenderer(size, clockFormat);
