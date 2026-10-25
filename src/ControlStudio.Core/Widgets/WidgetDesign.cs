@@ -49,6 +49,7 @@ public static class WidgetDesignRules
         json.Converters.Add(new JsonStringEnumConverter<WidgetLayerKind>(JsonNamingPolicy.CamelCase, false));
         json.Converters.Add(new JsonStringEnumConverter<WidgetBlendMode>(JsonNamingPolicy.CamelCase, false));
         json.Converters.Add(new JsonStringEnumConverter<WidgetClockFont>(JsonNamingPolicy.CamelCase, false));
+        json.Converters.Add(new JsonStringEnumConverter<WidgetClockWeight>(JsonNamingPolicy.CamelCase, false));
         json.Converters.Add(new JsonStringEnumConverter<WidgetClockAlignment>(JsonNamingPolicy.CamelCase, false));
         return json;
     }

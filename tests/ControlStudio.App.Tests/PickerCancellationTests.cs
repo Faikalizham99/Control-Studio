@@ -33,6 +33,51 @@ public sealed class PickerCancellationTests : IDisposable
     private static WidgetEditorPage Editor(Store store, string source = "Photo Library", ColourPicker? colours = null)
         => new(store, colours ?? new(), NullLogger.Instance, WidgetDesignRules.New() with { Layers = [Photo()] }, choosePhotoSource: () => Task.FromResult<string?>(source));
     [Fact]
+    public void RoundedSystemWeightEditsRespectLocksActivityAndSupportedFontChanges()
+    {
+        var clock = WidgetClocks.New() with { Locked = true }; var original = WidgetDesignRules.New() with { Layers = [clock] }; var store = new Store();
+        var page = new WidgetEditorPage(store, new ColourPicker(), NullLogger.Instance, original); Open(page);
+        var controls = Descendants(page).OfType<WidgetClockControls>().Single();
+        var composition = Descendants(page).OfType<WidgetCompositeView>().Single();
+        void Click(string id) => ((IButtonController)Button(page, id)).SendClicked();
+        Click("ClockToolFont"); Click("ClockFont7"); Click("ClockWeight7Light");
+        var edited = composition.Design!.Layers[0]; Assert.True(edited.Locked); Assert.Equal(clock.Frame, edited.Frame);
+        Assert.Equal(WidgetClockFont.SfProRounded, edited.Clock!.Font); Assert.Equal(WidgetClockWeight.Light, edited.Clock.Weight);
+        Assert.Equal(WidgetClockTool.Font, controls.ActiveTool); Assert.Equal(0, store.Saves); Assert.Null(clock.Clock!.Weight);
+        Click("ClockToolPosition"); Click("ClockWeight7Bold"); Assert.Equal(edited, composition.Design.Layers[0]);
+        Click("ClockToolFont"); Click("ClockFont2");
+        Assert.Equal(WidgetClockWeight.Bold, WidgetClockWeights.Resolve(composition.Design.Layers[0].Clock!));
+        Click("ClockWeight7Heavy"); Assert.Null(composition.Design.Layers[0].Clock!.Weight); // stale control for another font
+        Click("ClockWeight2Regular"); Assert.Equal(WidgetClockWeight.Regular, composition.Design.Layers[0].Clock!.Weight);
+        Click("ClockFont7"); Assert.Equal(WidgetClockWeight.Regular, composition.Design.Layers[0].Clock!.Weight);
+        ((IWindow)host.App.Windows[0]).Deactivated(); Click("ClockWeight7Heavy");
+        ((IWindow)host.App.Windows[0]).Activated(); Assert.Equal(WidgetClockWeight.Regular, composition.Design!.Layers[0].Clock!.Weight);
+        Click("SaveWidgetDesign"); Assert.Equal(WidgetClockWeight.Regular, store.Saved!.Layers[0].Clock!.Weight);
+        Assert.Equal(WidgetClockFont.SfProRounded, store.Saved.Layers[0].Clock!.Font);
+    }
+    [Theory]
+    [InlineData(WidgetClockFont.RocknRollOne)] [InlineData(WidgetClockFont.DelaGothicOne)] [InlineData(WidgetClockFont.KaiseiDecol)]
+    public void FontSpecimensApplyToTheLiveClockKeepTheirPanelOpenAndSaveOnlyOnRequest(WidgetClockFont font)
+    {
+        var clock = WidgetClocks.New(); var original = WidgetDesignRules.New() with { Layers = [clock] }; var store = new Store();
+        var page = new WidgetEditorPage(store, new ColourPicker(), NullLogger.Instance, original); Open(page);
+        var controls = Descendants(page).OfType<WidgetClockControls>().Single();
+        var picker = Descendants(page).OfType<WidgetClockFontPicker>().Single();
+        var composition = Descendants(page).OfType<WidgetCompositeView>().Single();
+        var button = Button(page, "ClockFont" + (int)font);
+        // A stale/native callback while the Font panel is closed must not edit the draft.
+        ((IButtonController)button).SendClicked(); Assert.Equal(clock, composition.Design!.Layers[0]);
+        ((IButtonController)Button(page, "ClockToolFont")).SendClicked(); ((IButtonController)button).SendClicked();
+        Assert.Equal(font, composition.Design.Layers[0].Clock!.Font); Assert.Equal(font, picker.SelectedFont);
+        Assert.Equal(WidgetClockTool.Font, controls.ActiveTool); Assert.Contains("selected", SemanticProperties.GetDescription(button));
+        Assert.Equal(clock, original.Layers[0]); Assert.Equal(0, store.Saves);
+        ((IWindow)host.App.Windows[0]).Deactivated(); ((IButtonController)Button(page, "ClockFont0")).SendClicked();
+        Assert.Null(composition.Design); Assert.Equal(font, picker.SelectedFont); Assert.Equal(0, store.Saves);
+        ((IWindow)host.App.Windows[0]).Activated();
+        Assert.Equal(font, composition.Design!.Layers[0].Clock!.Font);
+        ((IButtonController)Button(page, "SaveWidgetDesign")).SendClicked(); Assert.Equal(font, store.Saved!.Layers[0].Clock!.Font);
+    }
+    [Fact]
     public async Task ClockToolbarHasSevenTargetsAndOnlyOnePanelWithAFullHeightScrollingPreview()
     {
         var photo = Photo(); var page = new WidgetEditorPage(new Store(), new ColourPicker(), NullLogger.Instance,

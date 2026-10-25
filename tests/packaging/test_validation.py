@@ -2,13 +2,14 @@ import datetime as dt
 import json
 from pathlib import Path
 import plistlib
+import shutil
 import sys
 import tempfile
 import unittest
 import zipfile
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts"))
-from validate_ipa import BUNDLES, GROUP, extract_safely, validate_metadata, validate_profile
+from validate_ipa import BUNDLES, CLOCK_FONTS, GROUP, extract_safely, validate_metadata, validate_profile
 
 
 class PackagingTests(unittest.TestCase):
@@ -24,6 +25,12 @@ class PackagingTests(unittest.TestCase):
                         CFBundleShortVersionString="0.1.0", CFBundleVersion="1", MinimumOSVersion="17.0",
                         CFBundleSupportedPlatforms=["iPhoneOS"], CFBundlePackageType="XPC!" if relative else "APPL",
                         ControlStudioAppGroup=GROUP, UIDeviceFamily=[1, 2])
+            if not relative or relative == "PlugIns/ControlStudioWidgets.appex":
+                info["UIAppFonts"] = [font["file"] for font in CLOCK_FONTS]
+                folder = Path(__file__).resolve().parents[2] / "assets/clock-fonts"
+                for font in CLOCK_FONTS:
+                    for filename in [font["file"], font["licence"]]:
+                        shutil.copyfile(folder / filename, bundle / filename)
             if not relative:
                 info["UIApplicationSceneManifest"] = {"UIApplicationSupportsMultipleScenes": False, "UISceneConfigurations": {
                     "UIWindowSceneSessionRoleApplication": [{"UISceneConfigurationName": "__MAUI_DEFAULT_SCENE_CONFIGURATION__",
@@ -60,6 +67,28 @@ class PackagingTests(unittest.TestCase):
 
     def test_accepts_expected_structure_only(self):
         self.assertEqual(len(validate_metadata(self.app)), 3)
+
+    def test_clock_fonts_must_be_registered_in_both_rendering_bundles(self):
+        for relative in ["", "PlugIns/ControlStudioWidgets.appex"]:
+            self.mutate(relative, "UIAppFonts", [])
+            with self.assertRaisesRegex(ValueError, "Clock font registration missing"):
+                validate_metadata(self.app)
+            self.mutate(relative, "UIAppFonts", [font["file"] for font in CLOCK_FONTS])
+
+    def test_missing_or_changed_clock_font_and_missing_licence_fail_validation(self):
+        font = CLOCK_FONTS[0]
+        for relative in ["", "PlugIns/ControlStudioWidgets.appex"]:
+            path = self.app / relative / font["file"]; data = path.read_bytes(); path.unlink()
+            with self.assertRaisesRegex(ValueError, "Bundled clock font missing"):
+                validate_metadata(self.app)
+            path.write_bytes(b"wrong font")
+            with self.assertRaisesRegex(ValueError, "Bundled clock font mismatch"):
+                validate_metadata(self.app)
+            path.write_bytes(data)
+            licence = self.app / relative / font["licence"]; content = licence.read_bytes(); licence.unlink()
+            with self.assertRaisesRegex(ValueError, "Clock font licence missing"):
+                validate_metadata(self.app)
+            licence.write_bytes(content)
 
     def test_rejects_missing_or_misconfigured_scene_lifecycle(self):
         for manifest in [{}, {"UIApplicationSupportsMultipleScenes": True},

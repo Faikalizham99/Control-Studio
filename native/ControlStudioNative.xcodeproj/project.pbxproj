@@ -126,11 +126,77 @@
 			"isa" = "PBXBuildFile";
 			"fileRef" = "3647715DBD47B59F9F21A188";
 		};
+		"CC2B7B5543BC94B161AA3782" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "file";
+			"path" = "../assets/clock-fonts/DelaGothicOne-Regular.ttf";
+			"sourceTree" = "<group>";
+		};
+		"733267AF4F885666F3085257" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "CC2B7B5543BC94B161AA3782";
+		};
+		"66644098B2679EFC623FD000" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "file";
+			"path" = "../assets/clock-fonts/KaiseiDecol-Regular.ttf";
+			"sourceTree" = "<group>";
+		};
+		"E11706F8446C742AC78E740A" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "66644098B2679EFC623FD000";
+		};
+		"B67A8FF6BDDCA0DE8D5D1546" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "text";
+			"path" = "../assets/clock-fonts/OFL-DelaGothicOne-Regular.txt";
+			"sourceTree" = "<group>";
+		};
+		"2CB440481D6A29A11ECB902B" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "B67A8FF6BDDCA0DE8D5D1546";
+		};
+		"25C4C0A36144F30E1E2CED55" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "text";
+			"path" = "../assets/clock-fonts/OFL-KaiseiDecol-Regular.txt";
+			"sourceTree" = "<group>";
+		};
+		"ABFA44BC77BBCBF7D47F7DF7" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "25C4C0A36144F30E1E2CED55";
+		};
+		"7C99D3A893463525666D5695" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "text";
+			"path" = "../assets/clock-fonts/OFL-RocknRollOne-Regular.txt";
+			"sourceTree" = "<group>";
+		};
+		"3B0EB300633798587B2E4C9C" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "7C99D3A893463525666D5695";
+		};
+		"B562AFCAE95942260BEDB12F" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "file";
+			"path" = "../assets/clock-fonts/RocknRollOne-Regular.ttf";
+			"sourceTree" = "<group>";
+		};
+		"92821582268614024DB83D86" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "B562AFCAE95942260BEDB12F";
+		};
 		"1D1B269577594FC2DF9B8C5D" = {
 			"isa" = "PBXResourcesBuildPhase";
 			"buildActionMask" = 2147483647;
 			"files" = (
 				"BDB09F0C096EB210DAAE5A9E",
+				"733267AF4F885666F3085257",
+				"E11706F8446C742AC78E740A",
+				"2CB440481D6A29A11ECB902B",
+				"ABFA44BC77BBCBF7D47F7DF7",
+				"3B0EB300633798587B2E4C9C",
+				"92821582268614024DB83D86",
 			);
 			"runOnlyForDeploymentPostprocessing" = 0;
 		};
@@ -151,8 +217,8 @@
 				"SWIFT_OPTIMIZATION_LEVEL" = "-O";
 				"SWIFT_EMIT_LOC_STRINGS" = "YES";
 				"TARGETED_DEVICE_FAMILY" = "1,2";
-				"CURRENT_PROJECT_VERSION" = "35";
-				"MARKETING_VERSION" = "0.2.33";
+				"CURRENT_PROJECT_VERSION" = "36";
+				"MARKETING_VERSION" = "0.2.34";
 				"LD_RUNPATH_SEARCH_PATHS" = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -274,8 +340,8 @@
 				"SWIFT_OPTIMIZATION_LEVEL" = "-O";
 				"SWIFT_EMIT_LOC_STRINGS" = "YES";
 				"TARGETED_DEVICE_FAMILY" = "1,2";
-				"CURRENT_PROJECT_VERSION" = "35";
-				"MARKETING_VERSION" = "0.2.33";
+				"CURRENT_PROJECT_VERSION" = "36";
+				"MARKETING_VERSION" = "0.2.34";
 				"LD_RUNPATH_SEARCH_PATHS" = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -335,6 +401,12 @@
 				"C9FF7C42709595CD3EDE50C0",
 				"A8F19B76FEAA4F360CE14AAA",
 				"DCDD2E72E39BA36561DF5F3D",
+				"CC2B7B5543BC94B161AA3782",
+				"66644098B2679EFC623FD000",
+				"B67A8FF6BDDCA0DE8D5D1546",
+				"25C4C0A36144F30E1E2CED55",
+				"7C99D3A893463525666D5695",
+				"B562AFCAE95942260BEDB12F",
 				"0F641DB0626D777B6F91FE44",
 				"0A3E27B8CA818264D75C8D81",
 			);

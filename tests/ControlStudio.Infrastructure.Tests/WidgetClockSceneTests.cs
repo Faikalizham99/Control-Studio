@@ -17,10 +17,19 @@ public sealed class WidgetClockSceneTests : IDisposable
         var key = await Repo().ImportPhotoAsync(Png); var photo = new WidgetLayer(Guid.NewGuid(), "Bottom", key, 1, 1, new());
         return WidgetDesignRules.New() with { Layers = [photo, WidgetClocks.New(), photo with { Id = Guid.NewGuid(), Name = "Top" }] };
     }
-    [Fact]
-    public async Task MixedSceneSavesReopensPublishesWithoutPublishingSourcePhotosAndKeepsCachedScenes()
+    [Theory]
+    [InlineData(WidgetClockFont.Rounded)] [InlineData(WidgetClockFont.RocknRollOne)]
+    [InlineData(WidgetClockFont.DelaGothicOne)] [InlineData(WidgetClockFont.KaiseiDecol)]
+    [InlineData(WidgetClockFont.SfProRounded, WidgetClockWeight.Light)] [InlineData(WidgetClockFont.SfProRounded, WidgetClockWeight.Regular)]
+    [InlineData(WidgetClockFont.SfProRounded, WidgetClockWeight.Medium)] [InlineData(WidgetClockFont.SfProRounded, WidgetClockWeight.Semibold)]
+    [InlineData(WidgetClockFont.SfProRounded, WidgetClockWeight.Bold)] [InlineData(WidgetClockFont.SfProRounded, WidgetClockWeight.Heavy)]
+    [InlineData(WidgetClockFont.System, WidgetClockWeight.Light)] [InlineData(WidgetClockFont.Monospaced, WidgetClockWeight.Regular)]
+    [InlineData(WidgetClockFont.Serif, WidgetClockWeight.Regular)]
+    public async Task MixedSceneSavesReopensPublishesWithoutPublishingSourcePhotosAndKeepsCachedScenes(WidgetClockFont font, WidgetClockWeight? weight = null)
     {
-        var repo = Repo(); var draft = await Draft(); var saved = await repo.SaveAsync(draft, Png, scene: Export(draft));
+        var repo = Repo(); var original = await Draft();
+        var draft = original with { Layers = original.Layers.Select(x => x.Clock is null ? x : x with { Clock = x.Clock with { Font = font, Weight = weight } }).ToArray() };
+        var saved = await repo.SaveAsync(draft, Png, scene: Export(draft));
         await repo.AssignSlotAsync(saved.Size, 3, saved.Id);
         Assert.Equal(saved.Layers, Assert.Single(await Repo().ReadAsync()).Layers);
         var scene = JsonSerializer.Deserialize(await File.ReadAllBytesAsync(repo.ScenePath(saved.RenderKey)!), WidgetDesignRules.JsonContext.WidgetScene)!;
@@ -34,6 +43,8 @@ public sealed class WidgetClockSceneTests : IDisposable
         Assert.False(Assert.Single(await Repo().ReadAsync()).Layers[1].Clock!.ShowAmPm);
         var published = JsonSerializer.Deserialize(await File.ReadAllBytesAsync(Path.Combine(Shared, "renders", updated.RenderKey + ".scene.json")), WidgetDesignRules.JsonContext.WidgetScene)!;
         Assert.False(published.Parts.Single(x => x.Clock is not null).Clock!.Clock!.ShowAmPm);
+        Assert.Equal(font, published.Parts.Single(x => x.Clock is not null).Clock!.Clock!.Font);
+        Assert.Equal(weight, published.Parts.Single(x => x.Clock is not null).Clock!.Clock!.Weight);
         Assert.True(File.Exists(Path.Combine(Shared, "renders", saved.RenderKey + ".scene.json"))); // Cached timelines have a seven-day grace period.
         Assert.Equal(saved.Id, Assert.Single((await Repo().ReadLibraryAsync()).Slots).DesignId);
         Assert.Equal(Png, await File.ReadAllBytesAsync(repo.AssetPath(saved.Layers[0].AssetKey)!));

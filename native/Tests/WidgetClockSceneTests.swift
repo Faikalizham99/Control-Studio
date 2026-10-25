@@ -1,7 +1,73 @@
 import XCTest
+#if canImport(CoreText)
+import CoreText
+#endif
 @testable import ControlStudioStorage
 
 final class WidgetClockSceneTests: XCTestCase {
+    func testWeightDefaultsPreserveOldScenesAndRoundedSystemSupportsAllSixWeights() throws {
+        let scene = try JSONSerialization.jsonObject(with: fixture("widget-scene-v1.example.json")) as! [String: Any]
+        let layer = (scene["parts"] as! [[String: Any]])[1]["clock"] as! [String: Any]
+        let original = layer["clock"] as! [String: Any]
+        for (font, expected) in ["system": "semibold", "rounded": "bold", "monospaced": "bold", "serif": "bold",
+                                 "rocknRollOne": "regular", "delaGothicOne": "regular", "kaiseiDecol": "regular", "sfProRounded": "semibold"] {
+            var options = original; options["font"] = font; options.removeValue(forKey: "weight")
+            var clock = try JSONDecoder().decode(WidgetClockStyle.self, from: JSONSerialization.data(withJSONObject: options))
+            XCTAssertTrue(clock.valid); XCTAssertEqual(clock.resolvedWeight, expected)
+            options["weight"] = NSNull()
+            clock = try JSONDecoder().decode(WidgetClockStyle.self, from: JSONSerialization.data(withJSONObject: options))
+            XCTAssertTrue(clock.valid); XCTAssertEqual(clock.resolvedWeight, expected)
+        }
+        for font in ["system", "sfProRounded"] {
+            for weight in ["light", "regular", "medium", "semibold", "bold", "heavy"] {
+                var options = original; options["font"] = font; options["weight"] = weight
+                let clock = try JSONDecoder().decode(WidgetClockStyle.self, from: JSONSerialization.data(withJSONObject: options))
+                XCTAssertTrue(clock.valid); XCTAssertEqual(clock.resolvedWeight, weight); XCTAssertNil(clock.postScriptName)
+            }
+        }
+        for (font, face) in ["monospaced": "Menlo-Regular", "serif": "Georgia"] {
+            var options = original; options["font"] = font; options["weight"] = "regular"
+            let clock = try JSONDecoder().decode(WidgetClockStyle.self, from: JSONSerialization.data(withJSONObject: options))
+            XCTAssertTrue(clock.valid); XCTAssertEqual(clock.postScriptName, face)
+        }
+    }
+    func testUnknownAndUnavailableFontWeightsAreRejected() throws {
+        let scene = try JSONSerialization.jsonObject(with: fixture("widget-scene-v1.example.json")) as! [String: Any]
+        let layer = (scene["parts"] as! [[String: Any]])[1]["clock"] as! [String: Any]
+        let original = layer["clock"] as! [String: Any]
+        for (font, weight) in [("rounded", "light"), ("kaiseiDecol", "bold"), ("system", "imaginary"), ("monospaced", "heavy")] {
+            var options = original; options["font"] = font; options["weight"] = weight
+            XCTAssertFalse(try JSONDecoder().decode(WidgetClockStyle.self, from: JSONSerialization.data(withJSONObject: options)).valid)
+        }
+        for invalid in [42, true] as [Any] {
+            var options = original; options["weight"] = invalid
+            XCTAssertThrowsError(try JSONDecoder().decode(WidgetClockStyle.self, from: JSONSerialization.data(withJSONObject: options)))
+        }
+    }
+    func testBundledFontSceneNamesAreAcceptedAndRetainTheirTypeface() throws {
+        let scene = try JSONSerialization.jsonObject(with: fixture("widget-scene-v1.example.json")) as! [String: Any]
+        let layer = (scene["parts"] as! [[String: Any]])[1]["clock"] as! [String: Any]
+        let original = layer["clock"] as! [String: Any]
+        for (name, family) in ["rocknRollOne": "RocknRollOne-Regular", "delaGothicOne": "DelaGothicOne-Regular", "kaiseiDecol": "KaiseiDecol-Regular"] {
+            var options = original; options["font"] = name
+            let clock = try JSONDecoder().decode(WidgetClockStyle.self, from: JSONSerialization.data(withJSONObject: options))
+            XCTAssertTrue(clock.valid); XCTAssertEqual(clock.font, name); XCTAssertEqual(WidgetClockStyle.fontNames[name], family)
+        }
+    }
+#if canImport(CoreText)
+    func testBundledFilesRegisterWithTheirExactPostScriptNames() throws {
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        for name in ["RocknRollOne-Regular", "DelaGothicOne-Regular", "KaiseiDecol-Regular"] {
+            let url = root.appendingPathComponent("assets/clock-fonts/" + name + ".ttf")
+            var error: Unmanaged<CFError>?
+            XCTAssertTrue(CTFontManagerRegisterFontsForURL(url as CFURL, .process, &error), name)
+            if let error = error { XCTFail(String(describing: error.takeRetainedValue())) }
+            defer { CTFontManagerUnregisterFontsForURL(url as CFURL, .process, nil) }
+            let font = CTFontCreateWithName(name as CFString, 36, nil)
+            XCTAssertEqual(CTFontCopyPostScriptName(font) as String, name)
+        }
+    }
+#endif
     private func fixture(_ name: String) throws -> Data {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
         return try Data(contentsOf: root.appendingPathComponent("contracts/" + name))

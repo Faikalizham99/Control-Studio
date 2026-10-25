@@ -8,8 +8,8 @@
     <SingleProject>true</SingleProject>
     <ApplicationTitle>Control Studio</ApplicationTitle>
     <ApplicationId>com.faikalizham.controlstudio</ApplicationId>
-    <ApplicationDisplayVersion>0.2.33</ApplicationDisplayVersion>
-    <ApplicationVersion>35</ApplicationVersion>
+    <ApplicationDisplayVersion>0.2.34</ApplicationDisplayVersion>
+    <ApplicationVersion>36</ApplicationVersion>
     <SupportedOSPlatformVersion>17.0</SupportedOSPlatformVersion>
     <RuntimeIdentifier>ios-arm64</RuntimeIdentifier>
     <CodesignEntitlements>Platforms/iOS/Entitlements.plist</CodesignEntitlements>
@@ -27,6 +27,9 @@
     <MauiImage Include="Resources/Images/*.svg" BaseSize="24,24" />
     <MauiImage Update="Resources/Images/theme_*.svg" BaseSize="52,52" />
     <BundleResource Include="Platforms/iOS/PrivacyInfo.xcprivacy" Link="PrivacyInfo.xcprivacy" />
+    <!-- Registered at launch so UIKit export and MAUI labels share the same faces. -->
+    <BundleResource Include="../../assets/clock-fonts/*.ttf" LogicalName="%(Filename)%(Extension)" />
+    <BundleResource Include="../../assets/clock-fonts/OFL-*.txt" LogicalName="%(Filename)%(Extension)" />
     <NativeReference Include="$(NativeBuildRoot)/libControlStudioBridge.a">
       <Kind>Static</Kind><ForceLoad>true</ForceLoad><SmartLink>false</SmartLink>
       <Frameworks>Foundation WidgetKit SwiftUI</Frameworks><LinkerFlags>-lsqlite3</LinkerFlags>

@@ -8,6 +8,12 @@
 	<true/>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>Save a clipboard photo to your photo library when you choose Save Image.</string>
+	<key>UIAppFonts</key>
+	<array>
+		<string>RocknRollOne-Regular.ttf</string>
+		<string>DelaGothicOne-Regular.ttf</string>
+		<string>KaiseiDecol-Regular.ttf</string>
+	</array>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

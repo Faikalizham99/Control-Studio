@@ -183,7 +183,7 @@ internal sealed class WidgetCanvasView : ContentView
         if (layer.Clock is { } clock)
         {
             photo.Clock.Text = WidgetClocks.Text(clock, DateTimeOffset.Now); photo.Clock.TextColor = Color.FromArgb(clock.ColourHex);
-            photo.Clock.Opacity = layer.Opacity; photo.Clock.FontFamily = clock.Font switch { WidgetClockFont.Rounded => "ArialRoundedMTBold", WidgetClockFont.Monospaced => "Menlo-Bold", WidgetClockFont.Serif => "Georgia-Bold", _ => null };
+            photo.Clock.Opacity = layer.Opacity; photo.Clock.Typeface = clock;
             photo.Clock.HorizontalTextAlignment = clock.Alignment switch { WidgetClockAlignment.Left => TextAlignment.Start, WidgetClockAlignment.Right => TextAlignment.End, _ => TextAlignment.Center };
         }
         photo.Image.Opacity = layer.Opacity; photo.Image.Rotation = layer.QuarterTurns * 90;
@@ -275,8 +275,8 @@ internal sealed class WidgetCanvasView : ContentView
     {
         public AbsoluteLayout Frame { get; } = new() { IsClippedToBounds = true, InputTransparent = true };
         public Image Image { get; } = new() { Aspect = Aspect.Fill, InputTransparent = true };
-        public Label Clock { get; } = new() { IsVisible = false, InputTransparent = true, MaxLines = 1, FontAutoScalingEnabled = false,
-            VerticalTextAlignment = TextAlignment.Center, FontAttributes = FontAttributes.Bold };
+        public WidgetClockFontLabel Clock { get; } = new() { IsVisible = false, InputTransparent = true, MaxLines = 1, FontAutoScalingEnabled = false,
+            VerticalTextAlignment = TextAlignment.Center };
         public PhotoView(string? path)
         {
             Image.Source = path;

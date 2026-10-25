@@ -56,8 +56,17 @@ def generate():
         frameworks = add(name + "-frameworks", "PBXFrameworksBuildPhase", buildActionMask=2147483647,
                          files=[], runOnlyForDeploymentPostprocessing=0)
         privacy_build = add(name + "-privacy-build", "PBXBuildFile", fileRef=privacy)
+        resource_files = [privacy_build]
+        if name == "ControlStudioWidgets":
+            for path in sorted((ROOT / "assets/clock-fonts").glob("*")):
+                if path.suffix != ".ttf" and not path.name.startswith("OFL-"):
+                    continue
+                ref = add("clock-font-" + path.name, "PBXFileReference", lastKnownFileType="file" if path.suffix == ".ttf" else "text",
+                          path="../assets/clock-fonts/" + path.name, sourceTree="<group>")
+                children.append(ref)
+                resource_files.append(add("clock-font-build-" + path.name, "PBXBuildFile", fileRef=ref))
         resources = add(name + "-resources", "PBXResourcesBuildPhase", buildActionMask=2147483647,
-                        files=[privacy_build], runOnlyForDeploymentPostprocessing=0)
+                        files=resource_files, runOnlyForDeploymentPostprocessing=0)
         settings = {
             "PRODUCT_NAME": name, "PRODUCT_BUNDLE_IDENTIFIER": f"com.faikalizham.controlstudio.{suffix}",
             "INFOPLIST_FILE": f"{name}/Info.plist", "GENERATE_INFOPLIST_FILE": "YES",
@@ -66,7 +75,7 @@ def generate():
             "APPLICATION_EXTENSION_API_ONLY": "YES", "IPHONEOS_DEPLOYMENT_TARGET": "17.0",
             "SWIFT_VERSION": "5.0", "SWIFT_OPTIMIZATION_LEVEL": "-O",
             "SWIFT_EMIT_LOC_STRINGS": "YES", "TARGETED_DEVICE_FAMILY": "1,2",
-            "CURRENT_PROJECT_VERSION": "35", "MARKETING_VERSION": "0.2.33",
+            "CURRENT_PROJECT_VERSION": "36", "MARKETING_VERSION": "0.2.34",
             "LD_RUNPATH_SEARCH_PATHS": ["$(inherited)", "@executable_path/Frameworks", "@executable_path/../../Frameworks"],
             "OTHER_LDFLAGS": ["$(inherited)", "-lsqlite3"],
         }

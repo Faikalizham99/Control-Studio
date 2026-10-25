@@ -157,8 +157,8 @@ private struct StudioClockSceneView: View {
                         Image(uiImage: image).resizable().widgetAccentedRenderingMode(.fullColor).frame(width: width, height: height)
                     } else if let layer = part.clock {
                         liveText(layer.clock)
-                            .font(font(layer.clock.font, size: min(1024, layer.frame.height * height * layer.clock.fontScale)))
-                            .monospacedDigit().lineLimit(1).minimumScaleFactor(0.01)
+                            .font(font(layer.clock, size: min(1024, layer.frame.height * height * layer.clock.fontScale), height: layer.frame.height * height))
+                            .lineLimit(1).minimumScaleFactor(0.01)
                             .foregroundStyle(colour(layer.clock)).multilineTextAlignment(textAlignment(layer.clock.alignment))
                             .frame(width: layer.frame.width * width, height: layer.frame.height * height, alignment: alignment(layer.clock.alignment))
                             .clipped().opacity(layer.opacity).offset(x: layer.frame.x * width, y: layer.frame.y * height)
@@ -173,13 +173,26 @@ private struct StudioClockSceneView: View {
         }
         return Text("iOS 18+")
     }
-    private func font(_ name: String, size: CGFloat) -> Font {
-        switch name {
-        case "rounded": return .custom("ArialRoundedMTBold", size: size)
-        case "monospaced": return .custom("Menlo-Bold", size: size)
-        case "serif": return .custom("Georgia-Bold", size: size)
-        default: return .system(size: size, weight: .semibold)
+    private func font(_ clock: WidgetClockStyle, size: CGFloat, height: CGFloat) -> Font {
+        let nativeWeight: UIFont.Weight
+        let textWeight: Font.Weight
+        switch clock.resolvedWeight {
+        case "light": nativeWeight = .light; textWeight = .light
+        case "medium": nativeWeight = .medium; textWeight = .medium
+        case "semibold": nativeWeight = .semibold; textWeight = .semibold
+        case "bold": nativeWeight = .bold; textWeight = .bold
+        case "heavy": nativeWeight = .heavy; textWeight = .heavy
+        default: nativeWeight = .regular; textWeight = .regular
         }
+        let family = clock.postScriptName
+        let system = UIFont.monospacedDigitSystemFont(ofSize: size, weight: nativeWeight)
+        let rounded = clock.font == "sfProRounded" ? system.fontDescriptor.withDesign(.rounded) : nil
+        let metrics = family.flatMap { UIFont(name: $0, size: size) }
+            ?? rounded.map { UIFont(descriptor: $0, size: size) } ?? system
+        // Match UIKit export: keep tall display-font line metrics inside the layer.
+        let fitted = max(0.5, size * min(1, height / max(1, metrics.lineHeight)))
+        if let family = family { return .custom(family, fixedSize: fitted) }
+        return .system(size: fitted, weight: textWeight, design: clock.font == "sfProRounded" ? .rounded : .default).monospacedDigit()
     }
     private func colour(_ clock: WidgetClockStyle) -> Color {
         let rgb = clock.rgb ?? (1,1,1); return Color(red: rgb.0, green: rgb.1, blue: rgb.2)

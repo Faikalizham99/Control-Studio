@@ -7,7 +7,8 @@ internal enum WidgetClockTool { Time, Font, Colour, Size, Position, Opacity }
 
 internal sealed class WidgetClockControls : ContentView
 {
-    private readonly WidgetSegments format, fonts, alignment;
+    private readonly WidgetSegments format, alignment;
+    private readonly WidgetClockFontPicker fonts;
     private readonly Switch seconds = SettingsControls.RowSwitch("ClockShowSeconds");
     private readonly Switch amPm = SettingsControls.RowSwitch("ClockShowAmPm");
     private readonly Grid amPmRow;
@@ -36,7 +37,8 @@ internal sealed class WidgetClockControls : ContentView
     {
         AutomationId = "WidgetClockControls"; IsVisible = false;
         format = new(["12-hour", "24-hour"], "ClockFormat", index => Edit(WidgetClockTool.Time, x => x with { TwentyFourHour = index == 1 }));
-        fonts = new(["System", "Rounded", "Mono", "Serif"], "ClockFont", index => Edit(WidgetClockTool.Font, x => x with { Font = (WidgetClockFont)index }));
+        fonts = new(font => Edit(WidgetClockTool.Font, x => WidgetClockWeights.ChangeFont(x, font)),
+            weight => { if (layer?.Clock is { } clock && WidgetClockWeights.Available(clock.Font).Contains(weight)) Edit(WidgetClockTool.Font, x => x with { Weight = weight }); });
         alignment = new(["Left", "Centre", "Right"], "ClockAlignment", index => Edit(WidgetClockTool.Position, x => x with { Alignment = (WidgetClockAlignment)index }));
         seconds.Toggled += (_, args) => Edit(WidgetClockTool.Time, x => x with { ShowSeconds = args.Value });
         amPm.Toggled += (_, args) => { if (layer?.Clock?.TwentyFourHour == false) Edit(WidgetClockTool.Time, x => x with { ShowAmPm = args.Value }); };
@@ -133,7 +135,7 @@ internal sealed class WidgetClockControls : ContentView
             if (layer?.Clock is not { } clock) return;
             notice.Text = !layer.Visible ? "This clock is hidden. Show it in Layers to see it in the preview." : layer.Opacity == 0 ? "This clock has 0% opacity. Increase opacity to see it." : "";
             notice.IsVisible = notice.Text.Length > 0;
-            format.Update(clock.TwentyFourHour ? 1 : 0); fonts.Update((int)clock.Font); alignment.Update((int)clock.Alignment);
+            format.Update(clock.TwentyFourHour ? 1 : 0); fonts.Update(clock.Font, clock.Weight); alignment.Update((int)clock.Alignment);
             seconds.IsToggled = clock.ShowSeconds; size.Value = clock.FontScale; opacity.Value = layer.Opacity;
             amPm.IsToggled = clock.ShowAmPm; amPmRow.IsVisible = !clock.TwentyFourHour;
             sizeLabel.Text = $"Text size · {clock.FontScale:P0}"; opacityLabel.Text = $"Opacity · {layer.Opacity:P0}";

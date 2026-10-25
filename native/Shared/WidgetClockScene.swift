@@ -12,6 +12,10 @@ struct WidgetClockFrame: Decodable, Equatable {
         && (-4...4).contains(x) && (-4...4).contains(y) && (0.05...4).contains(width) && (0.05...4).contains(height) }
 }
 struct WidgetClockStyle: Decodable, Equatable {
+    static let fontNames = [
+        "rounded": "ArialRoundedMTBold", "monospaced": "Menlo-Bold", "serif": "Georgia-Bold",
+        "rocknRollOne": "RocknRollOne-Regular", "delaGothicOne": "DelaGothicOne-Regular", "kaiseiDecol": "KaiseiDecol-Regular"
+    ]
     let twentyFourHour: Bool
     let showSeconds: Bool
     let font: String
@@ -19,8 +23,31 @@ struct WidgetClockStyle: Decodable, Equatable {
     let fontScale: Double
     let alignment: String
     let showAmPm: Bool
+    let weight: String?
+    static func availableWeights(for font: String) -> [String] {
+        switch font {
+        case "system", "sfProRounded": return ["light", "regular", "medium", "semibold", "bold", "heavy"]
+        case "monospaced", "serif": return ["regular", "bold"]
+        case "rounded": return ["bold"]
+        case "rocknRollOne", "delaGothicOne", "kaiseiDecol": return ["regular"]
+        default: return []
+        }
+    }
+    var resolvedWeight: String {
+        if let weight = weight { return weight }
+        switch font {
+        case "system", "sfProRounded": return "semibold"
+        case "rounded", "monospaced", "serif": return "bold"
+        default: return "regular"
+        }
+    }
+    var postScriptName: String? {
+        if font == "monospaced" && resolvedWeight == "regular" { return "Menlo-Regular" }
+        if font == "serif" && resolvedWeight == "regular" { return "Georgia" }
+        return Self.fontNames[font]
+    }
     private enum CodingKeys: String, CodingKey {
-        case twentyFourHour, showSeconds, font, colourHex, fontScale, alignment, showAmPm
+        case twentyFourHour, showSeconds, font, colourHex, fontScale, alignment, showAmPm, weight
     }
     init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
@@ -33,9 +60,12 @@ struct WidgetClockStyle: Decodable, Equatable {
         // Older saved scenes predate this switch and always showed AM/PM.
         if values.contains(.showAmPm) { showAmPm = try values.decode(Bool.self, forKey: .showAmPm) }
         else { showAmPm = true }
+        // Missing/null weight retains the native face used before weight editing.
+        weight = try values.decodeIfPresent(String.self, forKey: .weight)
     }
     var valid: Bool {
-        ["system", "rounded", "monospaced", "serif"].contains(font) && ["left", "centre", "right"].contains(alignment)
+        !Self.availableWeights(for: font).isEmpty && (weight == nil || Self.availableWeights(for: font).contains(resolvedWeight))
+            && ["left", "centre", "right"].contains(alignment)
             && fontScale.isFinite && (0.2...1).contains(fontScale) && rgb != nil
     }
     func formatStyle(timeZone: TimeZone = .autoupdatingCurrent) -> Date.VerbatimFormatStyle {

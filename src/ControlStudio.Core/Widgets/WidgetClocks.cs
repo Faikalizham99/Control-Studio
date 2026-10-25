@@ -2,11 +2,13 @@ using System.Globalization;
 
 namespace ControlStudio.Core.Widgets;
 
-public enum WidgetClockFont { System, Rounded, Monospaced, Serif }
+// Append new values so existing saved names and editor automation indices stay stable.
+public enum WidgetClockFont { System, Rounded, Monospaced, Serif, RocknRollOne, DelaGothicOne, KaiseiDecol, SfProRounded }
+public enum WidgetClockWeight { Light, Regular, Medium, Semibold, Bold, Heavy }
 public enum WidgetClockAlignment { Left, Centre, Right }
 public sealed record WidgetClockOptions(bool TwentyFourHour = true, bool ShowSeconds = true,
     WidgetClockFont Font = WidgetClockFont.Rounded, string ColourHex = "#FFFFFF", double FontScale = .72,
-    WidgetClockAlignment Alignment = WidgetClockAlignment.Centre, bool ShowAmPm = true);
+    WidgetClockAlignment Alignment = WidgetClockAlignment.Centre, bool ShowAmPm = true, WidgetClockWeight? Weight = null);
 
 public static class WidgetClocks
 {
@@ -15,7 +17,8 @@ public static class WidgetClocks
     public static void Validate(WidgetClockOptions clock)
     {
         if (!Enum.IsDefined(clock.Font) || !Enum.IsDefined(clock.Alignment) || !double.IsFinite(clock.FontScale)
-            || clock.FontScale is < .2 or > 1 || !AppearanceValues.TryNormalizeHex(clock.ColourHex, out var colour) || colour != clock.ColourHex)
+            || clock.FontScale is < .2 or > 1 || !AppearanceValues.TryNormalizeHex(clock.ColourHex, out var colour) || colour != clock.ColourHex
+            || clock.Weight is { } weight && !WidgetClockWeights.Available(clock.Font).Contains(weight))
             throw new IOException("Choose valid clock settings before saving.");
     }
     public static string Text(WidgetClockOptions clock, DateTimeOffset date, TimeZoneInfo? zone = null)

@@ -7,16 +7,32 @@ namespace ControlStudio.Core.Tests;
 public sealed class WidgetClockTests
 {
     private static WidgetLayer Photo() => new(Guid.NewGuid(), "Photo", Guid.NewGuid().ToString("N"), 640, 480, new());
+    [Theory]
+    [InlineData(WidgetClockFont.RocknRollOne, "rocknRollOne")]
+    [InlineData(WidgetClockFont.DelaGothicOne, "delaGothicOne")]
+    [InlineData(WidgetClockFont.KaiseiDecol, "kaiseiDecol")]
+    [InlineData(WidgetClockFont.SfProRounded, "sfProRounded")]
+    public void BundledFontsHaveStableNativeSceneNames(WidgetClockFont font, string name)
+    {
+        var clock = WidgetClocks.New() with { Clock = new(Font: font) };
+        var design = WidgetDesignRules.New() with { Layers = [clock] };
+        var scene = JsonSerializer.Serialize(WidgetScenes.Manifest(design), WidgetDesignRules.JsonContext.WidgetScene);
+        using var json = JsonDocument.Parse(scene);
+        Assert.Equal(name, json.RootElement.GetProperty("parts")[0].GetProperty("clock").GetProperty("clock").GetProperty("font").GetString());
+        var restored = JsonSerializer.Deserialize(scene, WidgetDesignRules.JsonContext.WidgetScene)!;
+        WidgetScenes.Validate(restored, design);
+    }
     [Fact]
     public void PhotoAndClockKindsAndAllClockOptionsRoundTripInEveryFamily()
     {
         var clock = WidgetClocks.New() with { Locked = true, Opacity = .6, Frame = new(-.2, .3, 1.4, .3) };
         foreach (var size in WidgetDesignRules.SupportedSizes)
         foreach (var font in Enum.GetValues<WidgetClockFont>())
+        foreach (var weight in WidgetClockWeights.Available(font).Select(x => (WidgetClockWeight?)x).Prepend(null))
         foreach (var alignment in Enum.GetValues<WidgetClockAlignment>())
         foreach (var showAmPm in new[] { true, false })
         {
-            var layer = clock with { Clock = clock.Clock! with { TwentyFourHour = false, ShowSeconds = false, Font = font, Alignment = alignment, ColourHex = "#12ABEF", FontScale = .5, ShowAmPm = showAmPm } };
+            var layer = clock with { Clock = clock.Clock! with { TwentyFourHour = false, ShowSeconds = false, Font = font, Weight = weight, Alignment = alignment, ColourHex = "#12ABEF", FontScale = .5, ShowAmPm = showAmPm } };
             var design = WidgetDesignRules.New() with { Size = size, Layers = [Photo(), layer] }; WidgetDesignRules.Validate(design);
             var json = JsonSerializer.Serialize(design, WidgetDesignRules.JsonContext.WidgetDesign);
             var restored = JsonSerializer.Deserialize(json, WidgetDesignRules.JsonContext.WidgetDesign)!;
@@ -48,6 +64,7 @@ public sealed class WidgetClockTests
             clock with { FitPhoto = true }, clock with { Zoom = 2 }, clock with { FlipHorizontal = true }, clock with { QuarterTurns = 1 },
             clock with { BlendMode = WidgetBlendMode.Multiply }, clock with { Clock = new(Font: (WidgetClockFont)99) },
             clock with { Clock = new(Alignment: (WidgetClockAlignment)99) }, clock with { Clock = new(ColourHex: "#bad") },
+            clock with { Clock = new(Weight: (WidgetClockWeight)99) }, clock with { Clock = new(Font: WidgetClockFont.Rounded, Weight: WidgetClockWeight.Light) },
             clock with { Clock = new(FontScale: double.NaN) }, clock with { Clock = new(FontScale: 0) }, photo with { Clock = new() } })
             Assert.Throws<IOException>(() => WidgetDesignRules.Validate(WidgetDesignRules.New() with { Layers = [invalid] }));
         var json = JsonSerializer.Serialize(clock, WidgetDesignRules.Json);

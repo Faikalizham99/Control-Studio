@@ -25,6 +25,7 @@ BUNDLES = {
     "PlugIns/ControlStudioWidgets.appex": (APP_ID + ".widgets", "com.apple.widgetkit-extension"),
     "Extensions/ControlStudioIntents.appex": (APP_ID + ".intents", "com.apple.appintents-extension"),
 }
+CLOCK_FONTS = json.loads((Path(__file__).resolve().parents[1] / "assets/clock-fonts/manifest.json").read_text())["fonts"]
 
 
 def require(condition, message):
@@ -78,6 +79,17 @@ def validate_metadata(app):
                     for entry in privacy.get("NSPrivacyAccessedAPITypes", [])), f"Container file metadata reason missing: {identifier}")
         require(info.get("CFBundleVersion") == host.get("CFBundleVersion"), "Host/extension build versions differ")
         require(info.get("CFBundleShortVersionString") == host.get("CFBundleShortVersionString"), "Host/extension versions differ")
+        if not relative or relative == "PlugIns/ControlStudioWidgets.appex":
+            registered = info.get("UIAppFonts")
+            require(isinstance(registered, list) and all(isinstance(name, str) for name in registered)
+                    and set(registered) == {font["file"] for font in CLOCK_FONTS}, f"Clock font registration missing: {identifier}")
+            for font in CLOCK_FONTS:
+                path = bundle / font["file"]
+                require(path.is_file() and path.stat().st_size <= 10_000_000, f"Bundled clock font missing/oversized: {font['file']}")
+                require(hashlib.sha256(path.read_bytes()).hexdigest() == font["sha256"], f"Bundled clock font mismatch: {font['file']}")
+                licence = bundle / font["licence"]
+                require(licence.is_file() and licence.stat().st_size <= 65_536
+                        and "SIL OPEN FONT LICENSE" in licence.read_text(encoding="utf-8"), f"Clock font licence missing: {font['file']}")
         if point:
             actual = (info.get("EXAppExtensionAttributes", {}).get("EXExtensionPointIdentifier")
                       if relative.startswith("Extensions/") else

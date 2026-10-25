@@ -1,0 +1,30 @@
+{
+  "repository": "https://github.com/google/fonts",
+  "revision": "e7db6ca603fd4862010383ff17ffd6cc4ffac1c0",
+  "fonts": [
+    {
+      "id": "rocknRollOne",
+      "directory": "rocknrollone",
+      "postScriptName": "RocknRollOne-Regular",
+      "file": "RocknRollOne-Regular.ttf",
+      "licence": "OFL-RocknRollOne-Regular.txt",
+      "sha256": "dc0f5ff975851827f63f2c6bfed128ffbca14b6399a10fb5e1711215c0108526"
+    },
+    {
+      "id": "delaGothicOne",
+      "directory": "delagothicone",
+      "postScriptName": "DelaGothicOne-Regular",
+      "file": "DelaGothicOne-Regular.ttf",
+      "licence": "OFL-DelaGothicOne-Regular.txt",
+      "sha256": "4ff87a0965f1b0505e5a2c58424bc6ad3cff27e56a82f21c2fc9d6b0e3857ee2"
+    },
+    {
+      "id": "kaiseiDecol",
+      "directory": "kaiseidecol",
+      "postScriptName": "KaiseiDecol-Regular",
+      "file": "KaiseiDecol-Regular.ttf",
+      "licence": "OFL-KaiseiDecol-Regular.txt",
+      "sha256": "fb9202b97944fa00b5f145ad4701def5c306bcd0d26407917baef9e01b042056"
+    }
+  ]
+}
