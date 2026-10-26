@@ -1,4 +1,5 @@
 using ControlStudio.App.Views;
+using ControlStudio.App.Rendering;
 using Microsoft.Extensions.Logging;
 using Microsoft.Maui.Handlers;
 using UIKit;
@@ -47,11 +48,19 @@ internal sealed class WidgetCompositeHandler : ViewHandler<WidgetCompositeView, 
         catch (Exception ex)
         {
             // Never show stale/ordinary layers as though the chosen blend succeeded.
+            var stage = compositor?.Stage ?? WidgetRenderStage.Initialising;
             Clear();
-            MauiContext?.Services.GetService<ILogger<WidgetCompositeHandler>>()?.LogWarning("Widget composition preview failed. ErrorType={ErrorType}", ex.GetType().Name);
-            VirtualView.Failed(ex is IOException ? ex.Message : "Preview unavailable. Try changing the layer or choosing the photo again.");
+            ReportFailure(ex, stage);
         }
         finally { rendering = false; }
+    }
+    private void ReportFailure(Exception error, WidgetRenderStage stage)
+    {
+        var nativeName = (error as ObjCRuntime.ObjCException)?.Name;
+        MauiContext?.Services.GetService<ILogger<WidgetCompositeHandler>>()?.LogWarning(
+            "Widget preview failed. Stage={Stage}; ErrorType={ErrorType}; NativeError={NativeError}",
+            stage, error.GetType().Name, nativeName);
+        VirtualView.Failed(WidgetRenderFailure.Describe(error, stage, nativeName));
     }
     private void StopTimer() { timer?.Invalidate(); timer?.Dispose(); timer = null; timerInterval = 0; }
     private void UpdateTimer()
@@ -69,8 +78,7 @@ internal sealed class WidgetCompositeHandler : ViewHandler<WidgetCompositeView, 
             }
             catch (Exception ex)
             {
-                Clear(); MauiContext?.Services.GetService<ILogger<WidgetCompositeHandler>>()?.LogWarning("Live text preview update failed. ErrorType={ErrorType}", ex.GetType().Name);
-                VirtualView.Failed("The live text preview could not update. Reopen this editor to retry.");
+                Clear(); ReportFailure(ex, WidgetRenderStage.LiveUpdate);
             }
         });
         timer.FireDate = NSDate.FromTimeIntervalSinceNow(interval - DateTimeOffset.Now.ToUnixTimeMilliseconds() % (long)(interval * 1000) / 1000d);

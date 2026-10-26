@@ -7,6 +7,8 @@
     <PackageReference Include="xunit" Version="2.9.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5"><PrivateAssets>all</PrivateAssets></PackageReference>
     <ProjectReference Include="../../src/ControlStudio.Core/ControlStudio.Core.csproj" />
+    <Compile Include="../../src/ControlStudio.App/Rendering/ImageRenderBatch.cs" Link="Rendering/ImageRenderBatch.cs" />
+    <Compile Include="../../src/ControlStudio.App/Rendering/WidgetRenderFailure.cs" Link="Rendering/WidgetRenderFailure.cs" />
     <Compile Include="../../src/ControlStudio.App/AppearanceColors.cs" Link="AppearanceColors.cs" />
     <Compile Include="../../src/ControlStudio.App/AppearancePreferences.cs" Link="AppearancePreferences.cs" />
     <Compile Include="../../src/ControlStudio.App/ICounterAppearancePublisher.cs" Link="ICounterAppearancePublisher.cs" />

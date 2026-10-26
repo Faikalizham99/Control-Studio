@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using ControlStudio.App.Rendering;
 using ControlStudio.Core.Widgets;
 using CoreGraphics;
 using CoreImage;
@@ -42,13 +43,14 @@ internal static class AppleWidgetBlendSamples
         using var pool = new NSAutoreleasePool();
         using var rgb = CGColorSpace.CreateSrgb() ?? throw new IOException("Sample colour rendering is unavailable.");
         using var background = Shape(false); using var foreground = Shape(true);
-        using var backInput = CIImage.FromCGImage(background.CGImage!); using var frontInput = CIImage.FromCGImage(foreground.CGImage!);
+        using var images = new ImageRenderBatch<CIImage>();
+        var backInput = images.Own(CIImage.FromCGImage(background.CGImage!)); var frontInput = images.Own(CIImage.FromCGImage(foreground.CGImage!));
         var kernel = WidgetPhotoCompositor.Kernel(mode);
-        using var blended = kernel.Apply(frontInput, backInput) ?? throw new IOException("Blend sample unavailable.");
+        var blended = images.Own(kernel.Apply(frontInput, backInput) ?? throw new IOException("Blend sample unavailable."));
         var bounds = new CGRect(0, 0, 176, 128);
-        using var color = new CIColor(238 / 255f, 241 / 255f, 246 / 255f, 1); using var flat = new CIImage(color);
-        using var paper = flat.ImageByCroppingToRect(bounds); var over = WidgetPhotoCompositor.Kernel(WidgetBlendMode.Normal);
-        using var composite = over.Apply(blended, paper) ?? throw new IOException("Blend sample unavailable.");
+        using var color = new CIColor(238 / 255f, 241 / 255f, 246 / 255f, 1); var flat = images.Own(new CIImage(color));
+        var paper = images.Own(flat.ImageByCroppingToRect(bounds)); var over = WidgetPhotoCompositor.Kernel(WidgetBlendMode.Normal);
+        var composite = images.Own(over.Apply(blended, paper) ?? throw new IOException("Blend sample unavailable."));
         using var bitmap = context.Value.CreateCGImage(composite, bounds, CIFormat.Rgba8, rgb) ?? throw new IOException("Blend sample unavailable.");
         using var image = new UIImage(bitmap); using var png = image.AsPNG() ?? throw new IOException("Blend sample unavailable.");
         return png.ToArray();

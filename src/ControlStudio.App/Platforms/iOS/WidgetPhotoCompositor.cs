@@ -1,4 +1,5 @@
 using ControlStudio.Core.Widgets;
+using ControlStudio.App.Rendering;
 using System.Collections.Concurrent;
 using System.Text.Json;
 using CoreGraphics;
@@ -14,6 +15,7 @@ internal sealed class WidgetPhotoCompositor : IDisposable
     // Built-in kernels are shared immutable native objects. Retain their wrappers
     // for the app lifetime; a background sample must not dispose a live editor's kernel.
     private static readonly ConcurrentDictionary<WidgetBlendMode, CIBlendKernel> kernels = new();
+    public WidgetRenderStage Stage { get; private set; } = WidgetRenderStage.Initialising;
     private readonly Func<string, string?> path;
     private readonly CGColorSpace colorSpace = CGColorSpace.CreateSrgb() ?? throw new IOException("Widget colour rendering is unavailable.");
     private readonly CIContext context;
@@ -34,87 +36,91 @@ internal sealed class WidgetPhotoCompositor : IDisposable
     }
     public UIImage Render(WidgetDesign design, DateTimeOffset? time = null, int maximumEdge = WidgetDesignRules.MaximumImageEdge, WidgetBatteryReading battery = default)
     {
-        WidgetDesignRules.Validate(design);
+        Stage = WidgetRenderStage.Validation; WidgetDesignRules.Validate(design);
         using var pool = new NSAutoreleasePool();
         var canvas = WidgetDesignRules.Canvas(design);
         var scale = Math.Min(2, Math.Clamp(maximumEdge, 128, WidgetDesignRules.MaximumImageEdge) / Math.Max(canvas.Width, canvas.Height));
         var size = new CGSize(Math.Floor(canvas.Width * scale), Math.Floor(canvas.Height * scale));
         var bounds = new CGRect(CGPoint.Empty, size);
-        // Keep only visible layers. Changing blend mode/order/background reuses rasterized transforms.
-        foreach (var id in rasters.Keys.Where(id => !design.Layers.Any(x => x.Id == id && x.Visible && x.Opacity > 0)).ToArray())
-        { RemoveRaster(id); }
-        foreach (var key in sources.Keys.Where(key => !design.Layers.Any(x => x.Kind == WidgetLayerKind.Photo && x.AssetKey == key && x.Visible && x.Opacity > 0)).ToArray())
-        { RemoveSource(key); }
-        var result = Solid(bounds, design.TransparentBackground, design.BackgroundHex);
-        try
+        foreach (var id in rasters.Keys.Where(id => !design.Layers.Any(x => x.Id == id && x.Visible && x.Opacity > 0)).ToArray()) RemoveRaster(id);
+        foreach (var key in sources.Keys.Where(key => !design.Layers.Any(x => x.Kind == WidgetLayerKind.Photo && x.AssetKey == key && x.Visible && x.Opacity > 0)).ToArray()) RemoveSource(key);
+        using var images = new ImageRenderBatch<CIImage>();
+        Stage = WidgetRenderStage.Background;
+        var result = images.Own(Solid(bounds, design.TransparentBackground, design.BackgroundHex));
+        var timestamp = time ?? DateTimeOffset.Now;
+        var steps = WidgetScenes.Steps(design);
+        var pendingText = 0;
+        for (var index = 0; index < steps.Count; index++)
         {
-            var timestamp = time ?? DateTimeOffset.Now;
-            var steps = WidgetScenes.Steps(design);
-            var pendingText = 0;
-            for (var index = 0; index < steps.Count; index++)
+            var step = steps[index];
+            if (step.TextLayer is { } live)
             {
-                var step = steps[index];
-                if (step.TextLayer is { } clock)
-                {
-                    var input = Rasterize(clock, size, timestamp, battery);
-                    using var blended = CIBlendKernel.SourceOver.Apply(input, result) ?? throw new IOException("This text layer could not be rendered.");
-                    var cropped = blended.ImageByCroppingToRect(bounds); result.Dispose(); result = cropped;
-                    if (++pendingText >= MaximumGraphLayers)
-                    { var flat = Flatten(result, bounds); result.Dispose(); result = flat; pendingText = 0; }
-                }
+                var input = images.Borrow(Rasterize(live, size, timestamp, battery));
+                Stage = WidgetRenderStage.Blend;
+                var blended = images.Own(Kernel(WidgetBlendMode.Normal).Apply(input, result) ?? throw new IOException("This live layer could not be rendered."));
+                Stage = WidgetRenderStage.Crop; result = images.Own(blended.ImageByCroppingToRect(bounds));
+                if (++pendingText >= MaximumGraphLayers) { result = images.Checkpoint(Flatten(result, bounds)); pendingText = 0; }
+            }
+            else
+            {
+                if (pendingText > 0) { result = images.Checkpoint(Flatten(result, bounds)); pendingText = 0; }
+                var group = images.Own(RenderGroup(step.Photos, size, timestamp, index != 0 || design.TransparentBackground, design.BackgroundHex));
+                // The first group includes the background and is already a bitmap.
+                if (index == 0) result = images.Checkpoint(group);
                 else
                 {
-                    if (pendingText > 0)
-                    { var flat = Flatten(result, bounds); result.Dispose(); result = flat; pendingText = 0; }
-                    using var group = RenderGroup(step.Photos, size, timestamp, index != 0 || design.TransparentBackground, design.BackgroundHex);
-                    // The first group already includes the background. Replacing
-                    // it avoids applying a translucent background twice.
-                    CIImage flattened;
-                    if (index == 0) flattened = group.ImageByCroppingToRect(bounds);
-                    else
-                    {
-                        using var blended = CIBlendKernel.SourceOver.Apply(group, result) ?? throw new IOException("This photo group could not be rendered.");
-                        flattened = Flatten(blended, bounds);
-                    }
-                    result.Dispose(); result = flattened;
+                    Stage = WidgetRenderStage.Blend;
+                    var blended = images.Own(Kernel(WidgetBlendMode.Normal).Apply(group, result) ?? throw new IOException("This photo group could not be rendered."));
+                    result = images.Checkpoint(Flatten(blended, bounds));
                 }
             }
-            using var bitmap = context.CreateCGImage(result, bounds, CIFormat.Rgba8, colorSpace, false)
-                ?? throw new IOException("The widget preview could not be rendered.");
-            return new UIImage(bitmap);
         }
-        finally { result.Dispose(); }
+        Stage = WidgetRenderStage.Snapshot;
+        using var bitmap = Materialize(result, bounds);
+        return new UIImage(bitmap);
     }
     private static CIImage Solid(CGRect bounds, bool transparent, string hex)
     {
         using var colour = transparent ? new CIColor(0, 0, 0, 0) : Background(hex);
+        // An infinite source cropped to a finite canvas has distinct geometry.
         using var infinite = new CIImage(colour); return infinite.ImageByCroppingToRect(bounds);
+    }
+    private CGImage Materialize(CIImage input, CGRect bounds)
+    {
+        // The four-argument overload maps CIFormat to Apple's native constant.
+        // The SDK's five-argument overload passes the enum ordinal unchanged.
+        using var rendered = context.CreateCGImage(input, bounds, CIFormat.Rgba8, colorSpace)
+            ?? throw new IOException("The widget image could not be rendered.");
+        var width = checked((int)bounds.Width); var height = checked((int)bounds.Height);
+        // Force evaluation into a fresh sRGB RGBA8 buffer. This snapshot cannot
+        // retain an earlier recipe or alias a cached CIImage wrapper.
+        using var pixels = new CGBitmapContext(IntPtr.Zero, width, height, 8, checked(width * 4), colorSpace,
+            CGBitmapFlags.ByteOrder32Big | CGBitmapFlags.PremultipliedLast);
+        pixels.SetBlendMode(CGBlendMode.Copy); pixels.DrawImage(new CGRect(0, 0, width, height), rendered);
+        return pixels.ToImage() ?? throw new IOException("The widget image snapshot could not be prepared.");
     }
     private CIImage Flatten(CIImage input, CGRect bounds)
     {
-        using var bitmap = context.CreateCGImage(input, bounds, CIFormat.Rgba8, colorSpace, false)
-            ?? throw new IOException("The widget composition could not be prepared. Try hiding a few photo layers.");
+        Stage = WidgetRenderStage.Checkpoint;
+        using var bitmap = Materialize(input, bounds);
         return CIImage.FromCGImage(bitmap);
     }
     private CIImage RenderGroup(IReadOnlyList<WidgetLayer> layers, CGSize size, DateTimeOffset time, bool transparent, string hex)
     {
-        var bounds = new CGRect(CGPoint.Empty, size); var group = Solid(bounds, transparent, hex);
-        try
+        var bounds = new CGRect(CGPoint.Empty, size);
+        using var images = new ImageRenderBatch<CIImage>();
+        Stage = WidgetRenderStage.Background; var group = images.Own(Solid(bounds, transparent, hex));
+        for (var index = 0; index < layers.Count; index++)
         {
-            for (var index = 0; index < layers.Count; index++)
-            {
-                using var pool = new NSAutoreleasePool(); var layer = layers[index];
-                using var blended = Kernel(layer.BlendMode).Apply(Rasterize(layer, size, time), group)
-                    ?? throw new IOException("This photo blend could not be rendered.");
-                var cropped = blended.ImageByCroppingToRect(bounds); group.Dispose(); group = cropped;
-                if ((index + 1) % MaximumGraphLayers == 0)
-                { var flat = Flatten(group, bounds); group.Dispose(); group = flat; }
-            }
-            // The next group starts with a materialized image instead of
-            // retaining every earlier source/raster in a lazy Core Image graph.
-            return layers.Count % MaximumGraphLayers == 0 ? group.ImageByCroppingToRect(bounds) : Flatten(group, bounds);
+            using var pool = new NSAutoreleasePool(); var layer = layers[index];
+            var input = images.Borrow(Rasterize(layer, size, time));
+            Stage = WidgetRenderStage.Blend;
+            var blended = images.Own(Kernel(layer.BlendMode).Apply(input, group) ?? throw new IOException("This photo blend could not be rendered."));
+            Stage = WidgetRenderStage.Crop; group = images.Own(blended.ImageByCroppingToRect(bounds));
+            if ((index + 1) % MaximumGraphLayers == 0) group = images.Checkpoint(Flatten(group, bounds));
         }
-        finally { group.Dispose(); }
+        if (layers.Count == 0 || layers.Count % MaximumGraphLayers != 0) group = images.Checkpoint(Flatten(group, bounds));
+        return images.Detach(group);
     }
     public WidgetSceneExport Scene(WidgetDesign design)
     {
@@ -144,6 +150,7 @@ internal sealed class WidgetPhotoCompositor : IDisposable
         Convert.ToInt32(hex.Substring(3, 2), 16) / 255f, Convert.ToInt32(hex.Substring(5, 2), 16) / 255f, 1);
     private CIImage Rasterize(WidgetLayer layer, CGSize size, DateTimeOffset time, WidgetBatteryReading battery = default)
     {
+        Stage = layer.Kind == WidgetLayerKind.Photo ? WidgetRenderStage.Photo : layer.Kind == WidgetLayerKind.Battery ? WidgetRenderStage.Battery : WidgetRenderStage.Text;
         var geometry = layer with { Name = "", BlendMode = WidgetBlendMode.Normal, Locked = false };
         var clockText = WidgetTextLayers.IsText(layer) ? WidgetTextLayers.Text(layer, time) : layer.Kind == WidgetLayerKind.Battery ? $"{battery.Percent}:{battery.Charging}:{battery.Full}" : "";
         using var pool = new NSAutoreleasePool();

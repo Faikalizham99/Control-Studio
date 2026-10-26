@@ -1,5 +1,7 @@
 # Battery layers
 
+Included in **0.2.41 (43)**. The owner authorized pushing the previously committed Battery layer work with the rendering fix and new version tag, and will monitor the IPA build.
+
 Add layer → Battery creates an independent layer in any supported iPhone widget size. It shares the editor's drag, centred pinch, corner resize, free rotation, opacity, visibility, locking, reordering, duplication and precise position controls. Battery layers count towards the existing 30-layer limit. They do not require a photo or a permission prompt.
 
 The Shape panel offers a classic battery, horizontal bar, ring, semicircular arc and percentage-only display. Percentage and charging status are optional; percentage-only always displays the number. Charging uses a bolt; fully charged uses a check. Unknown readings show a neutral track and em dash, including when percentage labels are disabled. Unknown is never rendered as zero or charging.
