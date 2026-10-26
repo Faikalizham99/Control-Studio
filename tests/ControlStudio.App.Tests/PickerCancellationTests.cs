@@ -32,6 +32,23 @@ public sealed class PickerCancellationTests : IDisposable
         typeof(NavigationPage), BindingFlags.Instance | BindingFlags.NonPublic, null, [false, root], null)!;
     private static WidgetEditorPage Editor(Store store, string source = "Photo Library", ColourPicker? colours = null)
         => new(store, colours ?? new(), NullLogger.Instance, WidgetDesignRules.New() with { Layers = [Photo()] }, choosePhotoSource: () => Task.FromResult<string?>(source));
+    [Fact]
+    public void ThirtyMixedLayersKeepStableRowsAndSelectionDuringReorderingAndSave()
+    {
+        var layers = Enumerable.Range(0, 30).Select(index => ((index % 4) switch
+        { 0 => Photo(), 1 => WidgetClocks.New(), 2 => WidgetDates.New(), _ => WidgetTexts.New() }) with { Name = "Layer " + index, RotationDegrees = index }).ToArray();
+        var store = new Store(); var page = new WidgetEditorPage(store, new ColourPicker(), NullLogger.Instance, WidgetDesignRules.New() with { Layers = layers }); Open(page);
+        var list = Descendants(page).OfType<WidgetLayerList>().Single(); var originalRows = list.Rows.ToDictionary(x => x.LayerId);
+        var positions = list.Rows.Select((row, index) => new WidgetLayerPosition(row.LayerId, index * 72, 64)).ToArray();
+        var scroll = Descendants(page).OfType<WidgetEditorScrollView>().Single(); ((IView)scroll).Arrange(new Rect(0, 0, 350, 600)); scroll.SetScrolledPosition(0, 900);
+        var drag = list.BeginReorder(positions, layers[^1].Id)!; Assert.NotNull(drag); Assert.True(drag.Move(29 * 72 + 64)); Assert.Equal(29, drag.Target); list.CompleteReorder(drag);
+        var design = Descendants(page).OfType<WidgetCompositeView>().Single().Design!; Assert.Equal(layers[^1], design.Layers[0]);
+        Assert.Equal(30, design.Layers.Count); Assert.All(list.Rows, row => Assert.Same(originalRows[row.LayerId], row));
+        Assert.Contains(Descendants(page).OfType<Label>(), label => label.Text == "30 / 30 layers");
+        Assert.Contains("Limit of 30 layers reached", SemanticProperties.GetDescription(Button(page, "AddWidgetPhoto")));
+        Assert.False(Button(page, "AddWidgetPhoto").IsEnabled); Assert.Equal(0, store.Saves); Assert.Equal(900, scroll.ScrollY);
+        ((IButtonController)Button(page, "SaveWidgetDesign")).SendClicked(); Assert.Equal(design.Layers, store.Saved!.Layers);
+    }
     [Theory]
     [InlineData(WidgetLayerKind.Photo)] [InlineData(WidgetLayerKind.Clock)] [InlineData(WidgetLayerKind.Date)] [InlineData(WidgetLayerKind.Text)]
     public void RotationSettingsPersistAnglesWithoutChangingContentOrScrollAndRespectLocks(WidgetLayerKind kind)
@@ -120,9 +137,9 @@ public sealed class PickerCancellationTests : IDisposable
         var composition = Descendants(page).OfType<WidgetCompositeView>().Single(); Assert.Equal(source, composition.Design!.Layers[0]); Assert.Equal("Changed copy", composition.Design.Layers[1].Text!.Content);
         Click("ClockToolColour"); var picker = Descendants(page).OfType<ColourPickerView>().Single(x => x.AutomationId == "ClockTextColourPicker"); await picker.PickAsync();
         Assert.True(Button(page, "SaveWidgetDesign").IsEnabled); Click("ClockToolTime"); Assert.Equal("Changed copy", editor.Text);
-        for (var i = 0; i < 6; i++) await page.AddLayerAsync();
-        Assert.Equal(8, composition.Design.Layers.Count); Assert.False(Button(page, "AddWidgetPhoto").IsEnabled);
-        await page.AddLayerAsync(); Assert.Equal(8, composition.Design.Layers.Count); Assert.Equal(0, store.Picks);
+        for (var i = 2; i < WidgetDesignRules.MaximumLayers; i++) await page.AddLayerAsync();
+        Assert.Equal(WidgetDesignRules.MaximumLayers, composition.Design.Layers.Count); Assert.False(Button(page, "AddWidgetPhoto").IsEnabled);
+        await page.AddLayerAsync(); Assert.Equal(WidgetDesignRules.MaximumLayers, composition.Design.Layers.Count); Assert.Equal(0, store.Picks);
         Click("SaveWidgetDesign"); Assert.Equal(source, store.Saved!.Layers[0]); Assert.Equal("Changed copy", store.Saved.Layers[1].Text!.Content);
     }
     [Theory]
@@ -254,8 +271,8 @@ public sealed class PickerCancellationTests : IDisposable
         Assert.Equal(copied.AssetKey, store.Saved.Layers[1].AssetKey); Assert.Equal(copied.Clock, store.Saved.Layers[1].Clock); Assert.Equal(copied.Date, store.Saved.Layers[1].Date);
     }
     [Theory]
-    [InlineData(7)] [InlineData(8)]
-    public void DuplicateMenuAndLateCallbackBothRespectTheEightLayerLimit(int count)
+    [InlineData(29)] [InlineData(30)]
+    public void DuplicateMenuAndLateCallbackBothRespectTheThirtyLayerLimit(int count)
     {
         var layers = Enumerable.Range(1, count).Select(index => WidgetClocks.New("Clock " + index)).ToArray(); var store = new Store(); string[]? offered = null;
         var page = new WidgetEditorPage(store, new ColourPicker(), NullLogger.Instance, WidgetDesignRules.New() with { Layers = layers },
@@ -263,8 +280,8 @@ public sealed class PickerCancellationTests : IDisposable
         var row = Descendants(page).OfType<WidgetLayerRow>().Single(value => value.LayerId == layers[0].Id);
         var menu = Descendants(row).OfType<ClipboardIconButton>().Single(value => value.AutomationId == "WidgetLayerOptions" + layers[0].Id.ToString("N"));
         ((IButtonController)Descendants(menu).OfType<Button>().Single()).SendClicked();
-        var design = Descendants(page).OfType<WidgetCompositeView>().Single().Design!; Assert.Equal(8, design.Layers.Count);
-        if (count == 7) Assert.Contains("Duplicate layer", offered!);
+        var design = Descendants(page).OfType<WidgetCompositeView>().Single().Design!; Assert.Equal(30, design.Layers.Count);
+        if (count == 29) Assert.Contains("Duplicate layer", offered!);
         else { Assert.DoesNotContain("Duplicate layer", offered!); Assert.Equal(layers, design.Layers); }
         Assert.Equal(0, store.Saves); Assert.True(Button(page, "SaveWidgetDesign").IsEnabled); Assert.False(Button(page, "AddWidgetPhoto").IsEnabled);
     }
@@ -635,12 +652,12 @@ public sealed class PickerCancellationTests : IDisposable
         Assert.Equal(new[] { WidgetLayerKind.Photo, WidgetLayerKind.Clock }, Descendants(page).OfType<WidgetCompositeView>().Single().Design!.Layers.Select(x => x.Kind));
     }
     [Fact]
-    public async Task SharedLayerLimitPreventsOpeningTheChooserAtEightLayers()
+    public async Task SharedLayerLimitPreventsOpeningTheChooserAtThirtyLayers()
     {
-        var choices = 0; var store = new Store(); var original = WidgetDesignRules.New() with { Layers = Enumerable.Range(0, 8).Select(_ => WidgetClocks.New()).ToArray() };
+        var choices = 0; var store = new Store(); var original = WidgetDesignRules.New() with { Layers = Enumerable.Range(0, 30).Select(_ => WidgetClocks.New()).ToArray() };
         var page = new WidgetEditorPage(store, new ColourPicker(), NullLogger.Instance, original, chooseLayerType: () => { choices++; return Task.FromResult<string?>("Clock"); }); Open(page);
         Assert.False(Button(page, "AddWidgetPhoto").IsEnabled); await page.AddLayerAsync(); Assert.Equal(0, choices);
-        Assert.Equal(8, Descendants(page).OfType<WidgetCompositeView>().Single().Design!.Layers.Count); Assert.Equal(0, store.Picks);
+        Assert.Equal(30, Descendants(page).OfType<WidgetCompositeView>().Single().Design!.Layers.Count); Assert.Equal(0, store.Picks);
     }
     [Fact]
     public void ClockHorizontalCenterPreservesHeightOptionsAndDraftAndRespectsLockedAndInvalidColourStates()

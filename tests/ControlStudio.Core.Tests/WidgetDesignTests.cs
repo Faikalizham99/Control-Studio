@@ -46,8 +46,8 @@ public sealed class WidgetDesignTests
     public void PhotosAreOptionalAndBoundedAndInvalidLayerKindsAreNotSilentlyDiscarded()
     {
         var design = WidgetDesignRules.New(); WidgetDesignRules.Validate(design);
-        WidgetDesignRules.Validate(design with { Layers = Enumerable.Range(0, 8).Select(_ => Photo()).ToArray() });
-        Assert.Throws<IOException>(() => WidgetDesignRules.Validate(design with { Layers = Enumerable.Range(0, 9).Select(_ => Photo()).ToArray() }));
+        WidgetDesignRules.Validate(design with { Layers = Enumerable.Range(0, 30).Select(_ => Photo()).ToArray() });
+        Assert.Throws<IOException>(() => WidgetDesignRules.Validate(design with { Layers = Enumerable.Range(0, 31).Select(_ => Photo()).ToArray() }));
         var json = JsonSerializer.Serialize(design with { Layers = [Photo()] }, WidgetDesignRules.Json);
         Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<WidgetDesign>(json.Replace("\"photo\"", "\"futureLayer\""), WidgetDesignRules.Json));
         Assert.Throws<IOException>(() => WidgetDesignRules.Validate(new WidgetCatalog(2, [design])));

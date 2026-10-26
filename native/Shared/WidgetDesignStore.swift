@@ -110,6 +110,7 @@ struct WidgetSlotCatalog: Decodable {
 }
 
 struct WidgetDesignStore {
+    static let maximumLayers = 30
     static let slotsPerSize = 10
     static func slotKind(_ number: Int) -> String { "ControlStudio.Slot.\(number)" }
     let directory: URL
@@ -156,7 +157,7 @@ struct WidgetDesignStore {
         for design in catalog.designs {
             guard UUID(uuidString: design.id) != nil, design.id != "00000000-0000-0000-0000-000000000000",
                 Self.validKey(design.renderKey), design.revision >= 0,
-                !design.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, design.name.utf16.count <= 60, (design.layers?.count ?? 0) <= 8
+                !design.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, design.name.utf16.count <= 60, (design.layers?.count ?? 0) <= Self.maximumLayers
                 else { throw WidgetDesignError.invalidCatalog }
         }
         return catalog.designs.filter { $0.size.isSupported }

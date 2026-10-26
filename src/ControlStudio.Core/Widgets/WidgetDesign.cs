@@ -40,7 +40,7 @@ public static class WidgetDesignRules
         Validate(design);
         return design.Size == WidgetSize.ExtraLarge ? design with { Size = WidgetSize.ExtraLargePortrait } : design;
     }
-    public const int MaximumDesigns = 50, MaximumLayers = 8, MaximumImageEdge = 1024;
+    public const int MaximumDesigns = 50, MaximumLayers = 30, MaximumImageEdge = 1024;
     public const int MaximumCatalogBytes = 1_000_000, MaximumImageBytes = 4_000_000;
     public const double MinimumLayerSize = .05, MaximumLayerSize = 4, MaximumLayerOffset = 4;
     public static WidgetJsonContext JsonContext { get; } = new(CreateJson());

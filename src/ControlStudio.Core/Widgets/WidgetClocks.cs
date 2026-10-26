@@ -67,6 +67,7 @@ public static class WidgetScenes
     }
     public static void Validate(WidgetScene scene, WidgetDesign design)
     {
+        WidgetDesignRules.Validate(design);
         var expected = Manifest(design);
         if (!IsLive(design) || scene.SchemaVersion != expected.SchemaVersion || scene.Width != expected.Width || scene.Height != expected.Height
             || scene.Parts is null || !scene.Parts.SequenceEqual(expected.Parts))

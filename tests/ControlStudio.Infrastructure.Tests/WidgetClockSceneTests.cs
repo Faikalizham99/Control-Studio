@@ -17,6 +17,28 @@ public sealed class WidgetClockSceneTests : IDisposable
         var key = await Repo().ImportPhotoAsync(Png); var photo = new WidgetLayer(Guid.NewGuid(), "Bottom", key, 1, 1, new());
         return WidgetDesignRules.New() with { Layers = [photo, WidgetClocks.New(), photo with { Id = Guid.NewGuid(), Name = "Top" }] };
     }
+    [Fact]
+    public async Task ThirtyAlternatingLayersReopenPublishAndKeepLatePhotoGroupsAndSlots()
+    {
+        var repo = Repo(); var key = await repo.ImportPhotoAsync(Png);
+        var layers = Enumerable.Range(0, 30).Select(index => index % 2 == 1
+            ? new WidgetLayer(Guid.NewGuid(), "Photo " + index, key, 1, 1, new(), RotationDegrees: index)
+            : WidgetClocks.New("Clock " + index) with { RotationDegrees = -index }).ToArray();
+        var design = WidgetDesignRules.New() with { Layers = layers }; var saved = await repo.SaveAsync(design, Png, scene: Export(design));
+        await repo.AssignSlotAsync(saved.Size, 6, saved.Id); Assert.Equal(layers, Assert.Single(await Repo().ReadAsync()).Layers);
+        Assert.NotNull(repo.SceneImagePath(saved.RenderKey, 29)); Assert.Null(repo.SceneImagePath(saved.RenderKey, 30));
+        await new WidgetDesignPublisher(Repo(), () => Shared).PublishAsync();
+        Assert.True(File.Exists(Path.Combine(Shared, "renders", saved.RenderKey + ".part-29.png")));
+        var catalog = JsonSerializer.Deserialize(await File.ReadAllBytesAsync(Path.Combine(Shared, "catalog.json")), WidgetDesignRules.JsonContext.WidgetCatalog)!;
+        Assert.Equal(layers, Assert.Single(catalog.Designs).Layers); Assert.Equal(saved.Id, Assert.Single((await repo.ReadLibraryAsync()).Slots).DesignId);
+        var before = await File.ReadAllBytesAsync(Path.Combine(Private, "catalog.json"));
+        await Assert.ThrowsAsync<IOException>(() => repo.SaveAsync(saved with { Layers = layers.Append(WidgetTexts.New("Extra")).ToArray() }, Png));
+        Assert.Equal(before, await File.ReadAllBytesAsync(Path.Combine(Private, "catalog.json")));
+        var tooHeavy = Export(design); var huge = Png;
+        System.Buffers.Binary.BinaryPrimitives.WriteInt32BigEndian(huge.AsSpan(16, 4), 1024);
+        System.Buffers.Binary.BinaryPrimitives.WriteInt32BigEndian(huge.AsSpan(20, 4), 1024);
+        Assert.Throws<IOException>(() => WidgetDesignRepository.ValidateScene(tooHeavy with { Images = tooHeavy.Images.Keys.ToDictionary(x => x, _ => huge) }, design));
+    }
     [Theory]
     [InlineData(WidgetLayerKind.Photo)] [InlineData(WidgetLayerKind.Clock)] [InlineData(WidgetLayerKind.Date)] [InlineData(WidgetLayerKind.Text)]
     public async Task FreeRotationSurvivesReopenPublicationAndResetWithoutChangingSlotOrContent(WidgetLayerKind kind)

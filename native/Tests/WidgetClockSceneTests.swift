@@ -5,6 +5,29 @@ import CoreText
 @testable import ControlStudioStorage
 
 final class WidgetClockSceneTests: XCTestCase {
+    func testThirtyLayersAndLivePartsAreAcceptedButThirtyOneIsRejected() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        var catalog = try JSONSerialization.jsonObject(with: fixture("widget-designs-v1.example.json")) as! [String: Any]
+        var designs = catalog["designs"] as! [[String: Any]]
+        let original = try JSONSerialization.jsonObject(with: fixture("widget-scene-v1.example.json")) as! [String: Any]
+        let clock = (original["parts"] as! [[String: Any]])[1]["clock"] as! [String: Any]
+        var layers: [[String: Any]] = []
+        for _ in 0..<30 { var layer = clock; layer["id"] = UUID().uuidString; layers.append(layer) }
+        designs[0]["layers"] = layers; catalog["designs"] = designs
+        let url = directory.appendingPathComponent("catalog.json")
+        try JSONSerialization.data(withJSONObject: catalog).write(to: url)
+        XCTAssertEqual(try WidgetDesignStore(directory: directory).read().first?.layers?.count, 30)
+        var scene = original; scene["parts"] = layers.map { ["clock": $0] }
+        XCTAssertTrue(try JSONDecoder().decode(WidgetClockScene.self, from: JSONSerialization.data(withJSONObject: scene)).valid)
+        var extra = clock; extra["id"] = UUID().uuidString; layers.append(extra)
+        designs[0]["layers"] = layers; catalog["designs"] = designs
+        try JSONSerialization.data(withJSONObject: catalog).write(to: url)
+        XCTAssertThrowsError(try WidgetDesignStore(directory: directory).read())
+        scene["parts"] = layers.map { ["clock": $0] }
+        XCTAssertFalse(try JSONDecoder().decode(WidgetClockScene.self, from: JSONSerialization.data(withJSONObject: scene)).valid)
+    }
     func testFreeRotationOnLiveClockAndDateKeepsOldDefaultsAndRejectsOutOfRangeAngles() throws {
         let oldClock = try JSONSerialization.jsonObject(with: fixture("widget-scene-v1.example.json")) as! [String: Any]
         let oldDate = try JSONSerialization.jsonObject(with: fixture("widget-scene-v2-date.example.json")) as! [String: Any]

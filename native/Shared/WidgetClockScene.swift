@@ -191,7 +191,7 @@ struct WidgetClockScene: Decodable, Equatable {
     let parts: [WidgetClockScenePart]
     var valid: Bool {
         guard (schemaVersion == 1 || schemaVersion == 2), width.isFinite, height.isFinite, (50...600).contains(width), (50...1100).contains(height),
-            !parts.isEmpty, parts.count <= 8 else { return false }
+            !parts.isEmpty, parts.count <= WidgetDesignStore.maximumLayers else { return false }
         var clocks = Set<String>()
         for (index, part) in parts.enumerated() {
             if let image = part.imageIndex { if image != index || part.clock != nil || part.date != nil { return false } }

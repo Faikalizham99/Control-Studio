@@ -331,7 +331,7 @@ internal sealed class WidgetEditorPage : ContentPage
     {
         scroll.PreserveViewport();
         layerList.CancelReorder();
-        layersCount.Text = $"{draft.Layers.Count} {(draft.Layers.Count == 1 ? "layer" : "layers")}";
+        layersCount.Text = $"{draft.Layers.Count} / {WidgetDesignRules.MaximumLayers} layers";
         foreach (var id in rows.Keys.Where(id => !draft.Layers.Any(x => x.Id == id)).ToArray())
         { layerList.Items.Remove(rows[id]); rows[id].ReleaseSource(); rows.Remove(id); }
         var index = 0;
@@ -541,7 +541,7 @@ internal sealed class WidgetEditorPage : ContentPage
         name.Unfocus(); draft = draft with { Name = name.Text?.Trim() ?? "", PreserveCanvas = true };
         ShowStatus("Saving widget…");
         // Export owns its own compositor on a worker thread. Release the preview's
-        // buffers first rather than retaining two eight-layer compositions at once.
+        // buffers first rather than retaining two full compositions at once.
         canvas.SuspendComposition();
         var result = await studio.SaveAsync(draft); draft = result.Design; saved = true; await CleanupAsync();
         if (!Foreground || departed) return;
@@ -566,6 +566,9 @@ internal sealed class WidgetEditorPage : ContentPage
         canvas.IsEnabled = !busy && !saved && !departed && !background.IsBusy && !clockControls.IsBusy && !layerList.IsReordering;
         back.IsEnabled = cancel.IsEnabled = canNavigate;
         addPhoto.IsEnabled = canNavigate && !saved && draft.Layers.Count < WidgetDesignRules.MaximumLayers;
+        addPhoto.Describe(draft.Layers.Count >= WidgetDesignRules.MaximumLayers
+            ? $"Add layer. Limit of {WidgetDesignRules.MaximumLayers} layers reached. Remove a layer to add another."
+            : $"Add layer. {draft.Layers.Count} of {WidgetDesignRules.MaximumLayers} layers used.");
         var layer = draft.Layers.FirstOrDefault(x => x.Id == selected);
         clockControls.SetAvailable(canNavigate && !saved && layer is not null && WidgetTextLayers.IsText(layer));
         opacityTool.IsEnabled = deleteTool.IsEnabled = blendTool.IsEnabled = blendMenu.IsEnabled = tools.IsEnabled = canNavigate && !saved && layer?.Kind == WidgetLayerKind.Photo;
