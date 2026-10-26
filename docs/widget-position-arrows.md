@@ -1,6 +1,6 @@
 # Precise layer position arrows
 
-Unreleased enhancement. No version, signing, native widget registration or IPA workflow changes.
+Included in **0.2.39 (41)** alongside custom Text layers. The owner authorized committing, pushing main and pushing the new version tag, and will monitor the IPA build. Signing, native widget registration and IPA workflow behavior are unchanged.
 
 Clock and Date share a keyboard-style inverted T control directly below **Centre horizontally** in Position. Photo uses the same component below a new **Centre horizontally** action in **Size, position & crop**. The shared precision controls also offer it for text layers.
 

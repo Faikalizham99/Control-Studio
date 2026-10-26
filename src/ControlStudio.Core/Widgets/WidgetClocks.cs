@@ -32,7 +32,7 @@ public static class WidgetClocks
     }
 }
 
-/// <summary>Consecutive photos are blended together; live text separates those static groups.</summary>
+/// <summary>Photos and custom text are composited together; Clock/Date separate those static groups.</summary>
 public sealed record WidgetSceneStep(IReadOnlyList<WidgetLayer> Photos, WidgetLayer? TextLayer);
 public sealed record WidgetScenePart(int? ImageIndex = null, WidgetLayer? Clock = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] WidgetLayer? Date = null);
@@ -41,13 +41,13 @@ public sealed record WidgetSceneExport(WidgetScene Scene, IReadOnlyDictionary<in
 public static class WidgetScenes
 {
     public const int MaximumBytes = 32_768, MaximumPixels = 3_000_000, MaximumImageBytes = 4_000_000;
-    public static bool IsLive(WidgetDesign design) => design.Layers.Any(x => WidgetTextLayers.IsText(x) && x.Visible && x.Opacity > 0);
+    public static bool IsLive(WidgetDesign design) => design.Layers.Any(x => WidgetTextLayers.IsLive(x) && x.Visible && x.Opacity > 0);
     public static IReadOnlyList<WidgetSceneStep> Steps(WidgetDesign design)
     {
         var result = new List<WidgetSceneStep>(); var photos = new List<WidgetLayer>();
         foreach (var layer in design.Layers)
         {
-            if (layer.Kind == WidgetLayerKind.Photo) { if (layer.Visible && layer.Opacity > 0) photos.Add(layer); }
+            if (!WidgetTextLayers.IsLive(layer)) { if (layer.Visible && layer.Opacity > 0) photos.Add(layer); }
             else
             {
                 if (photos.Count > 0) { result.Add(new(photos.ToArray(), null)); photos.Clear(); }

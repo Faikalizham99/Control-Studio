@@ -11,5 +11,6 @@
     <None Include="../../contracts/widget-slots-v1.example.json" Link="widget-slots-v1.example.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../contracts/widget-scene-v1.example.json" Link="widget-scene-v1.example.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../contracts/widget-scene-v2-date.example.json" Link="widget-scene-v2-date.example.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../contracts/widget-text-v1.example.json" Link="widget-text-v1.example.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

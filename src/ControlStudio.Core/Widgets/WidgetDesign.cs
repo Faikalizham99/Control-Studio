@@ -6,13 +6,14 @@ namespace ControlStudio.Core.Widgets;
 // ExtraLarge is retained only to decode retired saved libraries. It cannot be
 // created, rendered, assigned or published. Keep serialized IDs stable.
 public enum WidgetSize { Small, Medium, Large, ExtraLarge, ExtraLargePortrait }
-public enum WidgetLayerKind { Photo, Clock, Date }
+public enum WidgetLayerKind { Photo, Clock, Date, Text }
 public sealed record WidgetFrame(double X = 0, double Y = 0, double Width = 1, double Height = 1);
 public sealed record WidgetLayer(Guid Id, string Name, string AssetKey, int PixelWidth, int PixelHeight,
     WidgetFrame Frame, double Zoom = 1, double CropX = .5, double CropY = .5, bool Visible = true,
     WidgetLayerKind Kind = WidgetLayerKind.Photo, int QuarterTurns = 0, bool FlipHorizontal = false, bool FlipVertical = false, double Opacity = 1,
     bool FitPhoto = false, WidgetBlendMode BlendMode = WidgetBlendMode.Normal, bool Locked = false, WidgetClockOptions? Clock = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] WidgetDateOptions? Date = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] WidgetDateOptions? Date = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] WidgetTextOptions? Text = null);
 public sealed record WidgetDesign(Guid Id, string Name, WidgetSize Size, string BackgroundHex,
     IReadOnlyList<WidgetLayer> Layers, string RenderKey, int Revision = 0, bool TransparentBackground = false, bool PreserveCanvas = false,
     WidgetCanvasSize? CanvasDimensions = null);
@@ -98,14 +99,15 @@ public static class WidgetDesignRules
                 throw new IOException("A widget layer is invalid. Its data was not changed.");
             if (layer.Kind == WidgetLayerKind.Photo)
             {
-                if (!ValidKey(layer.AssetKey) || layer.Clock is not null || layer.Date is not null) throw new IOException("A photo layer is invalid. Its data was not changed.");
+                if (!ValidKey(layer.AssetKey) || layer.Clock is not null || layer.Date is not null || layer.Text is not null) throw new IOException("A photo layer is invalid. Its data was not changed.");
             }
             else if (layer.AssetKey != "" || layer.PixelWidth != 1 || layer.PixelHeight != 1
                 || layer.Zoom != 1 || layer.CropX != .5 || layer.CropY != .5 || layer.QuarterTurns != 0
                 || layer.FlipHorizontal || layer.FlipVertical || layer.FitPhoto || layer.BlendMode != WidgetBlendMode.Normal)
                 throw new IOException("A text layer is invalid. Its data was not changed.");
-            else if (layer.Kind == WidgetLayerKind.Clock && layer.Clock is { } clock && layer.Date is null) WidgetClocks.Validate(clock);
-            else if (layer.Kind == WidgetLayerKind.Date && layer.Date is { } date && layer.Clock is null) WidgetDates.Validate(date);
+            else if (layer.Kind == WidgetLayerKind.Clock && layer.Clock is { } clock && layer.Date is null && layer.Text is null) WidgetClocks.Validate(clock);
+            else if (layer.Kind == WidgetLayerKind.Date && layer.Date is { } date && layer.Clock is null && layer.Text is null) WidgetDates.Validate(date);
+            else if (layer.Kind == WidgetLayerKind.Text && layer.Text is { } text && layer.Clock is null && layer.Date is null) WidgetTexts.Validate(text);
             else throw new IOException("A text layer is invalid. Its data was not changed.");
         }
     }

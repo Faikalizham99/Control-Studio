@@ -22,7 +22,7 @@ internal sealed class WidgetLayerRow : ContentView
     {
         LayerId = layer.Id;
         photo.Source = path; name.MaxLines = 2; name.LineBreakMode = LineBreakMode.TailTruncation;
-        var thumbnail = ClipboardEditorControls.Field(WidgetTextLayers.IsText(layer) ? ClipboardEditorControls.Icon(layer.Kind == WidgetLayerKind.Date ? StudioSymbol.Calendar : StudioSymbol.Clock, size: 28) : photo, 0); thumbnail.WidthRequest = thumbnail.HeightRequest = 48;
+        var thumbnail = ClipboardEditorControls.Field(WidgetTextLayers.IsText(layer) ? ClipboardEditorControls.Icon(layer.Kind switch { WidgetLayerKind.Text => StudioSymbol.Text, WidgetLayerKind.Date => StudioSymbol.Calendar, _ => StudioSymbol.Clock }, size: 28) : photo, 0); thumbnail.WidthRequest = thumbnail.HeightRequest = 48;
         thumbnail.VerticalOptions = LayoutOptions.Center;
         var thumbnailTap = new TapGestureRecognizer(); thumbnailTap.Tapped += (_, _) => Act(() => select(layer.Id));
         thumbnail.GestureRecognizers.Add(thumbnailTap);

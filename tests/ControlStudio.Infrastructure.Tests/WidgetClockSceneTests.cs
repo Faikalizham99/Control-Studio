@@ -17,6 +17,30 @@ public sealed class WidgetClockSceneTests : IDisposable
         var key = await Repo().ImportPhotoAsync(Png); var photo = new WidgetLayer(Guid.NewGuid(), "Bottom", key, 1, 1, new());
         return WidgetDesignRules.New() with { Layers = [photo, WidgetClocks.New(), photo with { Id = Guid.NewGuid(), Name = "Top" }] };
     }
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public async Task CustomTextReopensAndPublishesAsStaticGroupsWithNoSourceAssetsOrNewSceneSchema(bool mixed)
+    {
+        var repo = Repo(); var text = WidgetTexts.New() with { Text = new("Hello\n世界 🌸", WidgetClockFont.SfProRounded, "#12ABEF", .5, WidgetClockAlignment.Left, WidgetClockWeight.Light) };
+        var top = text with { Id = Guid.NewGuid(), Name = "Top", Text = text.Text! with { Content = "Top" }, Locked = true };
+        var layers = mixed ? new[] { text, WidgetClocks.New(), top, WidgetDates.New() } : new[] { text, top };
+        var draft = WidgetDesignRules.New() with { Layers = layers };
+        var saved = await repo.SaveAsync(draft, Png, scene: mixed ? Export(draft) : null); await repo.AssignSlotAsync(saved.Size, 3, saved.Id);
+        var reopened = Assert.Single(await Repo().ReadAsync()); Assert.Equal(layers, reopened.Layers);
+        await new WidgetDesignPublisher(Repo(), () => Shared).PublishAsync();
+        var published = JsonSerializer.Deserialize(await File.ReadAllBytesAsync(Path.Combine(Shared, "catalog.json")), WidgetDesignRules.JsonContext.WidgetCatalog)!;
+        Assert.Equal(layers, Assert.Single(published.Designs).Layers); Assert.False(Directory.Exists(Path.Combine(Private, "photos")));
+        Assert.False(Directory.Exists(Path.Combine(Shared, "photos"))); Assert.Equal(saved.Id, Assert.Single((await repo.ReadLibraryAsync()).Slots).DesignId);
+        if (mixed)
+        {
+            var scene = JsonSerializer.Deserialize(await File.ReadAllBytesAsync(Path.Combine(Shared, "renders", saved.RenderKey + ".scene.json")), WidgetDesignRules.JsonContext.WidgetScene)!;
+            Assert.Equal(2, scene.SchemaVersion); Assert.Equal(new int?[] { 0, null, 2, null }, scene.Parts.Select(x => x.ImageIndex));
+            Assert.True(File.Exists(Path.Combine(Shared, "renders", saved.RenderKey + ".part-0.png"))); WidgetScenes.Validate(scene, saved);
+        }
+        else Assert.Null(repo.ScenePath(saved.RenderKey));
+        var broken = saved with { Layers = [text with { Text = text.Text! with { Content = new string('x', 501) } }] };
+        await Assert.ThrowsAsync<IOException>(() => repo.SaveAsync(broken, Png)); Assert.Equal(layers, Assert.Single(await repo.ReadAsync()).Layers);
+    }
     [Fact]
     public async Task NudgedPhotoClockAndDateFramesReopenAndPublishAtTheirSavedPositions()
     {

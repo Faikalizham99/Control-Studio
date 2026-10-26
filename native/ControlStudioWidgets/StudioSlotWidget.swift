@@ -7,6 +7,7 @@ struct StudioSlotEntry: TimelineEntry {
     let slot: Int
     var image: UIImage? = nil
     var name = ""
+    var textDescription = ""
     var transparentBackground = false
     var preserveCanvas = false
     var canvasBackground: Color = .clear
@@ -89,11 +90,11 @@ struct StudioSlotProvider: TimelineProvider {
                 for (index, bytes) in data {
                     guard let image = UIImage(data: bytes) else { throw WidgetDesignError.imageUnavailable }; images[index] = image
                 }
-                return StudioSlotEntry(date: .now, slot: slot, name: design.name, transparentBackground: design.transparentBackground ?? false,
+                return StudioSlotEntry(date: .now, slot: slot, name: design.name, textDescription: design.accessibilityText, transparentBackground: design.transparentBackground ?? false,
                     preserveCanvas: true, canvasBackground: background, canvasDimensions: design.canvasDimensions, scene: scene, sceneImages: images)
             }
             guard let image = UIImage(data: try store.imageData(for: design)) else { throw WidgetDesignError.imageUnavailable }
-            return StudioSlotEntry(date: .now, slot: slot, image: image, name: design.name,
+            return StudioSlotEntry(date: .now, slot: slot, image: image, name: design.name, textDescription: design.accessibilityText,
                 transparentBackground: design.transparentBackground ?? false, preserveCanvas: design.preserveCanvas ?? false, canvasBackground: background,
                 canvasDimensions: design.canvasDimensions)
         } catch CounterError.storageUnavailable {
@@ -111,6 +112,7 @@ struct StudioSlotView: View {
             if #available(iOS 18.0, *), let scene = entry.scene {
                 StudioClockSceneView(scene: scene, images: entry.sceneImages, background: entry.transparentBackground ? .clear : entry.canvasBackground)
                     .accessibilityLabel("Studio \(entry.slot): \(entry.name)")
+                    .accessibilityValue(entry.textDescription)
             } else if let image = entry.image {
                 GeometryReader { geometry in
                     // Correct only integer-PNG rounding when the saved point canvas
@@ -123,6 +125,7 @@ struct StudioSlotView: View {
                         .frame(width: geometry.size.width, height: geometry.size.height).clipped()
                         .background(entry.preserveCanvas && !entry.transparentBackground ? entry.canvasBackground : .clear)
                         .accessibilityLabel("Studio \(entry.slot): \(entry.name)")
+                        .accessibilityValue(entry.textDescription)
                 }
             } else {
                 VStack(alignment: .leading, spacing: 8) {

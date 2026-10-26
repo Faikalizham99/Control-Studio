@@ -33,6 +33,70 @@ public sealed class PickerCancellationTests : IDisposable
     private static WidgetEditorPage Editor(Store store, string source = "Photo Library", ColourPicker? colours = null)
         => new(store, colours ?? new(), NullLogger.Instance, WidgetDesignRules.New() with { Layers = [Photo()] }, choosePhotoSource: () => Task.FromResult<string?>(source));
     [Theory]
+    [InlineData(AppTheme.Light)] [InlineData(AppTheme.Dark)]
+    public async Task TextLayerUsesSharedAppearanceAndPositionControlsWithMultilineContentAndNoTimeSettings(AppTheme theme)
+    {
+        host.App.UserAppTheme = theme;
+        var photo = Photo(); var clock = WidgetClocks.New(); var date = WidgetDates.New(); var store = new Store();
+        var page = new WidgetEditorPage(store, new ColourPicker(), NullLogger.Instance,
+            WidgetDesignRules.New() with { Layers = [photo, clock, date] }, chooseLayerType: () => Task.FromResult<string?>("Text"));
+        Open(page); await page.AddLayerAsync();
+        void Click(string id) => ((IButtonController)Button(page, id)).SendClicked();
+        var composition = Descendants(page).OfType<WidgetCompositeView>().Single(); var added = composition.Design!.Layers.Last();
+        Assert.Equal(WidgetLayerKind.Text, added.Kind); Assert.Equal("Text 1", added.Name); Assert.Null(added.Clock); Assert.Null(added.Date);
+        var controls = Descendants(page).OfType<WidgetClockControls>().Single();
+        Click("ClockToolTime"); Assert.Contains("Text content", SemanticProperties.GetDescription(Button(page, "ClockToolTime")));
+        var editor = Descendants(controls).OfType<Editor>().Single(x => x.AutomationId == "WidgetTextContent"); Assert.True(Visible(editor));
+        Assert.False(Visible(Descendants(controls).OfType<Switch>().Single(x => x.AutomationId == "ClockShowSeconds")));
+        Assert.False(Visible(Descendants(controls).OfType<Switch>().Single(x => x.AutomationId == "DateShowWeekday")));
+        Assert.False(Visible(Button(page, "DateFormat0"))); Assert.False(Visible(Button(page, "ClockFormat0")));
+        var scroll = Descendants(page).OfType<WidgetEditorScrollView>().Single(); ((IView)scroll).Arrange(new Rect(0, 0, 350, 600)); scroll.SetScrolledPosition(0, 800);
+        var requests = 0; scroll.ScrollToRequested += (_, _) => requests++;
+        editor.Text = "Hello\r\n世界 🌸"; Assert.Equal("Hello\n世界 🌸", composition.Design.Layers.Last().Text!.Content);
+        Assert.Equal("Hello\n世界 🌸", editor.Text); editor.Text = "";
+        Assert.Contains(Descendants(controls).OfType<Label>(), label => label.Text?.Contains("text layer is blank", StringComparison.Ordinal) == true);
+        editor.Text = new string('a', 499) + "🌸"; Assert.Equal(new string('a', 499), editor.Text);
+        editor.Text = "Hello\n世界 🌸";
+        Click("ClockToolFont"); Click("ClockFont7"); Click("ClockWeight7Light");
+        Assert.Contains(Descendants(controls).OfType<WidgetClockFontLabel>(), label => label.Text == "Hello");
+        editor.Text = "Stale hidden edit"; Assert.Equal("Hello\n世界 🌸", composition.Design.Layers.Last().Text!.Content);
+        Click("ClockToolColour"); Descendants(controls).OfType<HexColorEntry>().Single().Text = "#12ABEF";
+        Click("ClockToolPosition"); Click("ClockAlignment0"); Click("CentreClockHorizontally"); Click("ClockPositionNudgeRight");
+        Click("ClockToolSize"); Descendants(controls).OfType<Slider>().Single(x => x.AutomationId == "ClockTextSize").Value = .5;
+        Click("ClockToolOpacity"); Descendants(controls).OfType<Slider>().Single(x => x.AutomationId == "ClockOpacity").Value = .6;
+        var edited = composition.Design.Layers.Last(); Assert.Equal(WidgetClockFont.SfProRounded, edited.Text!.Font); Assert.Equal(WidgetClockWeight.Light, edited.Text.Weight);
+        Assert.Equal(WidgetClockAlignment.Left, edited.Text.Alignment); Assert.Equal("#12ABEF", edited.Text.ColourHex); Assert.Equal(.5, edited.Text.FontScale); Assert.Equal(.6, edited.Opacity);
+        Assert.Equal(new[] { photo, clock, date }, composition.Design.Layers.Take(3)); Assert.Equal(0, store.Picks); Assert.Equal(0, store.Saves);
+        Assert.Equal(800, scroll.ScrollY); Assert.Equal(0, requests);
+        Click("SaveWidgetDesign"); Assert.Equal(edited, store.Saved!.Layers.Last());
+        static bool Visible(Element element)
+        {
+            for (Element? current = element; current is not null; current = current.Parent) if (current is View view && !view.IsVisible) return false;
+            return true;
+        }
+    }
+
+    [Fact]
+    public async Task CustomTextDuplicationAndPickerCancellationKeepContentIndependentAndRespectTheLayerLimit()
+    {
+        var source = WidgetTexts.New() with { Text = new("One\nTwo", WidgetClockFont.SfProRounded, Weight: WidgetClockWeight.Light) };
+        var colours = new ColourPicker { Pick = (_, _) => Task.FromException<string>(new IOException("cancelled")) }; var store = new Store();
+        var choice = "Duplicate layer";
+        var page = new WidgetEditorPage(store, colours, NullLogger.Instance, WidgetDesignRules.New() with { Layers = [source] },
+            chooseLayerAction: (_, _) => Task.FromResult<string?>(choice), chooseLayerType: () => Task.FromResult<string?>("Text")); Open(page);
+        void Click(string id) => ((IButtonController)Button(page, id)).SendClicked();
+        var menu = Descendants(page).OfType<ClipboardIconButton>().Single(x => x.AutomationId == "WidgetLayerOptions" + source.Id.ToString("N"));
+        ((IButtonController)Descendants(menu).OfType<Button>().Single()).SendClicked(); Click("ClockToolTime");
+        var editor = Descendants(page).OfType<Editor>().Single(x => x.AutomationId == "WidgetTextContent"); editor.Text = "Changed copy";
+        var composition = Descendants(page).OfType<WidgetCompositeView>().Single(); Assert.Equal(source, composition.Design!.Layers[0]); Assert.Equal("Changed copy", composition.Design.Layers[1].Text!.Content);
+        Click("ClockToolColour"); var picker = Descendants(page).OfType<ColourPickerView>().Single(x => x.AutomationId == "ClockTextColourPicker"); await picker.PickAsync();
+        Assert.True(Button(page, "SaveWidgetDesign").IsEnabled); Click("ClockToolTime"); Assert.Equal("Changed copy", editor.Text);
+        for (var i = 0; i < 6; i++) await page.AddLayerAsync();
+        Assert.Equal(8, composition.Design.Layers.Count); Assert.False(Button(page, "AddWidgetPhoto").IsEnabled);
+        await page.AddLayerAsync(); Assert.Equal(8, composition.Design.Layers.Count); Assert.Equal(0, store.Picks);
+        Click("SaveWidgetDesign"); Assert.Equal(source, store.Saved!.Layers[0]); Assert.Equal("Changed copy", store.Saved.Layers[1].Text!.Content);
+    }
+    [Theory]
     [InlineData(WidgetLayerKind.Photo, AppTheme.Light)] [InlineData(WidgetLayerKind.Photo, AppTheme.Dark)]
     [InlineData(WidgetLayerKind.Clock, AppTheme.Light)] [InlineData(WidgetLayerKind.Clock, AppTheme.Dark)]
     [InlineData(WidgetLayerKind.Date, AppTheme.Light)] [InlineData(WidgetLayerKind.Date, AppTheme.Dark)]

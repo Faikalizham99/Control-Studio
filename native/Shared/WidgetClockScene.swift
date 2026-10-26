@@ -1,9 +1,17 @@
 import Foundation
 
+struct WidgetStaticTextContent: Decodable, Equatable { let content: String }
 struct WidgetLayerMarker: Decodable, Equatable {
     let kind: String?
     let visible: Bool?
     let opacity: Double?
+    var text: WidgetStaticTextContent? = nil
+    var accessibilityText: String? {
+        guard kind == "text", visible != false, (opacity ?? 1) > 0,
+              let content = text?.content, content.utf16.count <= 500,
+              !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
+        return content
+    }
     var liveClock: Bool { kind == "clock" && visible != false && (opacity ?? 1) > 0 }
     var liveText: Bool { (kind == "clock" || kind == "date") && visible != false && (opacity ?? 1) > 0 }
 }

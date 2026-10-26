@@ -5,6 +5,32 @@ import CoreText
 @testable import ControlStudioStorage
 
 final class WidgetClockSceneTests: XCTestCase {
+    func testCustomTextCatalogUsesTheSavedPNGWithoutRequestingALiveScene() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let renders = directory.appendingPathComponent("renders")
+        try FileManager.default.createDirectory(at: renders, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let catalog = try fixture("widget-text-v1.example.json")
+        try catalog.write(to: directory.appendingPathComponent("catalog.json"))
+        let store = WidgetDesignStore(directory: directory); let design = try XCTUnwrap(store.read().first)
+        XCTAssertFalse(design.hasLiveText); XCTAssertFalse(design.hasLiveClock)
+        XCTAssertEqual(design.layers?.first?.kind, "text")
+        XCTAssertEqual(design.accessibilityText, "Hello\n世界 🌸")
+        let png = try XCTUnwrap(Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aZXsAAAAASUVORK5CYII="))
+        try png.write(to: renders.appendingPathComponent(design.renderKey + ".png"))
+        XCTAssertEqual(try store.imageData(for: design), png)
+    }
+    func testHiddenZeroOpacityAndBlankTextAreExcludedFromWidgetAccessibility() throws {
+        let original: [String: Any] = ["kind": "text", "visible": true, "opacity": 1, "text": ["content": "Hello"]]
+        let decoder = JSONDecoder()
+        let visible = try decoder.decode(WidgetLayerMarker.self, from: JSONSerialization.data(withJSONObject: original))
+        XCTAssertEqual(visible.accessibilityText, "Hello"); XCTAssertFalse(visible.liveText)
+        let cases: [[String: Any]] = [["visible": false], ["opacity": 0], ["text": ["content": " \n "]], ["kind": "clock"]]
+        for changes in cases {
+            let hidden = original.merging(changes) { _, new in new }
+            XCTAssertNil(try decoder.decode(WidgetLayerMarker.self, from: JSONSerialization.data(withJSONObject: hidden)).accessibilityText)
+        }
+    }
     func testWeightDefaultsPreserveOldScenesAndRoundedSystemSupportsAllSixWeights() throws {
         let scene = try JSONSerialization.jsonObject(with: fixture("widget-scene-v1.example.json")) as! [String: Any]
         let layer = (scene["parts"] as! [[String: Any]])[1]["clock"] as! [String: Any]

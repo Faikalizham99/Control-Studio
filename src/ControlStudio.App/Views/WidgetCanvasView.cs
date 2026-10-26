@@ -59,9 +59,9 @@ internal sealed class WidgetCanvasView : ContentView
         composite.ClockTicked += (_, time) =>
         {
             if (design is null) return;
-            foreach (var layer in design.Layers.Where(WidgetTextLayers.IsText))
+            foreach (var layer in design.Layers.Where(WidgetTextLayers.IsLive))
                 if (photos.TryGetValue(layer.Id, out var view)) { view.Clock.Text = WidgetTextLayers.Text(layer, time); Place(view, layer, 0, 0); }
-            if (design.Layers.FirstOrDefault(x => x.Id == selected) is { } active && WidgetTextLayers.IsText(active))
+            if (design.Layers.FirstOrDefault(x => x.Id == selected) is { } active && WidgetTextLayers.IsLive(active))
             {
                 ghost.Clock.Text = WidgetTextLayers.Text(active, time); var origin = Origin(canvas, workspace); Place(ghost, active, origin.X, origin.Y);
             }
@@ -191,6 +191,8 @@ internal sealed class WidgetCanvasView : ContentView
         {
             var clock = WidgetTextLayers.Style(layer);
             photo.Clock.Text = WidgetTextLayers.Text(layer, DateTimeOffset.Now); photo.Clock.TextColor = Color.FromArgb(clock.ColourHex);
+            photo.Clock.MaxLines = layer.Kind == WidgetLayerKind.Text ? -1 : 1;
+            photo.Clock.LineBreakMode = layer.Kind == WidgetLayerKind.Text ? LineBreakMode.WordWrap : LineBreakMode.NoWrap;
             photo.Clock.Opacity = layer.Opacity; photo.Clock.Typeface = clock;
             photo.Clock.HorizontalTextAlignment = clock.Alignment switch { WidgetClockAlignment.Left => TextAlignment.Start, WidgetClockAlignment.Right => TextAlignment.End, _ => TextAlignment.Center };
         }
@@ -206,7 +208,12 @@ internal sealed class WidgetCanvasView : ContentView
         if (WidgetTextLayers.IsText(layer))
         {
             var clock = WidgetTextLayers.Style(layer);
-            photo.Clock.FontSize = Math.Max(.5, Math.Min(height * clock.FontScale, width / Math.Max(1, photo.Clock.Text.Length * .65)));
+            photo.Clock.FontSize = layer.Kind == WidgetLayerKind.Text ? Math.Max(.5, height * clock.FontScale)
+                : Math.Max(.5, Math.Min(height * clock.FontScale, width / Math.Max(1, photo.Clock.Text.Length * .65)));
+#if IOS
+            if (layer.Kind == WidgetLayerKind.Text)
+                photo.Clock.FontSize = Platforms.iOS.AppleWidgetClockDrawing.MultilineSize(layer, width, height);
+#endif
             AbsoluteLayout.SetLayoutBounds(photo.Clock, new Rect(0, 0, width, height)); return;
         }
         var placement = WidgetPhotoGeometry.Image(layer, width, height); var odd = layer.QuarterTurns % 2 != 0;

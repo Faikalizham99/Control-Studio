@@ -61,7 +61,7 @@ internal sealed class WidgetEditorPage : ContentPage
     {
         this.studio = studio; this.logger = logger;
         this.choosePhotoSource = choosePhotoSource ?? (() => DisplayActionSheetAsync("Add photo layer", "Cancel", null, "Photo Library", "Files"));
-        this.chooseLayerType = chooseLayerType ?? (() => DisplayActionSheetAsync("Add layer", "Cancel", null, "Photo", "Clock", "Date"));
+        this.chooseLayerType = chooseLayerType ?? (() => DisplayActionSheetAsync("Add layer", "Cancel", null, "Photo", "Clock", "Date", "Text"));
         this.chooseLayerAction = chooseLayerAction;
         draft = WidgetDesignRules.ForEditing(original ?? (WidgetDesignRules.New() with { Size = initialSize, TransparentBackground = OperatingSystem.IsIOSVersionAtLeast(26) }));
         ApplyCanvasSizing();
@@ -106,7 +106,7 @@ internal sealed class WidgetEditorPage : ContentPage
         {
             if (saved || departed || canvas.IsInteracting || layerList.IsReordering) return;
             var current = draft.Layers.FirstOrDefault(x => x.Id == changed.Id && WidgetTextLayers.IsText(x)); if (current is null) return;
-            ReplaceLayer(current with { Clock = changed.Clock, Date = changed.Date, Opacity = changed.Opacity }); RefreshControls();
+            ReplaceLayer(current with { Clock = changed.Clock, Date = changed.Date, Text = changed.Text, Opacity = changed.Opacity }); RefreshControls();
             if (Foreground) UpdateCanvas(); else canvas.SuspendComposition();
         };
         layerList.CanStart = () => CanEdit;
@@ -461,12 +461,12 @@ internal sealed class WidgetEditorPage : ContentPage
         name.Unfocus(); var choice = await chooseLayerType();
         if (!Foreground || departed) return;
         if (choice == "Photo") await PickPhotoAsync();
-        else if (choice is "Clock" or "Date")
+        else if (choice is "Clock" or "Date" or "Text")
         {
-            if (OperatingSystem.IsIOS() && !OperatingSystem.IsIOSVersionAtLeast(18)) { ShowStatus("Live text layers require iOS 18 or later."); return; }
+            if (choice != "Text" && OperatingSystem.IsIOS() && !OperatingSystem.IsIOSVersionAtLeast(18)) { ShowStatus("Live text layers require iOS 18 or later."); return; }
             var ordinal = 1; while (draft.Layers.Any(x => x.Name == choice + " " + ordinal)) ordinal++;
             var colour = Application.Current?.Resources.TryGetValue("Accent", out var accent) == true && accent is Color value ? AppearanceColors.ToRgbHex(value) : "#007AFF";
-            var layer = choice == "Date" ? WidgetDates.New("Date " + ordinal, colour) : WidgetClocks.New("Clock " + ordinal, colour);
+            var layer = choice switch { "Date" => WidgetDates.New("Date " + ordinal, colour), "Text" => WidgetTexts.New("Text " + ordinal, colour), _ => WidgetClocks.New("Clock " + ordinal, colour) };
             draft = draft with { Layers = draft.Layers.Append(layer).ToArray() }; selected = layer.Id; RefreshLayers();
         }
     }

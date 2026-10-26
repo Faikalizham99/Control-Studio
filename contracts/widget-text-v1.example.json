@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "designs": [
+    {
+      "id": "12345678-1234-4234-8234-123456789012",
+      "name": "Text widget",
+      "size": "small",
+      "backgroundHex": "#101116",
+      "renderKey": "11111111222243338444555555555555",
+      "revision": 1,
+      "transparentBackground": true,
+      "preserveCanvas": true,
+      "layers": [
+        {
+          "id": "12345678-1234-4234-8234-123456789013",
+          "name": "Text 1",
+          "assetKey": "",
+          "pixelWidth": 1,
+          "pixelHeight": 1,
+          "frame": { "x": 0.05, "y": 0.35, "width": 0.9, "height": 0.3 },
+          "kind": "text",
+          "text": {
+            "content": "Hello\n世界 🌸",
+            "font": "sfProRounded",
+            "colourHex": "#12ABEF",
+            "fontScale": 0.5,
+            "alignment": "left",
+            "weight": "light"
+          }
+        }
+      ]
+    }
+  ]
+}

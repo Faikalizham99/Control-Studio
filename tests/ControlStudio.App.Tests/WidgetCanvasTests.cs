@@ -8,6 +8,22 @@ namespace ControlStudio.App.Tests;
 public sealed class WidgetCanvasTests : IDisposable
 {
     [Fact]
+    public void CustomTextWrapsWithoutPhotoIOOrTimeTicksAndKeepsItsCentreWhileResizing()
+    {
+        var text = WidgetTexts.New() with { Text = new("Hello\n世界 🌸") }; var reads = 0;
+        var draft = WidgetDesignRules.New() with { Layers = [text] }; WidgetCanvasView? view = null;
+        view = new WidgetCanvasView(_ => { reads++; return null; }, _ => { }, value => { draft = draft with { Layers = [value] }; view!.Update(draft, value.Id); });
+        host.Attach(view); view.Update(draft, text.Id); ((IView)view.PhotoSurface).Arrange(new Rect(0, 0, 170, 170));
+        var frame = Assert.IsType<AbsoluteLayout>(view.PhotoSurface.Children.Single()); var label = frame.Children.OfType<WidgetClockFontLabel>().Single();
+        Assert.Equal("Hello\n世界 🌸", label.Text); Assert.Equal(-1, label.MaxLines); Assert.Equal(LineBreakMode.WordWrap, label.LineBreakMode);
+        var widget = Assert.IsType<Border>(view.Workspace.Children[1]); var composite = Assert.IsType<Grid>(widget.Content).Children.OfType<WidgetCompositeView>().Single();
+        composite.TickClock(DateTimeOffset.MaxValue); Assert.Equal("Hello\n世界 🌸", label.Text); Assert.Equal(0, reads);
+        Assert.True(view.BeginInteraction(117, 117, true)); view.Pinch(1.5, 100, -100); view.EndInteraction(false);
+        var resized = draft.Layers.Single(); Assert.Equal(.5, resized.Frame.X + resized.Frame.Width / 2, 10); Assert.Equal(.5, resized.Frame.Y + resized.Frame.Height / 2, 10);
+        Assert.Equal(text.Text, resized.Text); view.Update(draft with { Layers = [resized with { Locked = true }] }, resized.Id);
+        Assert.False(view.BeginInteraction(117, 117, true)); Assert.Equal(0, reads);
+    }
+    [Fact]
     public void DateCanvasTicksWithoutPhotoAccessAndPinchesAroundItsCentre()
     {
         var date = WidgetDates.New() with { Date = new(WidgetDateFormat.Numeric), Frame = new(.1, .35, .8, .3) };

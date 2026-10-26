@@ -49,11 +49,17 @@ public static class WidgetDates
 
 public static class WidgetTextLayers
 {
-    public static bool IsText(WidgetLayer layer) => layer.Kind is WidgetLayerKind.Clock or WidgetLayerKind.Date;
-    public static string Name(WidgetLayer layer) => layer.Kind == WidgetLayerKind.Date ? "date" : "clock";
-    public static WidgetClockOptions Style(WidgetLayer layer) => layer.Kind == WidgetLayerKind.Date ? WidgetDates.Style(layer.Date!) : layer.Clock!;
-    public static WidgetLayer WithStyle(WidgetLayer layer, WidgetClockOptions style) => layer.Kind == WidgetLayerKind.Date
-        ? layer with { Date = WidgetDates.WithStyle(layer.Date!, style) } : layer with { Clock = style };
-    public static string Text(WidgetLayer layer, DateTimeOffset time, TimeZoneInfo? zone = null) => layer.Kind == WidgetLayerKind.Date
-        ? WidgetDates.Text(layer.Date!, time, zone) : WidgetClocks.Text(layer.Clock!, time, zone);
+    public static bool IsText(WidgetLayer layer) => layer.Kind is WidgetLayerKind.Clock or WidgetLayerKind.Date or WidgetLayerKind.Text;
+    public static bool IsLive(WidgetLayer layer) => layer.Kind is WidgetLayerKind.Clock or WidgetLayerKind.Date;
+    public static string Name(WidgetLayer layer) => layer.Kind switch { WidgetLayerKind.Date => "date", WidgetLayerKind.Text => "text", _ => "clock" };
+    public static WidgetClockOptions Style(WidgetLayer layer) => layer.Kind switch
+    { WidgetLayerKind.Date => WidgetDates.Style(layer.Date!), WidgetLayerKind.Text => WidgetTexts.Style(layer.Text!), _ => layer.Clock! };
+    public static WidgetLayer WithStyle(WidgetLayer layer, WidgetClockOptions style) => layer.Kind switch
+    {
+        WidgetLayerKind.Date => layer with { Date = WidgetDates.WithStyle(layer.Date!, style) },
+        WidgetLayerKind.Text => layer with { Text = WidgetTexts.WithStyle(layer.Text!, style) },
+        _ => layer with { Clock = style }
+    };
+    public static string Text(WidgetLayer layer, DateTimeOffset time, TimeZoneInfo? zone = null) => layer.Kind switch
+    { WidgetLayerKind.Date => WidgetDates.Text(layer.Date!, time, zone), WidgetLayerKind.Text => layer.Text!.Content, _ => WidgetClocks.Text(layer.Clock!, time, zone) };
 }

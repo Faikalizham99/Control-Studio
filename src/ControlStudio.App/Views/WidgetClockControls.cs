@@ -13,6 +13,13 @@ internal sealed class WidgetClockControls : ContentView
     private readonly WidgetSegments weekdayStyle;
     private readonly View dateFormat;
     private readonly View clockTime;
+    private readonly View textContent;
+    private readonly Editor content = new()
+    {
+        Placeholder = "Type your text here…", FontSize = 16, HeightRequest = 144, AutoSize = EditorAutoSizeOption.Disabled,
+        BackgroundColor = Colors.Transparent, IsTextPredictionEnabled = true, IsSpellCheckEnabled = true, AutomationId = "WidgetTextContent"
+    };
+    private readonly Label contentCount = SettingsControls.Text("", 12, secondary: true);
     private readonly Label formatHeading = SettingsControls.Text("Time", 19, bold: true);
     private readonly Label sizeHelp = SettingsControls.Text("", 12, secondary: true);
     private readonly Label positionHelp = SettingsControls.Text("", 12, secondary: true);
@@ -45,6 +52,7 @@ internal sealed class WidgetClockControls : ContentView
     public event EventHandler? InvalidColour;
     private bool CanUse => available && IsEnabled && !IsBusy && layer is not null && (CanInteract?.Invoke() ?? true);
     private bool IsDate => layer?.Kind == WidgetLayerKind.Date;
+    private bool IsCustomText => layer?.Kind == WidgetLayerKind.Text;
     private WidgetClockOptions? TextStyle => layer is null ? null : WidgetTextLayers.Style(layer);
     public WidgetClockControls(IColourPicker picker)
     {
@@ -63,6 +71,24 @@ internal sealed class WidgetClockControls : ContentView
         var weekdayLabel = SettingsControls.Text("Show weekday", 14); weekdayLabel.VerticalOptions = LayoutOptions.Center;
         weekdayRow.Add(weekdayLabel); weekdayRow.Add(showWeekday, 1);
         dateFormat = new VerticalStackLayout { Spacing = 12, Children = { weekdayRow, SettingsControls.Text("Weekday style", 14, bold: true), weekdayStyle, dates } };
+        content.SetAppThemeColor(Editor.TextColorProperty, Color.FromArgb("#16171C"), Color.FromArgb("#F5F5F7"));
+        content.SetAppThemeColor(Editor.PlaceholderColorProperty, Color.FromArgb("#737B8B"), Color.FromArgb("#9198A7"));
+        SemanticProperties.SetDescription(content, "Text layer content");
+        SemanticProperties.SetHint(content, $"Up to {WidgetTexts.MaximumLength} characters. New lines are supported.");
+        content.TextChanged += (_, args) =>
+        {
+            if (updating || !CanUse || ActiveTool != WidgetClockTool.Time || layer?.Text is not { } text) return;
+            var normalized = WidgetTexts.NormalizeContent(args.NewTextValue);
+            if (content.Text != normalized)
+            {
+                updating = true;
+                try { content.Text = normalized; } finally { updating = false; }
+            }
+            PositionChanging?.Invoke(content);
+            Publish(layer with { Text = text with { Content = normalized } });
+        };
+        textContent = new VerticalStackLayout { Spacing = 8, Children = { ClipboardEditorControls.Field(content, 10), contentCount,
+            SettingsControls.Text("Use new lines for separate lines. Text wraps inside its frame and scales down when needed. A blank layer displays nothing.", 12, secondary: true) } };
         alignment = new(["Left", "Centre", "Right"], "ClockAlignment", index => Edit(WidgetClockTool.Position, x => x with { Alignment = (WidgetClockAlignment)index }));
         seconds.Toggled += (_, args) => Edit(WidgetClockTool.Time, x => x with { ShowSeconds = args.Value });
         amPm.Toggled += (_, args) => { if (layer?.Clock?.TwentyFourHour == false) Edit(WidgetClockTool.Time, x => x with { ShowAmPm = args.Value }); };
@@ -100,7 +126,7 @@ internal sealed class WidgetClockControls : ContentView
         }
         clockTime = new VerticalStackLayout { Spacing = 12, Children = { format, row, amPmRow,
             SettingsControls.Text("Time follows this iPhone. iOS may simplify it while the display is dimmed.", 12, secondary: true) } };
-        Add(WidgetClockTool.Time, StudioSymbol.Clock, "Time", clockTime, dateFormat);
+        Add(WidgetClockTool.Time, StudioSymbol.Clock, "Time", clockTime, dateFormat, textContent);
         Add(WidgetClockTool.Font, StudioSymbol.Font, "Font", fonts);
         Add(WidgetClockTool.Colour, StudioSymbol.Palette, "Colour", colour);
         Add(WidgetClockTool.Size, StudioSymbol.Expand, "Size", sizeLabel, size,
@@ -127,6 +153,7 @@ internal sealed class WidgetClockControls : ContentView
     }
     private void SetPanel(WidgetClockTool? tool)
     {
+        if (tool != WidgetClockTool.Time || !IsCustomText) content.Unfocus();
         var changed = ActiveTool != tool; ActiveTool = tool;
         if (changed) LayoutChanging?.Invoke(this, EventArgs.Empty);
         if (tool is { } next) tools[next].Panel.IsVisible = true;
@@ -178,30 +205,36 @@ internal sealed class WidgetClockControls : ContentView
             IsVisible = layer is not null && ActiveTool is not null;
             centre.IsEnabled = nudge.IsEnabled = available && layer is { Locked: false };
             if (TextStyle is not { } clock) return;
-            var kind = IsDate ? "date" : "clock";
-            formatHeading.Text = IsDate ? "Date format" : "Time";
-            clockTime.IsVisible = !IsDate; dateFormat.IsVisible = IsDate;
+            var kind = WidgetTextLayers.Name(layer!);
+            formatHeading.Text = IsCustomText ? "Content" : IsDate ? "Date format" : "Time";
+            clockTime.IsVisible = !IsDate && !IsCustomText; dateFormat.IsVisible = IsDate; textContent.IsVisible = IsCustomText;
+            if (layer!.Text is { } text)
+            {
+                if (content.Text != text.Content) content.Text = text.Content;
+                contentCount.Text = $"{text.Content.Length} / {WidgetTexts.MaximumLength}";
+            }
             if (layer!.Date is { } date)
             {
                 showWeekday.IsToggled = WidgetDates.IncludesWeekday(date);
                 weekdayStyle.Update((int)date.WeekdayStyle); weekdayStyle.IsEnabled = showWeekday.IsToggled;
                 dates.Update(date);
             }
-            fonts.SetSample(IsDate ? "25 Oct" : "12:34:56");
-            tools[WidgetClockTool.Time].Button.SetSymbol(IsDate ? StudioSymbol.Calendar : StudioSymbol.Clock);
-            SemanticProperties.SetDescription(size, (IsDate ? "Date" : "Clock") + " text size within its frame");
-            SemanticProperties.SetDescription(opacity, (IsDate ? "Date" : "Clock") + " opacity");
+            fonts.SetSample(IsCustomText ? "Hello" : IsDate ? "25 Oct" : "12:34:56");
+            tools[WidgetClockTool.Time].Button.SetSymbol(IsCustomText ? StudioSymbol.Text : IsDate ? StudioSymbol.Calendar : StudioSymbol.Clock);
+            SemanticProperties.SetDescription(size, IsCustomText ? "Text size within its frame" : layer.Kind + " text size within its frame");
+            SemanticProperties.SetDescription(opacity, layer.Kind + " opacity");
             centre.Describe("Centre " + kind + " horizontally in the widget, keeping its vertical position and size");
             sizeHelp.Text = "Text size within the layer. Pinch the preview to resize the whole " + kind + " around its centre.";
             positionHelp.Text = "Drag the " + kind + " to move it. The layer menu also offers precise size and position controls.";
             notice.Text = !layer.Visible ? "This " + kind + " is hidden. Show it in Layers to see it in the preview." : layer.Opacity == 0 ? "This " + kind + " has 0% opacity. Increase opacity to see it." : "";
+            if (IsCustomText && string.IsNullOrWhiteSpace(layer.Text!.Content)) notice.Text = "This text layer is blank. Enter text in Content to see it in the preview.";
             notice.IsVisible = notice.Text.Length > 0;
             format.Update(clock.TwentyFourHour ? 1 : 0); fonts.Update(clock.Font, clock.Weight); alignment.Update((int)clock.Alignment);
             seconds.IsToggled = clock.ShowSeconds; size.Value = clock.FontScale; opacity.Value = layer.Opacity;
-            amPm.IsToggled = clock.ShowAmPm; amPmRow.IsVisible = !clock.TwentyFourHour;
+            amPm.IsToggled = clock.ShowAmPm; amPmRow.IsVisible = !IsDate && !IsCustomText && !clock.TwentyFourHour;
             sizeLabel.Text = $"Text size · {clock.FontScale:P0}"; opacityLabel.Text = $"Opacity · {layer.Opacity:P0}";
             if (colour.SelectedHex != clock.ColourHex) colour.SetSelection(clock.ColourHex);
-            foreach (var (key, item) in tools) item.Button.Describe((IsDate ? "Date " : "Clock ") + (key == WidgetClockTool.Time && IsDate ? "format" : key.ToString().ToLowerInvariant()), layer.Name);
+            foreach (var (key, item) in tools) item.Button.Describe(layer.Kind + " " + (key == WidgetClockTool.Time ? IsCustomText ? "content" : IsDate ? "format" : "time" : key.ToString().ToLowerInvariant()), layer.Name);
             delete.Describe("Delete " + kind + " layer", layer.Name);
         }
         finally { updating = false; }
