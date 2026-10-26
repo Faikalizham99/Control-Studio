@@ -30,7 +30,7 @@ internal sealed class WidgetClockControls : ContentView
     private readonly Slider opacity = new() { Minimum = 0, Maximum = 1, AutomationId = "ClockOpacity" };
     private readonly Label sizeLabel = SettingsControls.Text("Text size", 14), opacityLabel = SettingsControls.Text("Opacity", 14);
     private readonly Label notice = SettingsControls.Text("", 12, secondary: true);
-    private readonly ColourPickerView colour;
+    private readonly WidgetTextColourControls colour;
     private readonly ClipboardEditorActionButton centre = new("Centre horizontally", ClipboardEditorControls.Icon(StudioSymbol.CenterHorizontal, size: 18), "CentreClockHorizontally", accentCaption: true);
     private readonly WidgetLayerNudgeControls nudge = new("ClockPositionNudge");
     private readonly WidgetRotationControls rotation = new("ClockRotation");
@@ -112,9 +112,11 @@ internal sealed class WidgetClockControls : ContentView
         {
             if (!updating && CanUse && ActiveTool == WidgetClockTool.Position && layer is { Locked: false }) RotationRequested?.Invoke(degrees);
         };
-        colour = new(picker, "ClockText", "Layer text");
-        colour.ColourChanged += (_, args) => { if (!updating && layer is not null && TextStyle is { } style) Publish(WidgetTextLayers.WithStyle(layer, style with { ColourHex = args.Hex })); };
+        colour = new(picker) { CanInteract = () => CanUse && ActiveTool == WidgetClockTool.Colour };
+        colour.StyleChanged += style => { if (!updating && layer is not null) Publish(WidgetTextLayers.WithStyle(layer, style)); };
         colour.BusyChanged += (_, _) => BusyChanged?.Invoke(this, EventArgs.Empty);
+        colour.PositionChanging += view => PositionChanging?.Invoke(view);
+        colour.LayoutChanging += (_, _) => LayoutChanging?.Invoke(this, EventArgs.Empty);
         var row = new Grid { ColumnSpacing = 8, ColumnDefinitions = { new(GridLength.Star), new(GridLength.Auto) } };
         var label = SettingsControls.Text("Show seconds", 14); label.VerticalOptions = LayoutOptions.Center; row.Add(label); row.Add(seconds, 1);
         amPmRow = new Grid { ColumnSpacing = 8, IsVisible = false, ColumnDefinitions = { new(GridLength.Star), new(GridLength.Auto) } };
@@ -241,7 +243,7 @@ internal sealed class WidgetClockControls : ContentView
             seconds.IsToggled = clock.ShowSeconds; size.Value = clock.FontScale; opacity.Value = layer.Opacity;
             amPm.IsToggled = clock.ShowAmPm; amPmRow.IsVisible = !IsDate && !IsCustomText && !clock.TwentyFourHour;
             sizeLabel.Text = $"Text size · {clock.FontScale:P0}"; opacityLabel.Text = $"Opacity · {layer.Opacity:P0}";
-            if (colour.SelectedHex != clock.ColourHex) colour.SetSelection(clock.ColourHex);
+            colour.Update(clock, layer.Id);
             foreach (var (key, item) in tools) item.Button.Describe(layer.Kind + " " + (key == WidgetClockTool.Time ? IsCustomText ? "content" : IsDate ? "format" : "time" : key.ToString().ToLowerInvariant()), layer.Name);
             delete.Describe("Delete " + kind + " layer", layer.Name);
         }

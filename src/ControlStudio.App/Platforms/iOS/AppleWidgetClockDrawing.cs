@@ -22,11 +22,17 @@ internal static class AppleWidgetClockDrawing
         using var font = AppleWidgetClockFonts.Create(clock, Math.Max(.5, actualSize));
         using var colour = UIColor.FromRGB(Convert.ToInt32(clock.ColourHex.Substring(1, 2), 16), Convert.ToInt32(clock.ColourHex.Substring(3, 2), 16), Convert.ToInt32(clock.ColourHex.Substring(5, 2), 16));
         using var alpha = colour.ColorWithAlpha((nfloat)layer.Opacity);
-        var attributes = new UIStringAttributes { Font = font, ForegroundColor = alpha }; using var attributesMap = attributes.Dictionary;
+        var attributes = new UIStringAttributes { Font = font, ForegroundColor = clock.Gradient is { Enabled: true } ? UIColor.White : alpha }; using var attributesMap = attributes.Dictionary;
         var bounds = sample.GetSizeUsingAttributes(attributes);
         var x = clock.Alignment switch { WidgetClockAlignment.Left => frame.Left, WidgetClockAlignment.Right => frame.Right - bounds.Width, _ => frame.GetMidX() - bounds.Width / 2 };
-        graphics.SaveState(); graphics.ClipToRect(frame);
-        sample.DrawString(new CGPoint(x, frame.GetMidY() - bounds.Height / 2), attributes); graphics.RestoreState();
+        var point = new CGPoint(x, frame.GetMidY() - bounds.Height / 2);
+        if (clock.Gradient is { Enabled: true } gradient)
+            AppleWidgetTextGradient.Paint(graphics, frame, new CGRect(point, bounds), gradient, layer.Opacity, () => sample.DrawString(point, attributes));
+        else
+        {
+            graphics.SaveState(); graphics.ClipToRect(frame);
+            sample.DrawString(point, attributes); graphics.RestoreState();
+        }
     }
     private const NSStringDrawingOptions MultilineOptions = NSStringDrawingOptions.UsesLineFragmentOrigin | NSStringDrawingOptions.UsesFontLeading;
     private static NSMutableParagraphStyle Paragraph(WidgetClockOptions style) => new()
@@ -69,15 +75,23 @@ internal static class AppleWidgetClockDrawing
         using var colour = UIColor.FromRGB(Convert.ToInt32(style.ColourHex.Substring(1, 2), 16), Convert.ToInt32(style.ColourHex.Substring(3, 2), 16), Convert.ToInt32(style.ColourHex.Substring(5, 2), 16));
         using var alpha = colour.ColorWithAlpha((nfloat)layer.Opacity);
         using var paragraph = Paragraph(style);
-        var attributes = new UIStringAttributes { Font = font, ForegroundColor = alpha, ParagraphStyle = paragraph }; using var map = attributes.Dictionary;
+        var attributes = new UIStringAttributes { Font = font, ForegroundColor = style.Gradient is { Enabled: true } ? UIColor.White : alpha, ParagraphStyle = paragraph }; using var map = attributes.Dictionary;
         using var sample = new NSAttributedString(text, attributes);
         var bounds = sample.GetBoundingRect(new CGSize(frame.Width, 1_000_000), MultilineOptions, null);
         var height = Math.Min(frame.Height, Math.Ceiling(bounds.Height));
+        var textFrame = new CGRect(frame.X, frame.GetMidY() - height / 2, frame.Width, height);
+        if (style.Gradient is { Enabled: true } gradient)
+        {
+            var x = style.Alignment switch { WidgetClockAlignment.Left => frame.X, WidgetClockAlignment.Right => frame.Right - bounds.Width, _ => frame.GetMidX() - bounds.Width / 2 };
+            AppleWidgetTextGradient.Paint(graphics, frame, new CGRect(x, textFrame.Y, Math.Max(1, bounds.Width), Math.Max(1, height)), gradient, layer.Opacity,
+                () => sample.DrawString(textFrame, MultilineOptions, null));
+            return;
+        }
         graphics.SaveState();
         try
         {
             graphics.ClipToRect(frame);
-            sample.DrawString(new CGRect(frame.X, frame.GetMidY() - height / 2, frame.Width, height), MultilineOptions, null);
+            sample.DrawString(textFrame, MultilineOptions, null);
         }
         finally { graphics.RestoreState(); }
     }

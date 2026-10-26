@@ -32,6 +32,56 @@ public sealed class PickerCancellationTests : IDisposable
         typeof(NavigationPage), BindingFlags.Instance | BindingFlags.NonPublic, null, [false, root], null)!;
     private static WidgetEditorPage Editor(Store store, string source = "Photo Library", ColourPicker? colours = null)
         => new(store, colours ?? new(), NullLogger.Instance, WidgetDesignRules.New() with { Layers = [Photo()] }, choosePhotoSource: () => Task.FromResult<string?>(source));
+    [Theory]
+    [InlineData(WidgetLayerKind.Clock, AppTheme.Light)] [InlineData(WidgetLayerKind.Clock, AppTheme.Dark)]
+    [InlineData(WidgetLayerKind.Date, AppTheme.Light)] [InlineData(WidgetLayerKind.Date, AppTheme.Dark)]
+    [InlineData(WidgetLayerKind.Text, AppTheme.Light)] [InlineData(WidgetLayerKind.Text, AppTheme.Dark)]
+    public void GradientEditorUsesOnePickerRetainsBothModesAndSavesAllThreeStops(WidgetLayerKind kind, AppTheme theme)
+    {
+        host.App.UserAppTheme = theme;
+        var layer = kind switch { WidgetLayerKind.Clock => WidgetClocks.New(), WidgetLayerKind.Date => WidgetDates.New(), _ => WidgetTexts.New() };
+        var other = WidgetTexts.New("Other"); var store = new Store();
+        var page = new WidgetEditorPage(store, new ColourPicker(), NullLogger.Instance, WidgetDesignRules.New() with { Layers = [other, layer] }); Open(page);
+        void Click(string id) => ((IButtonController)Button(page, id)).SendClicked();
+        Click("ClockToolColour"); var controls = Descendants(page).OfType<WidgetClockControls>().Single();
+        var picker = Assert.Single(Descendants(controls).OfType<ColourPickerView>()); var hex = Assert.Single(Descendants(controls).OfType<HexColorEntry>());
+        var composition = Descendants(page).OfType<WidgetCompositeView>().Single();
+        var scroll = Descendants(page).OfType<WidgetEditorScrollView>().Single(); ((IView)scroll).Arrange(new Rect(0, 0, 350, 600)); scroll.SetScrolledPosition(0, 900);
+        hex.Text = "#123456"; Click("TextFillMode1"); hex.Text = "#FF0000"; Click("TextGradientStop1");
+        hex.Text = "#00FF00"; Click("TextGradientStop2"); hex.Text = "#0000FF"; Click("TextGradientDirection1");
+        var style = WidgetTextLayers.Style(composition.Design!.Layers.Last());
+        Assert.Equal("#123456", style.ColourHex); Assert.Equal(new WidgetGradientOptions(true, "#FF0000", "#00FF00", "#0000FF", WidgetGradientDirection.Vertical), style.Gradient);
+        Assert.Contains("selected", SemanticProperties.GetDescription(Button(page, "TextGradientStop2")));
+        Click("TextFillMode0"); Assert.Equal("#123456", picker.SelectedHex); Assert.False(WidgetTextLayers.Style(composition.Design.Layers.Last()).Gradient!.Enabled);
+        hex.Text = "#ABCDEF"; Click("TextFillMode1"); Assert.Equal("#0000FF", picker.SelectedHex); Click("TextGradientDirection2");
+        Click("ClockToolFont"); Click("ClockFont7"); Click("ClockWeight7Light"); Click("ClockToolColour");
+        style = WidgetTextLayers.Style(composition.Design.Layers.Last()); Assert.Equal("#ABCDEF", style.ColourHex);
+        Assert.True(style.Gradient!.Enabled); Assert.Equal(WidgetGradientDirection.Diagonal, style.Gradient.Direction);
+        Assert.Equal(new[] { "#FF0000", "#00FF00", "#0000FF" }, WidgetGradients.Colours(style.Gradient));
+        Assert.Equal(WidgetClockFont.SfProRounded, style.Font); Assert.Equal(WidgetClockWeight.Light, style.Weight);
+        Assert.Equal(other, composition.Design.Layers[0]); Assert.Equal(900, scroll.ScrollY); Assert.Equal(0, store.Saves);
+        hex.Text = "#112233"; Click("SaveWidgetDesign");
+        var saved = WidgetTextLayers.Style(store.Saved!.Layers.Last()); Assert.Equal("#112233", saved.Gradient!.EndHex); Assert.Equal("#ABCDEF", saved.ColourHex);
+    }
+    [Fact]
+    public async Task GradientValidationPreventsModeStopOrDirectionLossAndCancelledPickerRecovers()
+    {
+        var pending = new TaskCompletionSource<string>(); var colours = new ColourPicker { Pick = (_, _) => pending.Task };
+        var layer = WidgetClocks.New() with { Clock = new(Gradient: new(true, "#FF0000", "#00FF00", "#0000FF")) };
+        var page = new WidgetEditorPage(new Store(), colours, NullLogger.Instance, WidgetDesignRules.New() with { Layers = [layer] }); Open(page);
+        void Click(string id) => ((IButtonController)Button(page, id)).SendClicked(); Click("ClockToolColour");
+        var controls = Descendants(page).OfType<WidgetClockControls>().Single(); var hex = Descendants(controls).OfType<HexColorEntry>().Single();
+        var composition = Descendants(page).OfType<WidgetCompositeView>().Single(); hex.Text = "bad";
+        Click("TextFillMode0"); Click("TextGradientStop1"); Click("TextGradientDirection2"); Click("ClockToolFont");
+        Assert.Equal(WidgetClockTool.Colour, controls.ActiveTool); Assert.Equal(layer, composition.Design!.Layers.Single());
+        Assert.Contains("selected", SemanticProperties.GetDescription(Button(page, "TextFillMode1")));
+        hex.Text = "#123456"; Click("TextGradientStop1");
+        var picker = Descendants(controls).OfType<ColourPickerView>().Single(); var picking = picker.PickAsync();
+        Assert.False(Button(page, "SaveWidgetDesign").IsEnabled); ((IPageController)page).SendDisappearing(); pending.SetException(new IOException("cancelled")); await picking;
+        Assert.True(Button(page, "SaveWidgetDesign").IsEnabled); Assert.True(WidgetTextLayers.Style(composition.Design!.Layers.Single()).Gradient!.Enabled);
+        Assert.Equal("#123456", composition.Design.Layers.Single().Clock!.Gradient!.StartHex);
+        Click("TextGradientStop2"); Assert.Equal("#0000FF", picker.SelectedHex);
+    }
     [Fact]
     public void ThirtyMixedLayersKeepStableRowsAndSelectionDuringReorderingAndSave()
     {

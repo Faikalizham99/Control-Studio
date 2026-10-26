@@ -9,7 +9,8 @@ public enum WidgetClockWeight { Light, Regular, Medium, Semibold, Bold, Heavy }
 public enum WidgetClockAlignment { Left, Centre, Right }
 public sealed record WidgetClockOptions(bool TwentyFourHour = true, bool ShowSeconds = true,
     WidgetClockFont Font = WidgetClockFont.Rounded, string ColourHex = "#FFFFFF", double FontScale = .72,
-    WidgetClockAlignment Alignment = WidgetClockAlignment.Centre, bool ShowAmPm = true, WidgetClockWeight? Weight = null);
+    WidgetClockAlignment Alignment = WidgetClockAlignment.Centre, bool ShowAmPm = true, WidgetClockWeight? Weight = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] WidgetGradientOptions? Gradient = null);
 
 public static class WidgetClocks
 {
@@ -17,6 +18,7 @@ public static class WidgetClocks
         new(.05, .35, .9, .3), Kind: WidgetLayerKind.Clock, Clock: new(ColourHex: colourHex));
     public static void Validate(WidgetClockOptions clock)
     {
+        WidgetGradients.Validate(clock.Gradient);
         if (!Enum.IsDefined(clock.Font) || !Enum.IsDefined(clock.Alignment) || !double.IsFinite(clock.FontScale)
             || clock.FontScale is < .2 or > 1 || !AppearanceValues.TryNormalizeHex(clock.ColourHex, out var colour) || colour != clock.ColourHex
             || clock.Weight is { } weight && !WidgetClockWeights.Available(clock.Font).Contains(weight))

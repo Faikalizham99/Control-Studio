@@ -7,6 +7,18 @@ namespace ControlStudio.App.Tests;
 [Collection("MAUI controls")]
 public sealed class WidgetCanvasTests : IDisposable
 {
+    [Fact]
+    public void OnlyTheOutsideGhostPaintsAGradientAndSuspensionReleasesIt()
+    {
+        var layers = Enumerable.Range(0, 30).Select(index => WidgetClocks.New("Clock " + index) with { Clock = new(Gradient: new()) }).ToArray();
+        var design = WidgetDesignRules.New() with { Layers = layers }; var view = new WidgetCanvasView(_ => null, _ => { }); host.Attach(view);
+        view.Update(design, layers[^1].Id); ((IView)view.PhotoSurface).Arrange(new Rect(0, 0, 170, 170));
+        var labels = view.PhotoSurface.Children.OfType<AbsoluteLayout>().SelectMany(frame => frame.Children.OfType<WidgetClockFontLabel>()).ToArray();
+        Assert.Equal(30, labels.Length); Assert.All(labels, label => Assert.False(label.PaintGradient));
+        var ghost = Assert.IsType<AbsoluteLayout>(view.Workspace.Children[0]).Children.OfType<WidgetClockFontLabel>().Single(); Assert.True(ghost.PaintGradient);
+        view.SuspendComposition(); Assert.False(ghost.PaintGradient); view.Update(design, layers[^1].Id); Assert.True(ghost.PaintGradient);
+        view.Update(design, null); Assert.False(ghost.PaintGradient);
+    }
     [Theory]
     [InlineData(WidgetLayerKind.Photo)] [InlineData(WidgetLayerKind.Clock)] [InlineData(WidgetLayerKind.Date)] [InlineData(WidgetLayerKind.Text)]
     public void HandleRotationKeepsTheLayerCentreAcrossAnglesFamiliesCancellationAndLocks(WidgetLayerKind kind)

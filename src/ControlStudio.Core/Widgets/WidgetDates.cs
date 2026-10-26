@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.Json.Serialization;
 
 namespace ControlStudio.Core.Widgets;
 
@@ -7,7 +8,8 @@ public enum WidgetWeekdayStyle { Short, Full }
 public sealed record WidgetDateOptions(WidgetDateFormat Format = WidgetDateFormat.LongDate,
     WidgetClockFont Font = WidgetClockFont.Rounded, string ColourHex = "#FFFFFF", double FontScale = .72,
     WidgetClockAlignment Alignment = WidgetClockAlignment.Centre, WidgetClockWeight? Weight = null,
-    bool? ShowWeekday = null, WidgetWeekdayStyle WeekdayStyle = WidgetWeekdayStyle.Short);
+    bool? ShowWeekday = null, WidgetWeekdayStyle WeekdayStyle = WidgetWeekdayStyle.Short,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] WidgetGradientOptions? Gradient = null);
 
 public static class WidgetDates
 {
@@ -42,9 +44,9 @@ public static class WidgetDates
     }
     // Shared text appearance is adapted without storing clock-only switches on a date.
     public static WidgetClockOptions Style(WidgetDateOptions date) => new(Font: date.Font, ColourHex: date.ColourHex,
-        FontScale: date.FontScale, Alignment: date.Alignment, Weight: date.Weight);
+        FontScale: date.FontScale, Alignment: date.Alignment, Weight: date.Weight, Gradient: date.Gradient);
     public static WidgetDateOptions WithStyle(WidgetDateOptions date, WidgetClockOptions style) => date with
-    { Font = style.Font, ColourHex = style.ColourHex, FontScale = style.FontScale, Alignment = style.Alignment, Weight = style.Weight };
+    { Font = style.Font, ColourHex = style.ColourHex, FontScale = style.FontScale, Alignment = style.Alignment, Weight = style.Weight, Gradient = style.Gradient };
 }
 
 public static class WidgetTextLayers

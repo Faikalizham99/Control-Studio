@@ -56,6 +56,7 @@ public static class WidgetDesignRules
         json.Converters.Add(new JsonStringEnumConverter<WidgetClockAlignment>(JsonNamingPolicy.CamelCase, false));
         json.Converters.Add(new JsonStringEnumConverter<WidgetDateFormat>(JsonNamingPolicy.CamelCase, false));
         json.Converters.Add(new JsonStringEnumConverter<WidgetWeekdayStyle>(JsonNamingPolicy.CamelCase, false));
+        json.Converters.Add(new JsonStringEnumConverter<WidgetGradientDirection>(JsonNamingPolicy.CamelCase, false));
         return json;
     }
     public static WidgetDesign New() => new(Guid.NewGuid(), "My widget", WidgetSize.Small, "#101116", [], Guid.NewGuid().ToString("N"), TransparentBackground: true, PreserveCanvas: true);

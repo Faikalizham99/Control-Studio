@@ -20,6 +20,15 @@ struct WidgetClockFrame: Decodable, Equatable {
     var valid: Bool { x.isFinite && y.isFinite && width.isFinite && height.isFinite
         && (-4...4).contains(x) && (-4...4).contains(y) && (0.05...4).contains(width) && (0.05...4).contains(height) }
 }
+struct WidgetTextGradient: Decodable, Equatable {
+    let enabled: Bool
+    let startHex: String, middleHex: String, endHex: String
+    let direction: String
+    var valid: Bool { ["horizontal", "vertical", "diagonal"].contains(direction)
+        && [startHex, middleHex, endHex].allSatisfy { WidgetClockStyle.colourRGB($0) != nil } }
+    var startPoint: (Double, Double) { direction == "vertical" ? (0.5, 0) : direction == "diagonal" ? (0, 0) : (0, 0.5) }
+    var endPoint: (Double, Double) { direction == "vertical" ? (0.5, 1) : direction == "diagonal" ? (1, 1) : (1, 0.5) }
+}
 struct WidgetClockStyle: Decodable, Equatable {
     static let fontNames = [
         "rounded": "ArialRoundedMTBold", "monospaced": "Menlo-Bold", "serif": "Georgia-Bold",
@@ -33,6 +42,7 @@ struct WidgetClockStyle: Decodable, Equatable {
     let alignment: String
     let showAmPm: Bool
     let weight: String?
+    let gradient: WidgetTextGradient?
     static func availableWeights(for font: String) -> [String] {
         switch font {
         case "system", "sfProRounded": return ["light", "regular", "medium", "semibold", "bold", "heavy"]
@@ -56,7 +66,7 @@ struct WidgetClockStyle: Decodable, Equatable {
         return Self.fontNames[font]
     }
     private enum CodingKeys: String, CodingKey {
-        case twentyFourHour, showSeconds, font, colourHex, fontScale, alignment, showAmPm, weight
+        case twentyFourHour, showSeconds, font, colourHex, fontScale, alignment, showAmPm, weight, gradient
     }
     init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
@@ -71,16 +81,17 @@ struct WidgetClockStyle: Decodable, Equatable {
         else { showAmPm = true }
         // Missing/null weight retains the native face used before weight editing.
         weight = try values.decodeIfPresent(String.self, forKey: .weight)
+        gradient = try values.decodeIfPresent(WidgetTextGradient.self, forKey: .gradient)
     }
     init(date: WidgetDateStyle) {
         twentyFourHour = true; showSeconds = false; showAmPm = false
         font = date.font; colourHex = date.colourHex; fontScale = date.fontScale
-        alignment = date.alignment; weight = date.weight
+        alignment = date.alignment; weight = date.weight; gradient = date.gradient
     }
     var valid: Bool {
         !Self.availableWeights(for: font).isEmpty && (weight == nil || Self.availableWeights(for: font).contains(resolvedWeight))
             && ["left", "centre", "right"].contains(alignment)
-            && fontScale.isFinite && (0.2...1).contains(fontScale) && rgb != nil
+            && fontScale.isFinite && (0.2...1).contains(fontScale) && rgb != nil && (gradient?.valid ?? true)
     }
     func formatStyle(timeZone: TimeZone = .autoupdatingCurrent) -> Date.VerbatimFormatStyle {
         // An explicit hour cycle preserves the chosen 12/24-hour setting even when
@@ -96,7 +107,8 @@ struct WidgetClockStyle: Decodable, Equatable {
         }
         return Date.VerbatimFormatStyle(format: pattern, locale: Locale(identifier: "en_US_POSIX"), timeZone: timeZone, calendar: Calendar(identifier: .gregorian))
     }
-    var rgb: (Double, Double, Double)? {
+    var rgb: (Double, Double, Double)? { Self.colourRGB(colourHex) }
+    static func colourRGB(_ colourHex: String) -> (Double, Double, Double)? {
         guard colourHex.utf8.count == 7, colourHex.first == "#", colourHex.dropFirst().utf8.allSatisfy({ (48...57).contains($0) || (65...70).contains($0) }),
             let value = UInt32(colourHex.dropFirst(), radix: 16) else { return nil }
         return (Double((value >> 16) & 255) / 255, Double((value >> 8) & 255) / 255, Double(value & 255) / 255)
@@ -128,10 +140,11 @@ struct WidgetDateStyle: Decodable, Equatable {
     let fontScale: Double
     let alignment: String
     let weight: String?
+    let gradient: WidgetTextGradient?
     let showWeekday: Bool?
     let weekdayStyle: String
     var includesWeekday: Bool { showWeekday ?? (format == "shortDate") }
-    private enum CodingKeys: String, CodingKey { case format, font, colourHex, fontScale, alignment, weight, showWeekday, weekdayStyle }
+    private enum CodingKeys: String, CodingKey { case format, font, colourHex, fontScale, alignment, weight, showWeekday, weekdayStyle, gradient }
     init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
         format = try values.decode(String.self, forKey: .format)
@@ -140,6 +153,7 @@ struct WidgetDateStyle: Decodable, Equatable {
         fontScale = try values.decode(Double.self, forKey: .fontScale)
         alignment = try values.decode(String.self, forKey: .alignment)
         weight = try values.decodeIfPresent(String.self, forKey: .weight)
+        gradient = try values.decodeIfPresent(WidgetTextGradient.self, forKey: .gradient)
         showWeekday = try values.decodeIfPresent(Bool.self, forKey: .showWeekday)
         if values.contains(.weekdayStyle) { weekdayStyle = try values.decode(String.self, forKey: .weekdayStyle) }
         else { weekdayStyle = "short" }

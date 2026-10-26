@@ -170,6 +170,7 @@ internal sealed class WidgetCanvasView : ContentView
         var active = design.Layers.FirstOrDefault(x => x.Id == selected && x.Visible);
         var origin = Origin(canvas, workspace);
         ghost.Frame.IsVisible = active is not null;
+        ghost.Clock.PaintGradient = active is not null && WidgetTextLayers.IsText(active);
         if (active is null)
         {
             ghost.Image.Source = null;
@@ -321,12 +322,13 @@ internal sealed class WidgetCanvasView : ContentView
         EndInteraction(false);
         composite.Design = null;
         ghost.Image.Source = null; ghost.Frame.IsVisible = false;
+        ghost.Clock.PaintGradient = false;
 #if IOS
         ghostAsset = null;
 #endif
         foreach (var photo in photos.Values) photo.Image.Source = null;
     }
-    public void SuspendComposition() => composite.Design = null;
+    public void SuspendComposition() { composite.Design = null; ghost.Clock.PaintGradient = false; }
     private sealed class PhotoView
     {
         public AbsoluteLayout Frame { get; } = new() { IsClippedToBounds = true, InputTransparent = true };

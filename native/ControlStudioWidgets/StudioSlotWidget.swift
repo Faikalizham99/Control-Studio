@@ -174,7 +174,7 @@ private struct StudioClockSceneView: View {
     private func textLayer(_ text: Text, style: WidgetClockStyle, frame: WidgetClockFrame, opacity: Double, rotation: Double, width: CGFloat, height: CGFloat) -> some View {
         text.font(font(style, size: min(1024, frame.height * height * style.fontScale), height: frame.height * height))
             .lineLimit(1).minimumScaleFactor(0.01)
-            .foregroundStyle(colour(style)).multilineTextAlignment(textAlignment(style.alignment))
+            .foregroundStyle(fill(style)).multilineTextAlignment(textAlignment(style.alignment))
             .frame(width: frame.width * width, height: frame.height * height, alignment: alignment(style.alignment))
             .clipped().opacity(opacity).rotationEffect(.degrees(rotation)).offset(x: frame.x * width, y: frame.y * height)
     }
@@ -207,6 +207,15 @@ private struct StudioClockSceneView: View {
     }
     private func colour(_ clock: WidgetClockStyle) -> Color {
         let rgb = clock.rgb ?? (1,1,1); return Color(red: rgb.0, green: rgb.1, blue: rgb.2)
+    }
+    private func fill(_ style: WidgetClockStyle) -> AnyShapeStyle {
+        guard let gradient = style.gradient, gradient.enabled else { return AnyShapeStyle(colour(style)) }
+        let colours = [gradient.startHex, gradient.middleHex, gradient.endHex].map { hex -> Color in
+            let rgb = WidgetClockStyle.colourRGB(hex) ?? (1, 1, 1)
+            return Color(red: rgb.0, green: rgb.1, blue: rgb.2)
+        }
+        return AnyShapeStyle(LinearGradient(stops: [.init(color: colours[0], location: 0), .init(color: colours[1], location: 0.5), .init(color: colours[2], location: 1)],
+            startPoint: UnitPoint(x: gradient.startPoint.0, y: gradient.startPoint.1), endPoint: UnitPoint(x: gradient.endPoint.0, y: gradient.endPoint.1)))
     }
     private func alignment(_ name: String) -> Alignment { name == "left" ? .leading : name == "right" ? .trailing : .center }
     private func textAlignment(_ name: String) -> TextAlignment { name == "left" ? .leading : name == "right" ? .trailing : .center }

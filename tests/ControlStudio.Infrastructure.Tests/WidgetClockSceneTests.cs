@@ -17,6 +17,29 @@ public sealed class WidgetClockSceneTests : IDisposable
         var key = await Repo().ImportPhotoAsync(Png); var photo = new WidgetLayer(Guid.NewGuid(), "Bottom", key, 1, 1, new());
         return WidgetDesignRules.New() with { Layers = [photo, WidgetClocks.New(), photo with { Id = Guid.NewGuid(), Name = "Top" }] };
     }
+    [Theory]
+    [InlineData(WidgetLayerKind.Clock)] [InlineData(WidgetLayerKind.Date)] [InlineData(WidgetLayerKind.Text)]
+    public async Task ThreeColourGradientsReopenPublishAndRetainStopsWhenDisabled(WidgetLayerKind kind)
+    {
+        var layer = kind switch { WidgetLayerKind.Clock => WidgetClocks.New(), WidgetLayerKind.Date => WidgetDates.New(), _ => WidgetTexts.New() };
+        var style = WidgetTextLayers.Style(layer) with { ColourHex = "#112233", Gradient = new(true, "#FF0000", "#00FF00", "#0000FF", WidgetGradientDirection.Diagonal) };
+        layer = WidgetTextLayers.WithStyle(layer, style) with { RotationDegrees = 27, Opacity = .5 }; var repo = Repo();
+        var draft = WidgetDesignRules.New() with { Layers = [layer] }; var saved = await repo.SaveAsync(draft, Png, scene: WidgetScenes.IsLive(draft) ? Export(draft) : null);
+        await repo.AssignSlotAsync(saved.Size, 7, saved.Id); Assert.Equal(layer, Assert.Single(await Repo().ReadAsync()).Layers.Single());
+        await new WidgetDesignPublisher(Repo(), () => Shared).PublishAsync();
+        var catalog = JsonSerializer.Deserialize(await File.ReadAllBytesAsync(Path.Combine(Shared, "catalog.json")), WidgetDesignRules.JsonContext.WidgetCatalog)!;
+        Assert.Equal(layer, Assert.Single(catalog.Designs).Layers.Single());
+        if (WidgetScenes.IsLive(saved))
+        {
+            var scene = JsonSerializer.Deserialize(await File.ReadAllBytesAsync(Path.Combine(Shared, "renders", saved.RenderKey + ".scene.json")), WidgetDesignRules.JsonContext.WidgetScene)!;
+            Assert.Equal(style.Gradient, WidgetTextLayers.Style((scene.Parts[0].Clock ?? scene.Parts[0].Date)!).Gradient);
+        }
+        var solid = saved with { Layers = [WidgetTextLayers.WithStyle(layer, style with { Gradient = style.Gradient! with { Enabled = false } })] };
+        await repo.SaveAsync(solid, Png, scene: WidgetScenes.IsLive(solid) ? Export(solid) : null);
+        var restored = WidgetTextLayers.Style(Assert.Single(await repo.ReadAsync()).Layers.Single());
+        Assert.Equal(style.Gradient with { Enabled = false }, restored.Gradient); Assert.Equal("#112233", restored.ColourHex);
+        Assert.Equal(saved.Id, Assert.Single((await repo.ReadLibraryAsync()).Slots).DesignId);
+    }
     [Fact]
     public async Task ThirtyAlternatingLayersReopenPublishAndKeepLatePhotoGroupsAndSlots()
     {

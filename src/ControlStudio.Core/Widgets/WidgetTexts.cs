@@ -1,11 +1,13 @@
 using System.Globalization;
 using System.Text;
+using System.Text.Json.Serialization;
 
 namespace ControlStudio.Core.Widgets;
 
 public sealed record WidgetTextOptions(string Content = "Your text",
     WidgetClockFont Font = WidgetClockFont.Rounded, string ColourHex = "#FFFFFF", double FontScale = .72,
-    WidgetClockAlignment Alignment = WidgetClockAlignment.Centre, WidgetClockWeight? Weight = null);
+    WidgetClockAlignment Alignment = WidgetClockAlignment.Centre, WidgetClockWeight? Weight = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] WidgetGradientOptions? Gradient = null);
 
 public static class WidgetTexts
 {
@@ -31,7 +33,7 @@ public static class WidgetTexts
         catch (IOException ex) { throw new IOException("Choose valid text settings before saving.", ex); }
     }
     public static WidgetClockOptions Style(WidgetTextOptions text) => new(Font: text.Font, ColourHex: text.ColourHex,
-        FontScale: text.FontScale, Alignment: text.Alignment, Weight: text.Weight);
+        FontScale: text.FontScale, Alignment: text.Alignment, Weight: text.Weight, Gradient: text.Gradient);
     public static WidgetTextOptions WithStyle(WidgetTextOptions text, WidgetClockOptions style) => text with
-    { Font = style.Font, ColourHex = style.ColourHex, FontScale = style.FontScale, Alignment = style.Alignment, Weight = style.Weight };
+    { Font = style.Font, ColourHex = style.ColourHex, FontScale = style.FontScale, Alignment = style.Alignment, Weight = style.Weight, Gradient = style.Gradient };
 }

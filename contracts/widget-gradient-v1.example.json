@@ -1,0 +1,55 @@
+{
+  "schemaVersion": 2,
+  "width": 170,
+  "height": 170,
+  "parts": [
+    {
+      "clock": {
+        "id": "11111111-2222-4333-8444-555555555551",
+        "name": "Gradient clock",
+        "kind": "clock",
+        "assetKey": "",
+        "pixelWidth": 1,
+        "pixelHeight": 1,
+        "frame": { "x": 0.05, "y": 0.2, "width": 0.9, "height": 0.25 },
+        "visible": true,
+        "opacity": 0.7,
+        "clock": {
+          "twentyFourHour": true,
+          "showSeconds": true,
+          "showAmPm": true,
+          "font": "sfProRounded",
+          "colourHex": "#112233",
+          "fontScale": 0.72,
+          "alignment": "centre",
+          "weight": "light",
+          "gradient": { "enabled": true, "startHex": "#FF0000", "middleHex": "#00FF00", "endHex": "#0000FF", "direction": "horizontal" }
+        }
+      }
+    },
+    {
+      "date": {
+        "id": "11111111-2222-4333-8444-555555555552",
+        "name": "Gradient date",
+        "kind": "date",
+        "assetKey": "",
+        "pixelWidth": 1,
+        "pixelHeight": 1,
+        "frame": { "x": 0.05, "y": 0.6, "width": 0.9, "height": 0.25 },
+        "visible": true,
+        "opacity": 1,
+        "date": {
+          "format": "shortDate",
+          "font": "sfProRounded",
+          "colourHex": "#112233",
+          "fontScale": 0.72,
+          "alignment": "centre",
+          "weight": "light",
+          "showWeekday": true,
+          "weekdayStyle": "short",
+          "gradient": { "enabled": true, "startHex": "#FF0000", "middleHex": "#00FF00", "endHex": "#0000FF", "direction": "diagonal" }
+        }
+      }
+    }
+  ]
+}

@@ -5,6 +5,33 @@ import CoreText
 @testable import ControlStudioStorage
 
 final class WidgetClockSceneTests: XCTestCase {
+    func testSharedGradientFixtureRetainsLiveClockAndDateAndThreeStops() throws {
+        let scene = try JSONDecoder().decode(WidgetClockScene.self, from: fixture("widget-gradient-v1.example.json"))
+        XCTAssertTrue(scene.valid)
+        let clock = try XCTUnwrap(scene.parts[0].clock?.clock); let date = try XCTUnwrap(scene.parts[1].date?.date)
+        XCTAssertEqual(clock.gradient?.startHex, "#FF0000"); XCTAssertEqual(clock.gradient?.middleHex, "#00FF00"); XCTAssertEqual(clock.gradient?.endHex, "#0000FF")
+        XCTAssertEqual(clock.gradient?.direction, "horizontal"); XCTAssertEqual(date.gradient?.direction, "diagonal")
+        XCTAssertEqual(date.gradient, date.textStyle.gradient); XCTAssertTrue(clock.showSeconds); XCTAssertTrue(date.includesWeekday)
+        let time = ISO8601DateFormatter().date(from: "2026-10-26T12:00:00Z")!
+        XCTAssertNotEqual(clock.formatStyle().format(time), clock.formatStyle().format(time.addingTimeInterval(1)))
+        let old = try JSONDecoder().decode(WidgetClockScene.self, from: fixture("widget-scene-v1.example.json"))
+        XCTAssertNil(old.parts[1].clock?.clock.gradient)
+    }
+    func testGradientDirectionsAndDisabledValuesAreValidated() throws {
+        let decoder = JSONDecoder()
+        let original: [String: Any] = ["enabled": true, "startHex": "#FF0000", "middleHex": "#00FF00", "endHex": "#0000FF", "direction": "horizontal"]
+        for (direction, x1, y1, x2, y2) in [("horizontal", 0.0, 0.5, 1.0, 0.5), ("vertical", 0.5, 0.0, 0.5, 1.0), ("diagonal", 0.0, 0.0, 1.0, 1.0)] {
+            var value = original; value["direction"] = direction
+            let gradient = try decoder.decode(WidgetTextGradient.self, from: JSONSerialization.data(withJSONObject: value))
+            XCTAssertTrue(gradient.valid); XCTAssertEqual(gradient.startPoint.0, x1); XCTAssertEqual(gradient.startPoint.1, y1)
+            XCTAssertEqual(gradient.endPoint.0, x2); XCTAssertEqual(gradient.endPoint.1, y2)
+        }
+        let invalid: [[String: Any]] = [["startHex": "#bad"], ["middleHex": "#aabbcc"], ["direction": "wave"], ["enabled": false, "endHex": "invalid"]]
+        for changes in invalid {
+            let value = original.merging(changes) { _, new in new }
+            XCTAssertFalse(try decoder.decode(WidgetTextGradient.self, from: JSONSerialization.data(withJSONObject: value)).valid)
+        }
+    }
     func testThirtyLayersAndLivePartsAreAcceptedButThirtyOneIsRejected() throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)

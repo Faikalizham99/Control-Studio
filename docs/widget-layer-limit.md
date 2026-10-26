@@ -1,6 +1,6 @@
 # Thirty layers per widget
 
-Unreleased. The owner authorized committing and pushing main. No version/tag change is included in this request.
+Included in **0.2.40 (42)**. The owner authorized committing, pushing main and pushing the new version tag, and will monitor the IPA build.
 
 ## Limit and UI
 
