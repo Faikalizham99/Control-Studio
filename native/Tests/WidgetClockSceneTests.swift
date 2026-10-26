@@ -5,6 +5,28 @@ import CoreText
 @testable import ControlStudioStorage
 
 final class WidgetClockSceneTests: XCTestCase {
+    func testFreeRotationOnLiveClockAndDateKeepsOldDefaultsAndRejectsOutOfRangeAngles() throws {
+        let oldClock = try JSONSerialization.jsonObject(with: fixture("widget-scene-v1.example.json")) as! [String: Any]
+        let oldDate = try JSONSerialization.jsonObject(with: fixture("widget-scene-v2-date.example.json")) as! [String: Any]
+        let clock = (oldClock["parts"] as! [[String: Any]])[1]["clock"] as! [String: Any]
+        let date = (oldDate["parts"] as! [[String: Any]])[0]["date"] as! [String: Any]
+        let decoder = JSONDecoder()
+        XCTAssertNil(try decoder.decode(WidgetLiveClock.self, from: JSONSerialization.data(withJSONObject: clock)).rotationDegrees)
+        XCTAssertNil(try decoder.decode(WidgetLiveDate.self, from: JSONSerialization.data(withJSONObject: date)).rotationDegrees)
+        for (kind, original) in [("clock", clock), ("date", date)] {
+            for angle in [-180.0, -33.25, 0, 45.5, 180, -181, 181] {
+                var rotated = original; rotated["rotationDegrees"] = angle
+                let bytes = try JSONSerialization.data(withJSONObject: rotated)
+                if kind == "clock" {
+                    let layer = try decoder.decode(WidgetLiveClock.self, from: bytes)
+                    XCTAssertEqual(layer.rotationDegrees, angle); XCTAssertEqual(layer.valid, abs(angle) <= 180)
+                } else {
+                    let layer = try decoder.decode(WidgetLiveDate.self, from: bytes)
+                    XCTAssertEqual(layer.rotationDegrees, angle); XCTAssertEqual(layer.valid, abs(angle) <= 180)
+                }
+            }
+        }
+    }
     func testCustomTextCatalogUsesTheSavedPNGWithoutRequestingALiveScene() throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let renders = directory.appendingPathComponent("renders")

@@ -110,9 +110,11 @@ struct WidgetLiveClock: Decodable, Equatable {
     let visible: Bool
     let opacity: Double
     let clock: WidgetClockStyle
+    var rotationDegrees: Double? = nil
     var valid: Bool { UUID(uuidString: id) != nil && id != "00000000-0000-0000-0000-000000000000" && kind == "clock"
         && !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && name.utf16.count <= 40
-        && frame.valid && visible && opacity.isFinite && opacity > 0 && opacity <= 1 && clock.valid }
+        && frame.valid && visible && opacity.isFinite && opacity > 0 && opacity <= 1 && clock.valid
+        && (rotationDegrees.map { $0.isFinite && (-180...180).contains($0) } ?? true) }
 }
 struct WidgetClockScenePart: Decodable, Equatable {
     let imageIndex: Int?
@@ -176,9 +178,11 @@ struct WidgetLiveDate: Decodable, Equatable {
     let visible: Bool
     let opacity: Double
     let date: WidgetDateStyle
+    var rotationDegrees: Double? = nil
     var valid: Bool { UUID(uuidString: id) != nil && id != "00000000-0000-0000-0000-000000000000" && kind == "date"
         && !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && name.utf16.count <= 40
-        && frame.valid && visible && opacity.isFinite && opacity > 0 && opacity <= 1 && date.valid }
+        && frame.valid && visible && opacity.isFinite && opacity > 0 && opacity <= 1 && date.valid
+        && (rotationDegrees.map { $0.isFinite && (-180...180).contains($0) } ?? true) }
 }
 struct WidgetClockScene: Decodable, Equatable {
     let schemaVersion: Int

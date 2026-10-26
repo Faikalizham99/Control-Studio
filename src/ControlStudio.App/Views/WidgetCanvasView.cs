@@ -30,10 +30,22 @@ internal sealed class WidgetCanvasView : ContentView
     private WidgetLayer? gestureStart;
     private Point anchor;
     private int corner = -1;
+    private bool rotating;
+    private double pointerAngle, rotationDelta;
+    internal bool IsRotating => rotating && IsInteracting;
     private VisualElement? measuredParent;
     public bool IsInteracting => gestureStart is not null;
     internal AbsoluteLayout PhotoSurface => canvas;
     internal AbsoluteLayout Workspace => workspace;
+    internal Point? RotationHandleCenter
+    {
+        get
+        {
+            if (!handles.CanResize || handles.SelectionFrame.Width <= 0 || handles.SelectionFrame.Height <= 0) return null;
+            var origin = Origin(workspace, this); var point = handles.RotationPoint;
+            return new(point.X + origin.X, point.Y + origin.Y);
+        }
+    }
     internal Rect WidgetBounds
     {
         get
@@ -89,7 +101,7 @@ internal sealed class WidgetCanvasView : ContentView
         SettingsControls.SurfaceStroke(border); Content = border;
         canvas.SizeChanged += (_, _) => { EndInteraction(true); ArrangePhotos(); };
         widgetBorder.SizeChanged += (_, _) => ArrangePhotos();
-        SemanticProperties.SetHint(this, "Tap a layer to select it, or empty space to deselect. Locked layers cannot be moved or resized; unlock them in Layers. Drag past the widget edges to hide part of an unlocked layer. The faint outside area is not saved.");
+        SemanticProperties.SetHint(this, "Tap a layer to select it, or empty space to deselect. Drag the rotate handle above a selected layer to rotate it. Locked layers cannot be moved, resized or rotated; unlock them in Layers. Drag past the widget edges to hide content. The faint outside area is not saved. Position settings also provide an accessible rotation slider and reset action.");
     }
     protected override void OnParentSet()
     {
@@ -183,6 +195,8 @@ internal sealed class WidgetCanvasView : ContentView
         handles.SelectionFrame = active is null ? Rect.Zero : new Rect(origin.X + active.Frame.X * canvas.Width, origin.Y + active.Frame.Y * canvas.Height,
             active.Frame.Width * canvas.Width, active.Frame.Height * canvas.Height);
         handles.CanResize = active?.Locked != true;
+        handles.SelectionAngle = active?.RotationDegrees ?? 0; handles.ShowAngle = IsRotating;
+        handles.WorkspaceSize = new(workspace.Width > 0 ? workspace.Width : WidthRequest - 2, workspace.Height > 0 ? workspace.Height : HeightRequest - 2);
     }
     private static void Configure(PhotoView photo, WidgetLayer layer)
     {
@@ -205,6 +219,7 @@ internal sealed class WidgetCanvasView : ContentView
     {
         var width = layer.Frame.Width * canvas.Width; var height = layer.Frame.Height * canvas.Height;
         AbsoluteLayout.SetLayoutBounds(photo.Frame, new Rect(x + layer.Frame.X * canvas.Width, y + layer.Frame.Y * canvas.Height, width, height));
+        photo.Frame.Rotation = layer.RotationDegrees;
         if (WidgetTextLayers.IsText(layer))
         {
             var clock = WidgetTextLayers.Style(layer);
@@ -230,50 +245,75 @@ internal sealed class WidgetCanvasView : ContentView
     public void SelectAt(double x, double y)
     {
         if (!IsEnabled || IsInteracting || design is null || canvas.Width <= 0 || canvas.Height <= 0 || !double.IsFinite(x) || !double.IsFinite(y)) return;
+        if (RotationHandleCenter is { } handle && Math.Pow(x - handle.X, 2) + Math.Pow(y - handle.Y, 2) <= 22 * 22) return;
         var point = Normalize(x, y);
-        var layer = design.Layers.LastOrDefault(layer => WidgetLayerEdits.Contains(layer, point.X, point.Y));
+        var layer = design.Layers.LastOrDefault(layer => WidgetLayerEdits.Contains(layer, point.X, point.Y, canvas.Width, canvas.Height));
         if (layer is not null) select(layer.Id); else deselect?.Invoke();
     }
     public bool BeginInteraction(double x, double y, bool pinch)
     {
         if (!IsEnabled || IsInteracting || change is null || design is null || canvas.Width <= 0 || canvas.Height <= 0 || !double.IsFinite(x) || !double.IsFinite(y)) return false;
-        var point = Normalize(x, y); corner = -1;
+        var point = Normalize(x, y); corner = -1; rotating = false;
         var layer = design.Layers.FirstOrDefault(layer => layer.Id == selected && layer.Visible);
+        var localPointer = layer is null ? (X: 0d, Y: 0d) : WidgetLayerRotation.LocalPoint(layer, point.X * canvas.Width, point.Y * canvas.Height, canvas.Width, canvas.Height);
+        if (!pinch && layer is { Locked: false } && RotationHandleCenter is { } handle
+            && Math.Pow(x - handle.X, 2) + Math.Pow(y - handle.Y, 2) <= 22 * 22
+            && (Math.Pow(x - handle.X, 2) + Math.Pow(y - handle.Y, 2) <= 10 * 10
+                || localPointer.X < layer.Frame.X * canvas.Width || localPointer.X > (layer.Frame.X + layer.Frame.Width) * canvas.Width
+                || localPointer.Y < layer.Frame.Y * canvas.Height || localPointer.Y > (layer.Frame.Y + layer.Frame.Height) * canvas.Height))
+        {
+            select(layer.Id); gestureStart = layer; rotating = true; rotationDelta = 0;
+            pointerAngle = PointerAngle(layer, point); ArrangePhotos(); InteractionChanged?.Invoke(this, EventArgs.Empty); return true;
+        }
         if (layer is not null && !layer.Locked && !pinch)
         {
             var frame = layer.Frame;
             var corners = new[] { new Point(frame.X, frame.Y), new Point(frame.X + frame.Width, frame.Y),
                 new Point(frame.X, frame.Y + frame.Height), new Point(frame.X + frame.Width, frame.Y + frame.Height) };
             var radius = Math.Min(22, Math.Min(frame.Width * canvas.Width, frame.Height * canvas.Height) / 3);
-            var nearest = corners.Select((p, index) => (Index: index, Distance: Math.Pow((p.X - point.X) * canvas.Width, 2) + Math.Pow((p.Y - point.Y) * canvas.Height, 2)))
+            var local = WidgetLayerRotation.LocalPoint(layer, point.X * canvas.Width, point.Y * canvas.Height, canvas.Width, canvas.Height);
+            var nearest = corners.Select((p, index) => (Index: index, Distance: Math.Pow(p.X * canvas.Width - local.X, 2) + Math.Pow(p.Y * canvas.Height - local.Y, 2)))
                 .OrderBy(x => x.Distance).First();
             if (nearest.Distance <= radius * radius) corner = nearest.Index;
         }
-        if (corner < 0) layer = design.Layers.LastOrDefault(layer => WidgetLayerEdits.Contains(layer, point.X, point.Y))
+        if (corner < 0) layer = design.Layers.LastOrDefault(layer => WidgetLayerEdits.Contains(layer, point.X, point.Y, canvas.Width, canvas.Height))
             ?? (pinch ? design.Layers.FirstOrDefault(x => x.Id == selected && x.Visible && x.Opacity > 0 && !x.Locked) : null);
         if (layer is null || layer.Locked) return false;
         select(layer.Id); gestureStart = layer;
-        anchor = new(Math.Clamp((point.X - layer.Frame.X) / layer.Frame.Width, 0, 1), Math.Clamp((point.Y - layer.Frame.Y) / layer.Frame.Height, 0, 1));
+        var anchorPoint = WidgetLayerRotation.LocalPoint(layer, point.X * canvas.Width, point.Y * canvas.Height, canvas.Width, canvas.Height);
+        anchor = new(Math.Clamp((anchorPoint.X / canvas.Width - layer.Frame.X) / layer.Frame.Width, 0, 1), Math.Clamp((anchorPoint.Y / canvas.Height - layer.Frame.Y) / layer.Frame.Height, 0, 1));
         InteractionChanged?.Invoke(this, EventArgs.Empty); return true;
     }
     public void Pan(double x, double y)
     {
-        if (gestureStart is null || canvas.Width <= 0 || canvas.Height <= 0) return;
+        if (gestureStart is null || rotating || canvas.Width <= 0 || canvas.Height <= 0) return;
         change?.Invoke(corner < 0 ? WidgetLayerEdits.Move(gestureStart, x / canvas.Width, y / canvas.Height)
-            : WidgetLayerEdits.Resize(gestureStart, corner, x / canvas.Width, y / canvas.Height));
+            : WidgetLayerRotation.Resize(gestureStart, corner, x, y, canvas.Width, canvas.Height));
     }
+    public void Drag(double x, double y, double dx, double dy)
+    {
+        if (!rotating) { Pan(dx, dy); return; }
+        if (gestureStart is null || canvas.Width <= 0 || canvas.Height <= 0 || !double.IsFinite(x) || !double.IsFinite(y)) return;
+        var point = Normalize(x, y); var f = gestureStart.Frame;
+        if (Math.Pow((point.X - f.X - f.Width / 2) * canvas.Width, 2) + Math.Pow((point.Y - f.Y - f.Height / 2) * canvas.Height, 2) < 1) return;
+        var next = PointerAngle(gestureStart, point); rotationDelta += WidgetLayerRotation.Normalize(next - pointerAngle); pointerAngle = next;
+        change?.Invoke(WidgetLayerRotation.Set(gestureStart, gestureStart.RotationDegrees + rotationDelta));
+    }
+    private double PointerAngle(WidgetLayer layer, Point point) => Math.Atan2((point.Y - layer.Frame.Y - layer.Frame.Height / 2) * canvas.Height,
+        (point.X - layer.Frame.X - layer.Frame.Width / 2) * canvas.Width) * 180 / Math.PI;
     public void Pinch(double scale, double dx = 0, double dy = 0)
     {
         if (!double.IsFinite(scale) || scale <= 0 || !double.IsFinite(dx) || !double.IsFinite(dy)) return;
-        if (gestureStart is not null && canvas.Width > 0 && canvas.Height > 0)
+        if (gestureStart is not null && !rotating && canvas.Width > 0 && canvas.Height > 0)
             change?.Invoke(WidgetTextLayers.IsText(gestureStart) ? WidgetLayerEdits.ScaleCentered(gestureStart, scale)
-                : WidgetLayerEdits.Move(WidgetLayerEdits.Scale(gestureStart, scale, anchor.X, anchor.Y), dx / canvas.Width, dy / canvas.Height));
+                : WidgetLayerEdits.Move(WidgetLayerRotation.Scale(gestureStart, scale, anchor.X, anchor.Y, canvas.Width, canvas.Height), dx / canvas.Width, dy / canvas.Height));
     }
     public void EndInteraction(bool cancel)
     {
-        var previous = gestureStart; gestureStart = null;
+        var previous = gestureStart; gestureStart = null; rotating = false;
         if (previous is null) return;
         if (cancel) change?.Invoke(previous);
+        ArrangePhotos();
         InteractionChanged?.Invoke(this, EventArgs.Empty);
     }
     public void ReleaseSources()
@@ -306,23 +346,62 @@ internal sealed class WidgetCanvasView : ContentView
         public Color Tint { get => (Color)GetValue(TintProperty); set => SetValue(TintProperty, value); }
         private Rect frame;
         private bool canResize = true;
+        private double angle;
+        private bool showAngle;
+        private Size workspaceSize;
+        public double SelectionAngle { get => angle; set { angle = value; Invalidate(); } }
+        public bool ShowAngle { get => showAngle; set { showAngle = value; Invalidate(); } }
+        public Size WorkspaceSize { get => workspaceSize; set { workspaceSize = value; Invalidate(); } }
+        public Point RotationPoint
+        {
+            get
+            {
+                var point = WidgetLayerRotation.Point(frame.Center.X, frame.Top - 28, frame.Center.X, frame.Center.Y, angle);
+                var x = Math.Clamp(point.X, 22, Math.Max(22, workspaceSize.Width - 22));
+                var y = Math.Clamp(point.Y, 22, Math.Max(22, workspaceSize.Height - 22));
+                // Keep an off-canvas layer's handle away from its pivot. A handle
+                // clamped onto the pivot would have no defined starting angle.
+                if (Math.Pow(x - frame.Center.X, 2) + Math.Pow(y - frame.Center.Y, 2) < 16 * 16)
+                    x = Math.Clamp(frame.Center.X + (frame.Center.X < workspaceSize.Width / 2 ? 28 : -28), 22, Math.Max(22, workspaceSize.Width - 22));
+                return new(x, y);
+            }
+        }
+        private Color surface = Colors.White;
         public bool CanResize { get => canResize; set { canResize = value; Invalidate(); } }
         public Rect SelectionFrame { get => frame; set { frame = value; Invalidate(); } }
         public SelectionOverlay()
         {
             Drawable = this; InputTransparent = true; this.SetDynamicResource(TintProperty, "AccentText");
+            this.SetAppThemeColor(BackgroundTintProperty, Colors.White, Color.FromArgb("#252934"));
             AutomationProperties.SetIsInAccessibleTree(this, false);
         }
         public void Draw(ICanvas canvas, RectF dirty)
         {
             if (frame.Width <= 0 || frame.Height <= 0) return;
-            canvas.StrokeColor = Tint; canvas.StrokeSize = 2; canvas.FillColor = Colors.White;
+            canvas.SaveState(); canvas.Translate((float)frame.Center.X, (float)frame.Center.Y); canvas.Rotate((float)angle); canvas.Translate((float)-frame.Center.X, (float)-frame.Center.Y);
+            canvas.StrokeColor = Tint; canvas.StrokeSize = 2; canvas.FillColor = surface;
             canvas.DrawRectangle(frame);
-            if (!canResize) return;
-            foreach (var point in new[] { new Point(frame.Left, frame.Top), new Point(frame.Right, frame.Top), new Point(frame.Left, frame.Bottom), new Point(frame.Right, frame.Bottom) })
+            if (canResize) foreach (var point in new[] { new Point(frame.Left, frame.Top), new Point(frame.Right, frame.Top), new Point(frame.Left, frame.Bottom), new Point(frame.Right, frame.Bottom) })
             {
                 canvas.FillCircle((float)point.X, (float)point.Y, 5); canvas.DrawCircle((float)point.X, (float)point.Y, 5);
             }
+            canvas.RestoreState();
+            if (!canResize) return;
+            canvas.StrokeColor = Tint; canvas.StrokeSize = 2; canvas.FillColor = surface;
+            var top = WidgetLayerRotation.Point(frame.Center.X, frame.Top, frame.Center.X, frame.Center.Y, angle); var handle = RotationPoint;
+            canvas.DrawLine((float)top.X, (float)top.Y, (float)handle.X, (float)handle.Y);
+            canvas.FillCircle((float)handle.X, (float)handle.Y, 10); canvas.DrawCircle((float)handle.X, (float)handle.Y, 10);
+            var glyph = new PathF(); var x = (float)handle.X; var y = (float)handle.Y;
+            glyph.MoveTo(x + 5, y - 3); glyph.CurveTo(x, y - 10, x - 10, y - 3, x - 5, y + 4); glyph.CurveTo(x - 1, y + 9, x + 7, y + 5, x + 6, y + 1);
+            canvas.DrawPath(glyph); canvas.DrawLine(x + 5, y - 3, x + 5, y - 7); canvas.DrawLine(x + 5, y - 3, x + 1, y - 3);
+            if (showAngle)
+            {
+                var left = Math.Clamp(x + 17, 2, (float)Math.Max(2, workspaceSize.Width - 68));
+                canvas.FillRoundedRectangle(left, y - 12, 66, 24, 8); canvas.FontColor = Tint; canvas.FontSize = 12;
+                canvas.DrawString($"{angle:0.#}°", left, y - 12, 66, 24, HorizontalAlignment.Center, VerticalAlignment.Center);
+            }
         }
+        private static readonly BindableProperty BackgroundTintProperty = BindableProperty.Create("BackgroundTint", typeof(Color), typeof(SelectionOverlay), Colors.White,
+            propertyChanged: (view, _, value) => { var overlay = (SelectionOverlay)view; overlay.surface = (Color)value; overlay.Invalidate(); });
     }
 }

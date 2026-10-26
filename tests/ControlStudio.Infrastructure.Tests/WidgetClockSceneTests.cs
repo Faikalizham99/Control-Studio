@@ -18,6 +18,31 @@ public sealed class WidgetClockSceneTests : IDisposable
         return WidgetDesignRules.New() with { Layers = [photo, WidgetClocks.New(), photo with { Id = Guid.NewGuid(), Name = "Top" }] };
     }
     [Theory]
+    [InlineData(WidgetLayerKind.Photo)] [InlineData(WidgetLayerKind.Clock)] [InlineData(WidgetLayerKind.Date)] [InlineData(WidgetLayerKind.Text)]
+    public async Task FreeRotationSurvivesReopenPublicationAndResetWithoutChangingSlotOrContent(WidgetLayerKind kind)
+    {
+        var repo = Repo(); var layer = kind switch
+        {
+            WidgetLayerKind.Photo => new WidgetLayer(Guid.NewGuid(), "Photo", await repo.ImportPhotoAsync(Png), 1, 1, new(), QuarterTurns: 1, FlipHorizontal: true),
+            WidgetLayerKind.Clock => WidgetClocks.New(), WidgetLayerKind.Date => WidgetDates.New(), _ => WidgetTexts.New()
+        };
+        layer = layer with { RotationDegrees = -33.25 }; var draft = WidgetDesignRules.New() with { Layers = [layer] };
+        var saved = await repo.SaveAsync(draft, Png, scene: WidgetScenes.IsLive(draft) ? Export(draft) : null);
+        await repo.AssignSlotAsync(saved.Size, 4, saved.Id); Assert.Equal(layer, Assert.Single(await Repo().ReadAsync()).Layers.Single());
+        await new WidgetDesignPublisher(Repo(), () => Shared).PublishAsync();
+        var catalog = JsonSerializer.Deserialize(await File.ReadAllBytesAsync(Path.Combine(Shared, "catalog.json")), WidgetDesignRules.JsonContext.WidgetCatalog)!;
+        Assert.Equal(layer, Assert.Single(catalog.Designs).Layers.Single());
+        if (WidgetScenes.IsLive(saved))
+        {
+            var scene = JsonSerializer.Deserialize(await File.ReadAllBytesAsync(Path.Combine(Shared, "renders", saved.RenderKey + ".scene.json")), WidgetDesignRules.JsonContext.WidgetScene)!;
+            Assert.Equal(-33.25, (scene.Parts[0].Clock ?? scene.Parts[0].Date)!.RotationDegrees);
+        }
+        var reset = saved with { Layers = [WidgetLayerRotation.Set(layer, 0)] };
+        await repo.SaveAsync(reset, Png, scene: WidgetScenes.IsLive(reset) ? Export(reset) : null);
+        Assert.Equal(layer with { RotationDegrees = 0 }, Assert.Single(await repo.ReadAsync()).Layers.Single());
+        Assert.Equal(saved.Id, Assert.Single((await repo.ReadLibraryAsync()).Slots).DesignId);
+    }
+    [Theory]
     [InlineData(false)] [InlineData(true)]
     public async Task CustomTextReopensAndPublishesAsStaticGroupsWithNoSourceAssetsOrNewSceneSchema(bool mixed)
     {

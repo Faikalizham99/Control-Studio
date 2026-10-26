@@ -35,13 +35,13 @@ public static class WidgetLayerEdits
     public static WidgetLayer Reset(WidgetLayer layer, WidgetSize size, WidgetCanvasSize? dimensions = null)
     {
         if (layer.Locked) return layer;
-        if (WidgetTextLayers.IsText(layer)) return layer with { Frame = new(.05, .35, .9, .3), Opacity = 1 };
+        if (WidgetTextLayers.IsText(layer)) return layer with { Frame = new(.05, .35, .9, .3), Opacity = 1, RotationDegrees = 0 };
         var canvas = dimensions is null ? WidgetDesignRules.Canvas(size) : (Width: dimensions.Width, Height: dimensions.Height);
         var width = .8; var height = width * canvas.Width * layer.PixelHeight / layer.PixelWidth / canvas.Height;
         if (height > .8) { height = .8; width = height * canvas.Height * layer.PixelWidth / layer.PixelHeight / canvas.Width; }
         width = Clamp(width, .05, .8); height = Clamp(height, .05, .8);
         return layer with { Frame = new((1 - width) / 2, (1 - height) / 2, width, height), Zoom = 1, CropX = .5, CropY = .5,
-            QuarterTurns = 0, FlipHorizontal = false, FlipVertical = false, Opacity = 1, FitPhoto = true, BlendMode = WidgetBlendMode.Normal };
+            QuarterTurns = 0, RotationDegrees = 0, FlipHorizontal = false, FlipVertical = false, Opacity = 1, FitPhoto = true, BlendMode = WidgetBlendMode.Normal };
     }
     public static WidgetLayer Move(WidgetLayer layer, double dx, double dy) => layer.Locked || !double.IsFinite(dx) || !double.IsFinite(dy) ? layer
         : layer with { Frame = layer.Frame with { X = Position(layer.Frame.X + dx), Y = Position(layer.Frame.Y + dy) } };
@@ -115,6 +115,11 @@ public static class WidgetLayerEdits
         if (from < 0 || to < 0 || from == to) return layers;
         var moved = result[from]; result.RemoveAt(from); result.Insert(to, moved); return result;
     }
-    public static bool Contains(WidgetLayer layer, double x, double y) => layer.Visible && layer.Opacity > 0
-        && x >= layer.Frame.X && y >= layer.Frame.Y && x <= layer.Frame.X + layer.Frame.Width && y <= layer.Frame.Y + layer.Frame.Height;
+    public static bool Contains(WidgetLayer layer, double x, double y, double canvasWidth = 1, double canvasHeight = 1)
+    {
+        if (!layer.Visible || layer.Opacity <= 0 || !double.IsFinite(x) || !double.IsFinite(y) || canvasWidth <= 0 || canvasHeight <= 0) return false;
+        var local = WidgetLayerRotation.LocalPoint(layer, x * canvasWidth, y * canvasHeight, canvasWidth, canvasHeight);
+        return local.X >= layer.Frame.X * canvasWidth && local.Y >= layer.Frame.Y * canvasHeight
+            && local.X <= (layer.Frame.X + layer.Frame.Width) * canvasWidth && local.Y <= (layer.Frame.Y + layer.Frame.Height) * canvasHeight;
+    }
 }

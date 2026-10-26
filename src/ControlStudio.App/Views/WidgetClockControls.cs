@@ -33,6 +33,7 @@ internal sealed class WidgetClockControls : ContentView
     private readonly ColourPickerView colour;
     private readonly ClipboardEditorActionButton centre = new("Centre horizontally", ClipboardEditorControls.Icon(StudioSymbol.CenterHorizontal, size: 18), "CentreClockHorizontally", accentCaption: true);
     private readonly WidgetLayerNudgeControls nudge = new("ClockPositionNudge");
+    private readonly WidgetRotationControls rotation = new("ClockRotation");
     private readonly Dictionary<WidgetClockTool, (WidgetToolButton Button, View Panel)> tools = [];
     private readonly WidgetToolButton delete;
     private WidgetLayer? layer;
@@ -45,6 +46,7 @@ internal sealed class WidgetClockControls : ContentView
     public event Action<WidgetLayer>? Changed;
     public event EventHandler? CentreHorizontallyRequested;
     public event Action<WidgetMoveDirection>? NudgeRequested;
+    public event Action<double>? RotationRequested;
     public event EventHandler? DeleteRequested;
     public event EventHandler? PanelChanged;
     public event EventHandler? LayoutChanging;
@@ -105,6 +107,11 @@ internal sealed class WidgetClockControls : ContentView
         {
             if (!updating && CanUse && ActiveTool == WidgetClockTool.Position && layer is { Locked: false }) NudgeRequested?.Invoke(direction);
         };
+        rotation.PositionChanging += view => PositionChanging?.Invoke(view);
+        rotation.Changed += degrees =>
+        {
+            if (!updating && CanUse && ActiveTool == WidgetClockTool.Position && layer is { Locked: false }) RotationRequested?.Invoke(degrees);
+        };
         colour = new(picker, "ClockText", "Layer text");
         colour.ColourChanged += (_, args) => { if (!updating && layer is not null && TextStyle is { } style) Publish(WidgetTextLayers.WithStyle(layer, style with { ColourHex = args.Hex })); };
         colour.BusyChanged += (_, _) => BusyChanged?.Invoke(this, EventArgs.Empty);
@@ -131,7 +138,7 @@ internal sealed class WidgetClockControls : ContentView
         Add(WidgetClockTool.Colour, StudioSymbol.Palette, "Colour", colour);
         Add(WidgetClockTool.Size, StudioSymbol.Expand, "Size", sizeLabel, size,
             sizeHelp);
-        Add(WidgetClockTool.Position, StudioSymbol.CenterHorizontal, "Position", centre, nudge,
+        Add(WidgetClockTool.Position, StudioSymbol.CenterHorizontal, "Position", centre, nudge, rotation,
             positionHelp,
             SettingsControls.Text("Text alignment", 14, bold: true), alignment);
         Add(WidgetClockTool.Opacity, StudioSymbol.Opacity, "Opacity", opacityLabel, opacity);
@@ -204,6 +211,7 @@ internal sealed class WidgetClockControls : ContentView
             if (changedLayer) SetPanel(null);
             IsVisible = layer is not null && ActiveTool is not null;
             centre.IsEnabled = nudge.IsEnabled = available && layer is { Locked: false };
+            rotation.Update(layer);
             if (TextStyle is not { } clock) return;
             var kind = WidgetTextLayers.Name(layer!);
             formatHeading.Text = IsCustomText ? "Content" : IsDate ? "Date format" : "Time";

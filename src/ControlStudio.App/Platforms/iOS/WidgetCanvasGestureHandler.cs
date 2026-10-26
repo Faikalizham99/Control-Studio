@@ -26,7 +26,12 @@ internal sealed class WidgetCanvasGestureHandler : ContentViewHandler
         pan = new UIPanGestureRecognizer(() => Guard(() =>
         {
             if (pan is not { } gesture) return;
-            if (owner == gesture && gesture.State is (UIGestureRecognizerState.Changed or UIGestureRecognizerState.Ended))
+            if (owner == gesture && gesture.State == UIGestureRecognizerState.Changed)
+            {
+                if (gesture.NumberOfTouches != 1) Canvas.EndInteraction(false);
+                else { var delta = gesture.TranslationInView(platformView); var point = gesture.LocationInView(platformView); Canvas.Drag(point.X, point.Y, delta.X, delta.Y); }
+            }
+            else if (owner == gesture && gesture.State == UIGestureRecognizerState.Ended && !Canvas.IsRotating)
             { var delta = gesture.TranslationInView(platformView); Canvas.Pan(delta.X, delta.Y); }
             Finish(gesture);
         })) { MaximumNumberOfTouches = 1 };

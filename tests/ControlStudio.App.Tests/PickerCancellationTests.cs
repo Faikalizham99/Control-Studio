@@ -33,6 +33,35 @@ public sealed class PickerCancellationTests : IDisposable
     private static WidgetEditorPage Editor(Store store, string source = "Photo Library", ColourPicker? colours = null)
         => new(store, colours ?? new(), NullLogger.Instance, WidgetDesignRules.New() with { Layers = [Photo()] }, choosePhotoSource: () => Task.FromResult<string?>(source));
     [Theory]
+    [InlineData(WidgetLayerKind.Photo)] [InlineData(WidgetLayerKind.Clock)] [InlineData(WidgetLayerKind.Date)] [InlineData(WidgetLayerKind.Text)]
+    public void RotationSettingsPersistAnglesWithoutChangingContentOrScrollAndRespectLocks(WidgetLayerKind kind)
+    {
+        var layer = kind switch { WidgetLayerKind.Photo => Photo(), WidgetLayerKind.Clock => WidgetClocks.New(), WidgetLayerKind.Date => WidgetDates.New(), _ => WidgetTexts.New() };
+        var store = new Store(); var page = new WidgetEditorPage(store, new ColourPicker(), NullLogger.Instance, WidgetDesignRules.New() with { Layers = [layer] },
+            chooseLayerAction: (_, _) => Task.FromResult<string?>("Size, position & crop")); Open(page);
+        void Click(string id) => ((IButtonController)Button(page, id)).SendClicked();
+        if (kind == WidgetLayerKind.Photo)
+        {
+            var menu = Descendants(page).OfType<ClipboardIconButton>().Single(x => x.AutomationId == "WidgetLayerOptions" + layer.Id.ToString("N"));
+            ((IButtonController)Descendants(menu).OfType<Button>().Single()).SendClicked();
+        }
+        else Click("ClockToolPosition");
+        var prefix = kind == WidgetLayerKind.Photo ? "PrecisionRotation" : "ClockRotation";
+        var slider = Descendants(page).OfType<Slider>().Single(x => x.AutomationId == prefix + "Angle");
+        var scroll = Descendants(page).OfType<WidgetEditorScrollView>().Single(); ((IView)scroll).Arrange(new Rect(0, 0, 350, 600)); scroll.SetScrolledPosition(0, 900);
+        slider.Value = 27.5; var composition = Descendants(page).OfType<WidgetCompositeView>().Single();
+        Assert.Equal(layer with { RotationDegrees = 27.5 }, composition.Design!.Layers.Single()); Assert.Equal(900, scroll.ScrollY); Assert.Equal(0, store.Saves);
+        var lockButton = Descendants(Descendants(page).OfType<ClipboardIconButton>().Single(x => x.AutomationId == "WidgetLayerLock" + layer.Id.ToString("N"))).OfType<Button>().Single();
+        ((IButtonController)lockButton).SendClicked(); Assert.False(slider.IsEnabled); slider.Value = -40; Click(prefix + "Reset");
+        Assert.Equal(27.5, composition.Design.Layers.Single().RotationDegrees); ((IButtonController)lockButton).SendClicked();
+        Click(prefix + "Reset"); Assert.Equal(0, composition.Design.Layers.Single().RotationDegrees);
+        slider.Value = -180; Assert.Equal(-180, composition.Design.Layers.Single().RotationDegrees);
+        slider.Value = 180; Assert.Equal(180, composition.Design.Layers.Single().RotationDegrees);
+        if (kind == WidgetLayerKind.Photo) Click("WidgetDone"); else Click("ClockToolFont");
+        slider.Value = 10; Assert.Equal(180, composition.Design.Layers.Single().RotationDegrees);
+        Click("SaveWidgetDesign"); Assert.Equal(layer with { RotationDegrees = 180 }, store.Saved!.Layers.Single());
+    }
+    [Theory]
     [InlineData(AppTheme.Light)] [InlineData(AppTheme.Dark)]
     public async Task TextLayerUsesSharedAppearanceAndPositionControlsWithMultilineContentAndNoTimeSettings(AppTheme theme)
     {

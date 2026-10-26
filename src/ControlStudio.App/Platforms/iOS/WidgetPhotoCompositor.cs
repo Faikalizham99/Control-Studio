@@ -117,6 +117,7 @@ internal sealed class WidgetPhotoCompositor : IDisposable
             {
                 context.CGContext.ClipToRect(new CGRect(CGPoint.Empty, size));
                 var frame = new CGRect(layer.Frame.X * size.Width, layer.Frame.Y * size.Height, layer.Frame.Width * size.Width, layer.Frame.Height * size.Height);
+                RotateFrame(context.CGContext, frame, layer.RotationDegrees);
                 AppleWidgetClockDrawing.Draw(layer, clockText, frame, context.CGContext);
             });
             try { var input = CIImage.FromCGImage(clockRaster.CGImage!); rasters.Add(layer.Id, new(geometry, size, clockRaster, input, clockText)); return input; }
@@ -138,7 +139,7 @@ internal sealed class WidgetPhotoCompositor : IDisposable
         var raster = renderer.CreateImage(context =>
         {
             var graphics = context.CGContext;
-            graphics.ClipToRect(new CGRect(CGPoint.Empty, size)); graphics.ClipToRect(frame);
+            graphics.ClipToRect(new CGRect(CGPoint.Empty, size)); RotateFrame(graphics, frame, layer.RotationDegrees); graphics.ClipToRect(frame);
             graphics.TranslateCTM((nfloat)(frame.X + placement.X + placement.Width / 2), (nfloat)(frame.Y + placement.Y + placement.Height / 2));
             graphics.RotateCTM((nfloat)(layer.QuarterTurns * Math.PI / 2));
             var odd = layer.QuarterTurns % 2 != 0;
@@ -152,6 +153,11 @@ internal sealed class WidgetPhotoCompositor : IDisposable
             rasters.Add(layer.Id, new(geometry, size, raster, input)); return input;
         }
         catch { raster.Dispose(); throw; }
+    }
+    private static void RotateFrame(CGContext graphics, CGRect frame, double degrees)
+    {
+        graphics.TranslateCTM(frame.GetMidX(), frame.GetMidY()); graphics.RotateCTM((nfloat)(degrees * Math.PI / 180));
+        graphics.TranslateCTM(-frame.GetMidX(), -frame.GetMidY());
     }
     internal static CIBlendKernel Kernel(WidgetBlendMode mode) => kernels.GetOrAdd(mode, CreateKernel);
     private static CIBlendKernel CreateKernel(WidgetBlendMode mode) => mode switch

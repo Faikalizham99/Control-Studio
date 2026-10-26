@@ -7,6 +7,53 @@ namespace ControlStudio.App.Tests;
 [Collection("MAUI controls")]
 public sealed class WidgetCanvasTests : IDisposable
 {
+    [Theory]
+    [InlineData(WidgetLayerKind.Photo)] [InlineData(WidgetLayerKind.Clock)] [InlineData(WidgetLayerKind.Date)] [InlineData(WidgetLayerKind.Text)]
+    public void HandleRotationKeepsTheLayerCentreAcrossAnglesFamiliesCancellationAndLocks(WidgetLayerKind kind)
+    {
+        foreach (var family in WidgetDesignRules.SupportedSizes)
+        {
+            var layer = (kind switch { WidgetLayerKind.Clock => WidgetClocks.New(), WidgetLayerKind.Date => WidgetDates.New(), WidgetLayerKind.Text => WidgetTexts.New(),
+                _ => new WidgetLayer(Guid.NewGuid(), "Photo", Guid.NewGuid().ToString("N"), 640, 480, new()) }) with { Frame = new(.2, .3, .6, .4) };
+            var design = WidgetDesignRules.New() with { Size = family, Layers = [layer] }; WidgetCanvasView? view = null;
+            view = new(_ => null, _ => { }, value => { design = design with { Layers = [value] }; view!.Update(design, value.Id); });
+            host.Attach(view); view.Update(design, layer.Id); var canvas = WidgetDesignRules.Canvas(family);
+            var width = 260d; var height = width * canvas.Height / canvas.Width;
+            ((IView)view.PhotoSurface).Arrange(new Rect(32, 32, width, height));
+            var centre = new Point(32 + .5 * width, 32 + .5 * height); var handle = view.RotationHandleCenter!.Value;
+            Assert.True(view.BeginInteraction(handle.X, handle.Y, false)); Assert.True(view.IsRotating);
+            view.Pan(500, 500); view.Pinch(2); Assert.Equal(layer, design.Layers.Single());
+            foreach (var degrees in new[] { 37d, 170, 179, 181, 270, 360, 397 })
+            {
+                var pointer = WidgetLayerRotation.Point(handle.X, handle.Y, centre.X, centre.Y, degrees);
+                view.Drag(pointer.X, pointer.Y, 500, 500);
+                Assert.Equal(WidgetLayerRotation.Normalize(degrees), design.Layers[0].RotationDegrees, 8);
+                Assert.Equal(layer with { RotationDegrees = design.Layers[0].RotationDegrees }, design.Layers[0]);
+            }
+            view.Drag(double.NaN, 0, 0, 0); view.Drag(centre.X, centre.Y, 0, 0); Assert.Equal(37, design.Layers[0].RotationDegrees, 8);
+            view.EndInteraction(false); Assert.False(view.IsInteracting); Assert.False(view.IsRotating);
+            Assert.Equal(37, Assert.IsType<AbsoluteLayout>(view.PhotoSurface.Children[0]).Rotation, 8);
+            var saved = design.Layers[0]; handle = view.RotationHandleCenter!.Value;
+            Assert.True(view.BeginInteraction(handle.X, handle.Y, false)); var next = WidgetLayerRotation.Point(handle.X, handle.Y, centre.X, centre.Y, 30);
+            view.Drag(next.X, next.Y, 0, 0); Assert.Equal(67, design.Layers[0].RotationDegrees, 8); view.EndInteraction(true); Assert.Equal(saved, design.Layers[0]);
+            view.Update(design with { Layers = [saved with { Locked = true }] }, saved.Id); Assert.Null(view.RotationHandleCenter);
+            Assert.False(view.BeginInteraction(handle.X, handle.Y, false));
+        }
+    }
+    [Fact]
+    public void RotationHandleDoesNotStealSmallLayerBodyDragsAndBoundsChangesCancelRotation()
+    {
+        var photo = new WidgetLayer(Guid.NewGuid(), "Small", Guid.NewGuid().ToString("N"), 640, 480, new(.45, 0, .05, .05));
+        var design = WidgetDesignRules.New() with { Layers = [photo] }; WidgetCanvasView? view = null; var cleared = 0;
+        view = new(_ => null, _ => { }, value => { design = design with { Layers = [value] }; view!.Update(design, value.Id); }, () => cleared++);
+        host.Attach(view); view.Update(design, photo.Id); ((IView)view.PhotoSurface).Arrange(new Rect(32, 32, 170, 170));
+        Assert.True(view.BeginInteraction(32 + .475 * 170, 32 + .025 * 170, false)); Assert.False(view.IsRotating); view.EndInteraction(false);
+        var handle = view.RotationHandleCenter!.Value; view.SelectAt(handle.X, handle.Y); Assert.Equal(0, cleared);
+        Assert.True(view.BeginInteraction(handle.X, handle.Y, false));
+        view.Drag(handle.X + 20, handle.Y + 10, 0, 0); Assert.NotEqual(0, design.Layers[0].RotationDegrees);
+        ((IView)view.PhotoSurface).Arrange(new Rect(32, 32, 160, 160)); Assert.False(view.IsInteracting); Assert.Equal(photo, design.Layers[0]);
+        view.Update(design with { Layers = [photo with { Visible = false }] }, photo.Id); Assert.Null(view.RotationHandleCenter);
+    }
     [Fact]
     public void CustomTextWrapsWithoutPhotoIOOrTimeTicksAndKeepsItsCentreWhileResizing()
     {

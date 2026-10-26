@@ -22,6 +22,7 @@ internal sealed class WidgetEditorPage : ContentPage
     private readonly WidgetEditorForm form = new() { Padding = new Thickness(16, 8, 16, 28), Spacing = 14 };
     private readonly WidgetLayerList layerList = new();
     private readonly VerticalStackLayout precise = new() { Spacing = 6, IsVisible = false };
+    private readonly WidgetRotationControls rotation = new("PrecisionRotation");
     private readonly WidgetEditorScrollView scroll = new();
     private readonly VerticalStackLayout adjustments = new() { Spacing = 12, IsVisible = false, AutomationId = "WidgetAdjustments" };
     private readonly Border photoSettings;
@@ -102,6 +103,7 @@ internal sealed class WidgetEditorPage : ContentPage
             if (CanEdit && CommitClockColour()) EditLayer(WidgetLayerEdits.CenterHorizontally, closeTools: false);
         };
         clockControls.NudgeRequested += NudgeLayer;
+        clockControls.RotationRequested += RotateLayer;
         clockControls.Changed += changed =>
         {
             if (saved || departed || canvas.IsInteracting || layerList.IsReordering) return;
@@ -178,6 +180,9 @@ internal sealed class WidgetEditorPage : ContentPage
         nudge.PositionChanging += view => scroll.PreserveAnchor(view);
         nudge.MoveRequested += direction => { if (precise.IsVisible) NudgeLayer(direction); };
         precise.Children.Add(nudge);
+        rotation.PositionChanging += view => scroll.PreserveAnchor(view);
+        rotation.Changed += degrees => { if (precise.IsVisible) RotateLayer(degrees); };
+        precise.Children.Add(rotation);
         AddSlider("Horizontal position", -WidgetDesignRules.MaximumLayerOffset, WidgetDesignRules.MaximumLayerOffset);
         AddSlider("Vertical position", -WidgetDesignRules.MaximumLayerOffset, WidgetDesignRules.MaximumLayerOffset);
         AddSlider("Width", WidgetDesignRules.MinimumLayerSize, WidgetDesignRules.MaximumLayerSize);
@@ -276,6 +281,10 @@ internal sealed class WidgetEditorPage : ContentPage
         if (CanEdit && CommitClockColour())
             EditLayer(layer => WidgetLayerEdits.Nudge(layer, direction, draft.Size, draft.CanvasDimensions), closeTools: false);
     }
+    private void RotateLayer(double degrees)
+    {
+        if (CanEdit && CommitClockColour()) EditLayer(layer => WidgetLayerRotation.Set(layer, degrees), closeTools: false);
+    }
     private void EditLayer(Func<WidgetLayer, WidgetLayer> transform, bool closeTools = true, bool changesPlacement = true)
     {
         var layer = draft.Layers.FirstOrDefault(x => x.Id == selected); if (layer is null || (changesPlacement && layer.Locked)) return;
@@ -367,6 +376,7 @@ internal sealed class WidgetEditorPage : ContentPage
         {
             var layer = draft.Layers.FirstOrDefault(x => x.Id == selected);
             clockControls.Update(layer);
+            rotation.Update(layer);
             var isPhoto = layer?.Kind == WidgetLayerKind.Photo;
             tools.IsVisible = isPhoto;
             selectionHint.IsVisible = layer is null;

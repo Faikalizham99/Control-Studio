@@ -13,7 +13,8 @@ public sealed record WidgetLayer(Guid Id, string Name, string AssetKey, int Pixe
     WidgetLayerKind Kind = WidgetLayerKind.Photo, int QuarterTurns = 0, bool FlipHorizontal = false, bool FlipVertical = false, double Opacity = 1,
     bool FitPhoto = false, WidgetBlendMode BlendMode = WidgetBlendMode.Normal, bool Locked = false, WidgetClockOptions? Clock = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] WidgetDateOptions? Date = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] WidgetTextOptions? Text = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] WidgetTextOptions? Text = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] double RotationDegrees = 0);
 public sealed record WidgetDesign(Guid Id, string Name, WidgetSize Size, string BackgroundHex,
     IReadOnlyList<WidgetLayer> Layers, string RenderKey, int Revision = 0, bool TransparentBackground = false, bool PreserveCanvas = false,
     WidgetCanvasSize? CanvasDimensions = null);
@@ -95,7 +96,7 @@ public static class WidgetDesignRules
                 || layer.Frame is not { } f || !Range(f.X, -MaximumLayerOffset, MaximumLayerOffset) || !Range(f.Y, -MaximumLayerOffset, MaximumLayerOffset)
                 || !Range(f.Width, MinimumLayerSize, MaximumLayerSize) || !Range(f.Height, MinimumLayerSize, MaximumLayerSize)
                 || !Range(layer.Zoom, 1, 4) || !Range(layer.CropX, 0, 1) || !Range(layer.CropY, 0, 1)
-                || layer.QuarterTurns is < 0 or > 3 || !Range(layer.Opacity, 0, 1) || !Enum.IsDefined(layer.BlendMode))
+                || layer.QuarterTurns is < 0 or > 3 || !Range(layer.Opacity, 0, 1) || !Range(layer.RotationDegrees, -180, 180) || !Enum.IsDefined(layer.BlendMode))
                 throw new IOException("A widget layer is invalid. Its data was not changed.");
             if (layer.Kind == WidgetLayerKind.Photo)
             {

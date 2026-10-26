@@ -162,21 +162,21 @@ private struct StudioClockSceneView: View {
                     if let index = part.imageIndex, let image = images[index] {
                         Image(uiImage: image).resizable().widgetAccentedRenderingMode(.fullColor).frame(width: width, height: height)
                     } else if let layer = part.clock {
-                        textLayer(liveText(layer.clock), style: layer.clock, frame: layer.frame, opacity: layer.opacity, width: width, height: height)
+                        textLayer(liveText(layer.clock), style: layer.clock, frame: layer.frame, opacity: layer.opacity, rotation: layer.rotationDegrees ?? 0, width: width, height: height)
                     } else if let layer = part.date {
                         textLayer(Text(.currentDate, format: layer.date.formatStyle()), style: layer.date.textStyle,
-                            frame: layer.frame, opacity: layer.opacity, width: width, height: height)
+                            frame: layer.frame, opacity: layer.opacity, rotation: layer.rotationDegrees ?? 0, width: width, height: height)
                     }
                 }
             }.frame(width: width, height: height, alignment: .topLeading).clipped().position(x: geometry.size.width / 2, y: geometry.size.height / 2)
         }
     }
-    private func textLayer(_ text: Text, style: WidgetClockStyle, frame: WidgetClockFrame, opacity: Double, width: CGFloat, height: CGFloat) -> some View {
+    private func textLayer(_ text: Text, style: WidgetClockStyle, frame: WidgetClockFrame, opacity: Double, rotation: Double, width: CGFloat, height: CGFloat) -> some View {
         text.font(font(style, size: min(1024, frame.height * height * style.fontScale), height: frame.height * height))
             .lineLimit(1).minimumScaleFactor(0.01)
             .foregroundStyle(colour(style)).multilineTextAlignment(textAlignment(style.alignment))
             .frame(width: frame.width * width, height: frame.height * height, alignment: alignment(style.alignment))
-            .clipped().opacity(opacity).offset(x: frame.x * width, y: frame.y * height)
+            .clipped().opacity(opacity).rotationEffect(.degrees(rotation)).offset(x: frame.x * width, y: frame.y * height)
     }
     private func liveText(_ clock: WidgetClockStyle) -> Text {
         if #available(iOS 18.0, *) {

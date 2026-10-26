@@ -11,7 +11,7 @@ class WidgetEditorScrollPolicyTests(unittest.TestCase):
         # A ScrollToRequested event alone cannot catch the previous bug: its
         # IsLoaded/Handler checks skipped the offending code in headless tests.
         for name in ["WidgetEditorPage", "WidgetEditorForm", "WidgetLayerRow", "WidgetLayerList", "WidgetEditorToolbar", "WidgetClockControls",
-                     "WidgetClockWeightPicker", "WidgetClockFontPicker", "WidgetDateFormatPicker", "WidgetLayerNudgeControls", "WidgetBlendChoices", "WidgetBlendPanel"]:
+                     "WidgetClockWeightPicker", "WidgetClockFontPicker", "WidgetDateFormatPicker", "WidgetLayerNudgeControls", "WidgetRotationControls", "WidgetBlendChoices", "WidgetBlendPanel"]:
             with self.subTest(component=name):
                 source = (ROOT / f"src/ControlStudio.App/Views/{name}.cs").read_text(encoding="utf-8")
                 self.assertIsNone(re.search(r"\b(?:ScrollToAsync|RequestScrollTo|SetScrolledPosition)\s*\(", source))
