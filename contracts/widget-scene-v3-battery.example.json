@@ -1,0 +1,57 @@
+{
+  "schemaVersion": 3,
+  "width": 170,
+  "height": 170,
+  "parts": [
+    {
+      "imageIndex": null,
+      "clock": null,
+      "battery": {
+        "id": "7ac12be4-f3a1-4e92-8eac-2245ae401234",
+        "name": "Battery 1",
+        "assetKey": "",
+        "pixelWidth": 1,
+        "pixelHeight": 1,
+        "frame": {
+          "x": 0.15,
+          "y": 0.3,
+          "width": 0.7,
+          "height": 0.4
+        },
+        "zoom": 1,
+        "cropX": 0.5,
+        "cropY": 0.5,
+        "visible": true,
+        "kind": "battery",
+        "quarterTurns": 0,
+        "flipHorizontal": false,
+        "flipVertical": false,
+        "opacity": 1,
+        "fitPhoto": false,
+        "blendMode": "normal",
+        "locked": false,
+        "clock": null,
+        "battery": {
+          "shape": "ring",
+          "colourMode": "smooth",
+          "stops": [
+            {
+              "fromPercent": 0,
+              "colourHex": "#FF0000"
+            },
+            {
+              "fromPercent": 50,
+              "colourHex": "#00FF00"
+            },
+            {
+              "fromPercent": 100,
+              "colourHex": "#0000FF"
+            }
+          ],
+          "showPercentage": true,
+          "showCharging": true
+        }
+      }
+    }
+  ]
+}

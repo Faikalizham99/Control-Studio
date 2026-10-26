@@ -13,7 +13,7 @@ struct WidgetLayerMarker: Decodable, Equatable {
         return content
     }
     var liveClock: Bool { kind == "clock" && visible != false && (opacity ?? 1) > 0 }
-    var liveText: Bool { (kind == "clock" || kind == "date") && visible != false && (opacity ?? 1) > 0 }
+    var liveText: Bool { (kind == "clock" || kind == "date" || kind == "battery") && visible != false && (opacity ?? 1) > 0 }
 }
 struct WidgetClockFrame: Decodable, Equatable {
     let x: Double, y: Double, width: Double, height: Double
@@ -132,6 +132,7 @@ struct WidgetClockScenePart: Decodable, Equatable {
     let imageIndex: Int?
     let clock: WidgetLiveClock?
     let date: WidgetLiveDate?
+    var battery: WidgetLiveBattery? = nil
 }
 struct WidgetDateStyle: Decodable, Equatable {
     let format: String
@@ -204,13 +205,14 @@ struct WidgetClockScene: Decodable, Equatable {
     let height: Double
     let parts: [WidgetClockScenePart]
     var valid: Bool {
-        guard (schemaVersion == 1 || schemaVersion == 2), width.isFinite, height.isFinite, (50...600).contains(width), (50...1100).contains(height),
+        guard (1...3).contains(schemaVersion), width.isFinite, height.isFinite, (50...600).contains(width), (50...1100).contains(height),
             !parts.isEmpty, parts.count <= WidgetDesignStore.maximumLayers else { return false }
         var clocks = Set<String>()
         for (index, part) in parts.enumerated() {
-            if let image = part.imageIndex { if image != index || part.clock != nil || part.date != nil { return false } }
-            else if let clock = part.clock { if part.date != nil || !clock.valid || !clocks.insert(clock.id.lowercased()).inserted { return false } }
-            else if let date = part.date { if schemaVersion != 2 || !date.valid || !clocks.insert(date.id.lowercased()).inserted { return false } }
+            if let image = part.imageIndex { if image != index || part.clock != nil || part.date != nil || part.battery != nil { return false } }
+            else if let clock = part.clock { if part.date != nil || part.battery != nil || !clock.valid || !clocks.insert(clock.id.lowercased()).inserted { return false } }
+            else if let date = part.date { if schemaVersion < 2 || part.battery != nil || !date.valid || !clocks.insert(date.id.lowercased()).inserted { return false } }
+            else if let battery = part.battery { if schemaVersion != 3 || !battery.valid || !clocks.insert(battery.id.lowercased()).inserted { return false } }
             else { return false }
         }
         return !clocks.isEmpty
@@ -241,4 +243,61 @@ extension WidgetDesignStore {
         }
         return (scene, images)
     }
+}
+
+
+struct WidgetBatteryReading: Equatable {
+    var percent: Int? = nil
+    var charging = false
+    var full = false
+    var known: Bool { percent.map { (0...100).contains($0) } ?? false }
+    var text: String { known ? "\(percent!)%" : "—" }
+    var description: String { known ? text + (full ? ", fully charged" : charging ? ", charging" : "") : "unavailable" }
+}
+struct WidgetBatteryStop: Decodable, Equatable {
+    let fromPercent: Int
+    let colourHex: String
+}
+struct WidgetBatteryStyle: Decodable, Equatable {
+    let shape: String
+    let colourMode: String
+    let stops: [WidgetBatteryStop]
+    let showPercentage: Bool
+    let showCharging: Bool
+    var valid: Bool {
+        guard ["battery", "bar", "ring", "arc", "percentage"].contains(shape), ["ranges", "smooth"].contains(colourMode),
+            (2...8).contains(stops.count), stops.first?.fromPercent == 0 else { return false }
+        var previous = -1
+        for stop in stops {
+            guard stop.fromPercent > previous, stop.fromPercent <= 100, WidgetClockStyle.colourRGB(stop.colourHex) != nil else { return false }
+            previous = stop.fromPercent
+        }
+        return true
+    }
+    func colourHex(_ reading: WidgetBatteryReading) -> String {
+        guard reading.known, let percent = reading.percent, var left = stops.first else { return "#8E8E93" }
+        for right in stops.dropFirst() {
+            if percent < right.fromPercent {
+                if colourMode == "ranges" { return left.colourHex }
+                guard let a = UInt32(left.colourHex.dropFirst(), radix: 16), let b = UInt32(right.colourHex.dropFirst(), radix: 16) else { return "#8E8E93" }
+                let t = Double(percent - left.fromPercent) / Double(right.fromPercent - left.fromPercent)
+                func channel(_ shift: UInt32) -> Int { Int((Double((a >> shift) & 255) * (1 - t) + Double((b >> shift) & 255) * t).rounded()) }
+                return String(format: "#%02X%02X%02X", channel(16), channel(8), channel(0))
+            }
+            left = right
+        }
+        return left.colourHex
+    }
+}
+struct WidgetLiveBattery: Decodable, Equatable {
+    let id: String, name: String, kind: String
+    let frame: WidgetClockFrame
+    let visible: Bool
+    let opacity: Double
+    let battery: WidgetBatteryStyle
+    var rotationDegrees: Double? = nil
+    var valid: Bool { UUID(uuidString: id) != nil && id != "00000000-0000-0000-0000-000000000000" && kind == "battery"
+        && !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && name.utf16.count <= 40
+        && frame.valid && visible && opacity.isFinite && opacity > 0 && opacity <= 1 && battery.valid
+        && (rotationDegrees.map { $0.isFinite && (-180...180).contains($0) } ?? true) }
 }

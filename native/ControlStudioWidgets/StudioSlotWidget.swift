@@ -14,6 +14,7 @@ struct StudioSlotEntry: TimelineEntry {
     var canvasDimensions: WidgetCanvasDimensions? = nil
     var scene: WidgetClockScene? = nil
     var sceneImages: [Int: UIImage] = [:]
+    var battery = WidgetBatteryReading()
     var message = "Assign a saved design to this slot in Control Studio, under Studio → My Widgets → Widget slots."
 }
 
@@ -27,14 +28,28 @@ struct StudioSlotProvider: TimelineProvider {
             return
         }
         let entry = current(context.family)
-        captureSize(context) { completion(entry) }
+        captureSize(context) { sampleBattery(entry, completion: completion) }
     }
     func getTimeline(in context: Context, completion: @escaping (Timeline<StudioSlotEntry>) -> Void) {
         let entry = current(context.family)
         let now = Date()
         let refresh = entry.scene?.parts.contains(where: { $0.date != nil }) == true
             ? min(now.addingTimeInterval(900), WidgetDateStyle.nextDay(after: now)) : now.addingTimeInterval(900)
-        captureSize(context) { completion(Timeline(entries: [entry], policy: .after(refresh))) }
+        captureSize(context) { sampleBattery(entry) { sampled in completion(Timeline(entries: [sampled], policy: .after(refresh))) } }
+    }
+    private func sampleBattery(_ entry: StudioSlotEntry, completion: @escaping (StudioSlotEntry) -> Void) {
+        guard entry.scene?.parts.contains(where: { $0.battery != nil }) == true else { completion(entry); return }
+        DispatchQueue.main.async {
+            let device = UIDevice.current; let enabled = device.isBatteryMonitoringEnabled
+            if !enabled { device.isBatteryMonitoringEnabled = true }
+            defer { if !enabled { device.isBatteryMonitoringEnabled = false } }
+            let level = device.batteryLevel; let state = device.batteryState
+            var sampled = entry
+            let known = level.isFinite && (0...1).contains(level)
+            sampled.battery = WidgetBatteryReading(percent: known ? min(100, max(0, Int((level * 100).rounded()))) : nil,
+                charging: known && (state == .charging || state == .full), full: known && state == .full)
+            completion(sampled)
+        }
     }
     private func captureSize(_ context: Context, completion: @escaping () -> Void) {
         guard !context.isPreview else { completion(); return }
@@ -84,7 +99,7 @@ struct StudioSlotProvider: TimelineProvider {
             let rgb = design.canvasBackgroundRGB
             let background = rgb.map { Color(red: $0.red, green: $0.green, blue: $0.blue) } ?? Color(uiColor: .systemBackground)
             if design.hasLiveText {
-                guard #available(iOS 18.0, *) else { return StudioSlotEntry(date: .now, slot: slot, message: "Live text layers require iOS 18 or later.") }
+                guard #available(iOS 18.0, *) else { return StudioSlotEntry(date: .now, slot: slot, message: "Live layers require iOS 18 or later.") }
                 let (scene, data) = try store.scene(for: design)
                 var images: [Int: UIImage] = [:]
                 for (index, bytes) in data {
@@ -110,9 +125,9 @@ struct StudioSlotView: View {
     var body: some View {
         Group {
             if #available(iOS 18.0, *), let scene = entry.scene {
-                StudioClockSceneView(scene: scene, images: entry.sceneImages, background: entry.transparentBackground ? .clear : entry.canvasBackground)
+                StudioClockSceneView(scene: scene, images: entry.sceneImages, background: entry.transparentBackground ? .clear : entry.canvasBackground, battery: entry.battery)
                     .accessibilityLabel("Studio \(entry.slot): \(entry.name)")
-                    .accessibilityValue(entry.textDescription)
+                    .accessibilityValue(entry.textDescription + (scene.parts.contains(where: { $0.battery != nil }) ? ". Battery " + entry.battery.description : ""))
             } else if let image = entry.image {
                 GeometryReader { geometry in
                     // Correct only integer-PNG rounding when the saved point canvas
@@ -152,6 +167,7 @@ private struct StudioClockSceneView: View {
     let scene: WidgetClockScene
     let images: [Int: UIImage]
     let background: Color
+    let battery: WidgetBatteryReading
     var body: some View {
         GeometryReader { geometry in
             let scale = min(geometry.size.width / scene.width, geometry.size.height / scene.height)
@@ -163,6 +179,11 @@ private struct StudioClockSceneView: View {
                         Image(uiImage: image).resizable().widgetAccentedRenderingMode(.fullColor).frame(width: width, height: height)
                     } else if let layer = part.clock {
                         textLayer(liveText(layer.clock), style: layer.clock, frame: layer.frame, opacity: layer.opacity, rotation: layer.rotationDegrees ?? 0, width: width, height: height)
+                    } else if let layer = part.battery {
+                        StudioBatteryArtwork(style: layer.battery, reading: battery)
+                            .frame(width: layer.frame.width * width, height: layer.frame.height * height)
+                            .clipped().opacity(layer.opacity).rotationEffect(.degrees(layer.rotationDegrees ?? 0))
+                            .offset(x: layer.frame.x * width, y: layer.frame.y * height)
                     } else if let layer = part.date {
                         textLayer(Text(.currentDate, format: layer.date.formatStyle()), style: layer.date.textStyle,
                             frame: layer.frame, opacity: layer.opacity, rotation: layer.rotationDegrees ?? 0, width: width, height: height)
@@ -310,5 +331,61 @@ struct StudioSlotsSixToTen: WidgetBundle {
         StudioSlotEightWidget()
         StudioSlotNineWidget()
         StudioSlotTenWidget()
+    }
+}
+
+
+// Same canonical 160 x 100 artwork as WidgetBatteryDrawing in the app.
+private struct StudioBatteryArtwork: View {
+    let style: WidgetBatteryStyle
+    let reading: WidgetBatteryReading
+    var body: some View {
+        Canvas { context, size in
+            let scale = min(size.width / 160, size.height / 100)
+            guard scale > 0 else { return }
+            context.translateBy(x: (size.width - 160 * scale) / 2, y: (size.height - 100 * scale) / 2)
+            context.scaleBy(x: scale, y: scale)
+            let rgb = WidgetClockStyle.colourRGB(style.colourHex(reading)) ?? (0.56, 0.56, 0.58)
+            let colour = Color(red: rgb.0, green: rgb.1, blue: rgb.2)
+            let track = Color(red: 142.0 / 255, green: 142.0 / 255, blue: 147.0 / 255).opacity(0.28)
+            let fraction = reading.known ? Double(reading.percent!) / 100 : 0
+            func rect(_ x: Double, _ y: Double, _ width: Double, _ height: Double, _ radius: Double, _ tint: Color, fill: Bool = true) {
+                let path = Path(roundedRect: CGRect(x: x, y: y, width: width, height: height), cornerRadius: radius)
+                if fill { context.fill(path, with: .color(tint)) } else { context.stroke(path, with: .color(tint), lineWidth: 3) }
+            }
+            func line(_ points: [CGPoint], _ tint: Color, _ stroke: Double, fill: Bool = false) {
+                guard let first = points.first else { return }
+                var path = Path(); path.move(to: first); for point in points.dropFirst() { path.addLine(to: point) }
+                if fill { path.closeSubpath(); context.fill(path, with: .color(tint)) }
+                else { context.stroke(path, with: .color(tint), style: StrokeStyle(lineWidth: stroke, lineCap: .round, lineJoin: .round)) }
+            }
+            func arc(_ cx: Double, _ cy: Double, _ radius: Double, _ start: Double, _ sweep: Double, _ tint: Color) {
+                guard sweep > 0 else { return }
+                line((0...64).map { i in
+                    let angle = (start + sweep * Double(i) / 64) * Double.pi / 180
+                    return CGPoint(x: cx + radius * cos(angle), y: cy + radius * sin(angle))
+                }, tint, 7)
+            }
+            func text(_ value: String, _ x: Double, _ y: Double, _ width: Double, _ height: Double, _ fontSize: Double) {
+                context.draw(Text(value).font(.custom("Arial-BoldMT", fixedSize: fontSize)).foregroundColor(colour), at: CGPoint(x: x + width / 2, y: y + height / 2), anchor: .center)
+            }
+            switch style.shape {
+            case "battery":
+                rect(30, 12, 94, 48, 8, colour, fill: false); rect(127, 28, 5, 16, 2, colour)
+                rect(35, 17, 84, 38, 4, track)
+                if fraction > 0 { rect(35, 17, 84 * fraction, 38, min(4, 42 * fraction), colour) }
+            case "bar":
+                rect(12, 24, 136, 18, 9, track)
+                if fraction > 0 { rect(12, 24, 136 * fraction, 18, min(9, 68 * fraction), colour) }
+            case "ring": arc(80, 34, 27, -90, 360, track); arc(80, 34, 27, -90, 360 * fraction, colour)
+            case "arc": arc(80, 49, 37, -180, 180, track); arc(80, 49, 37, -180, 180 * fraction, colour)
+            default: text(reading.text, 4, 22, 152, 56, 44)
+            }
+            if style.shape != "percentage" && (style.showPercentage || !reading.known) { text(reading.text, 20, 68, 120, 26, 21) }
+            if style.showCharging && reading.known && (reading.charging || reading.full) {
+                if reading.full { line([CGPoint(x: 136, y: 80), CGPoint(x: 141, y: 85), CGPoint(x: 150, y: 73)], colour, 3) }
+                else { line([CGPoint(x: 144, y: 69), CGPoint(x: 136, y: 81), CGPoint(x: 142, y: 81), CGPoint(x: 139, y: 91), CGPoint(x: 150, y: 77), CGPoint(x: 144, y: 77)], colour, 0, fill: true) }
+            }
+        }
     }
 }

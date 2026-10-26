@@ -32,7 +32,7 @@ internal sealed class WidgetPhotoCompositor : IDisposable
         try { context = CIContext.FromOptions(new CIContextOptions { WorkingColorSpace = colorSpace, OutputColorSpace = colorSpace, CacheIntermediates = false }); }
         catch { colorSpace.Dispose(); throw; }
     }
-    public UIImage Render(WidgetDesign design, DateTimeOffset? time = null, int maximumEdge = WidgetDesignRules.MaximumImageEdge)
+    public UIImage Render(WidgetDesign design, DateTimeOffset? time = null, int maximumEdge = WidgetDesignRules.MaximumImageEdge, WidgetBatteryReading battery = default)
     {
         WidgetDesignRules.Validate(design);
         using var pool = new NSAutoreleasePool();
@@ -56,7 +56,7 @@ internal sealed class WidgetPhotoCompositor : IDisposable
                 var step = steps[index];
                 if (step.TextLayer is { } clock)
                 {
-                    var input = Rasterize(clock, size, timestamp);
+                    var input = Rasterize(clock, size, timestamp, battery);
                     using var blended = CIBlendKernel.SourceOver.Apply(input, result) ?? throw new IOException("This text layer could not be rendered.");
                     var cropped = blended.ImageByCroppingToRect(bounds); result.Dispose(); result = cropped;
                     if (++pendingText >= MaximumGraphLayers)
@@ -121,7 +121,7 @@ internal sealed class WidgetPhotoCompositor : IDisposable
         using var pool = new NSAutoreleasePool();
         var steps = WidgetScenes.Steps(design); var manifest = WidgetScenes.Manifest(design);
         if (JsonSerializer.SerializeToUtf8Bytes(manifest, WidgetDesignRules.JsonContext.WidgetScene).Length > WidgetScenes.MaximumBytes)
-            throw new IOException("This widget's live settings are too large. Shorten layer names or use fewer Clock/Date layers.");
+            throw new IOException("This widget's live settings are too large. Shorten layer names or use fewer live layers.");
         var expectedGroups = steps.Count(step => step.TextLayer is null);
         for (var edge = WidgetDesignRules.MaximumImageEdge; edge >= 128; edge = (int)(edge * .8))
         {
@@ -142,17 +142,17 @@ internal sealed class WidgetPhotoCompositor : IDisposable
     }
     private static CIColor Background(string hex) => new(Convert.ToInt32(hex.Substring(1, 2), 16) / 255f,
         Convert.ToInt32(hex.Substring(3, 2), 16) / 255f, Convert.ToInt32(hex.Substring(5, 2), 16) / 255f, 1);
-    private CIImage Rasterize(WidgetLayer layer, CGSize size, DateTimeOffset time)
+    private CIImage Rasterize(WidgetLayer layer, CGSize size, DateTimeOffset time, WidgetBatteryReading battery = default)
     {
         var geometry = layer with { Name = "", BlendMode = WidgetBlendMode.Normal, Locked = false };
-        var clockText = WidgetTextLayers.IsText(layer) ? WidgetTextLayers.Text(layer, time) : "";
+        var clockText = WidgetTextLayers.IsText(layer) ? WidgetTextLayers.Text(layer, time) : layer.Kind == WidgetLayerKind.Battery ? $"{battery.Percent}:{battery.Charging}:{battery.Full}" : "";
         using var pool = new NSAutoreleasePool();
         if (rasters.TryGetValue(layer.Id, out var cached) && cached.Layer == geometry && cached.Size == size && cached.ClockText == clockText)
         { Touch(rasterOrder, layer.Id); return cached.Input; }
         // Evict before allocating a replacement; a gesture never accumulates old full-canvas buffers.
         if (cached is not null) RemoveRaster(layer.Id);
         while (rasters.Count >= MaximumCachedRasters) RemoveRaster(rasterOrder.First!.Value);
-        if (WidgetTextLayers.IsText(layer))
+        if (WidgetTextLayers.IsText(layer) || layer.Kind == WidgetLayerKind.Battery)
         {
             using var clockFormat = UIGraphicsImageRendererFormat.DefaultFormat; clockFormat.Scale = 1; clockFormat.Opaque = false;
             using var clockRenderer = new UIGraphicsImageRenderer(size, clockFormat);
@@ -161,7 +161,8 @@ internal sealed class WidgetPhotoCompositor : IDisposable
                 context.CGContext.ClipToRect(new CGRect(CGPoint.Empty, size));
                 var frame = new CGRect(layer.Frame.X * size.Width, layer.Frame.Y * size.Height, layer.Frame.Width * size.Width, layer.Frame.Height * size.Height);
                 RotateFrame(context.CGContext, frame, layer.RotationDegrees);
-                AppleWidgetClockDrawing.Draw(layer, clockText, frame, context.CGContext);
+                if (layer.Kind == WidgetLayerKind.Battery) AppleWidgetBatteryDrawing.Draw(layer, battery, frame, context.CGContext);
+                else AppleWidgetClockDrawing.Draw(layer, clockText, frame, context.CGContext);
             });
             try { var input = CIImage.FromCGImage(clockRaster.CGImage!); rasters.Add(layer.Id, new(geometry, size, clockRaster, input, clockText)); Touch(rasterOrder, layer.Id); return input; }
             catch { clockRaster.Dispose(); throw; }

@@ -45,6 +45,8 @@
     <Compile Include="../../src/ControlStudio.App/Views/WidgetEditorForm.cs" Link="Views/WidgetEditorForm.cs" />
     <Compile Include="../../src/ControlStudio.App/Views/WidgetEditorSurface.cs" Link="Views/WidgetEditorSurface.cs" />
     <Compile Include="../../src/ControlStudio.App/Views/WidgetClockControls.cs" Link="Views/WidgetClockControls.cs" />
+    <Compile Include="../../src/ControlStudio.App/Views/WidgetBatteryControls.cs" Link="Views/WidgetBatteryControls.cs" />
+    <Compile Include="../../src/ControlStudio.App/Views/WidgetBatteryGlyph.cs" Link="Views/WidgetBatteryGlyph.cs" />
     <Compile Include="../../src/ControlStudio.App/Views/WidgetTextColourControls.cs" Link="Views/WidgetTextColourControls.cs" />
     <Compile Include="../../src/ControlStudio.App/Views/WidgetLayerNudgeControls.cs" Link="Views/WidgetLayerNudgeControls.cs" />
     <Compile Include="../../src/ControlStudio.App/Views/WidgetRotationControls.cs" Link="Views/WidgetRotationControls.cs" />

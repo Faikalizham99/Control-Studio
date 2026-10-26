@@ -34,22 +34,24 @@ public static class WidgetClocks
     }
 }
 
-/// <summary>Photos and custom text are composited together; Clock/Date separate those static groups.</summary>
+/// <summary>Photos and custom text are composited together; Live layers separate those static groups.</summary>
 public sealed record WidgetSceneStep(IReadOnlyList<WidgetLayer> Photos, WidgetLayer? TextLayer);
 public sealed record WidgetScenePart(int? ImageIndex = null, WidgetLayer? Clock = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] WidgetLayer? Date = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] WidgetLayer? Date = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] WidgetLayer? Battery = null);
 public sealed record WidgetScene(int SchemaVersion, double Width, double Height, IReadOnlyList<WidgetScenePart> Parts);
 public sealed record WidgetSceneExport(WidgetScene Scene, IReadOnlyDictionary<int, byte[]> Images);
 public static class WidgetScenes
 {
     public const int MaximumBytes = 32_768, MaximumPixels = 3_000_000, MaximumImageBytes = 4_000_000;
-    public static bool IsLive(WidgetDesign design) => design.Layers.Any(x => WidgetTextLayers.IsLive(x) && x.Visible && x.Opacity > 0);
+    public static bool IsLiveLayer(WidgetLayer layer) => WidgetTextLayers.IsLive(layer) || layer.Kind == WidgetLayerKind.Battery;
+    public static bool IsLive(WidgetDesign design) => design.Layers.Any(x => IsLiveLayer(x) && x.Visible && x.Opacity > 0);
     public static IReadOnlyList<WidgetSceneStep> Steps(WidgetDesign design)
     {
         var result = new List<WidgetSceneStep>(); var photos = new List<WidgetLayer>();
         foreach (var layer in design.Layers)
         {
-            if (!WidgetTextLayers.IsLive(layer)) { if (layer.Visible && layer.Opacity > 0) photos.Add(layer); }
+            if (!IsLiveLayer(layer)) { if (layer.Visible && layer.Opacity > 0) photos.Add(layer); }
             else
             {
                 if (photos.Count > 0) { result.Add(new(photos.ToArray(), null)); photos.Clear(); }
@@ -62,9 +64,10 @@ public static class WidgetScenes
     public static WidgetScene Manifest(WidgetDesign design)
     {
         var canvas = WidgetDesignRules.Canvas(design);
-        return new(design.Layers.Any(x => x.Kind == WidgetLayerKind.Date && x.Visible && x.Opacity > 0) ? 2 : 1,
+        return new(design.Layers.Any(x => x.Kind == WidgetLayerKind.Battery && x.Visible && x.Opacity > 0) ? 3 : design.Layers.Any(x => x.Kind == WidgetLayerKind.Date && x.Visible && x.Opacity > 0) ? 2 : 1,
             canvas.Width, canvas.Height, Steps(design).Select((step, index) => step.TextLayer is null
-            ? new WidgetScenePart(index) : step.TextLayer.Kind == WidgetLayerKind.Date
+            ? new WidgetScenePart(index) : step.TextLayer.Kind == WidgetLayerKind.Battery
+                ? new WidgetScenePart(Battery: step.TextLayer) : step.TextLayer.Kind == WidgetLayerKind.Date
                 ? new WidgetScenePart(Date: step.TextLayer) : new WidgetScenePart(Clock: step.TextLayer)).ToArray());
     }
     public static void Validate(WidgetScene scene, WidgetDesign design)

@@ -12,6 +12,8 @@ internal sealed class WidgetCompositeHandler : ViewHandler<WidgetCompositeView, 
     private WidgetPhotoCompositor? compositor;
     private NSTimer? timer;
     private double timerInterval;
+    private IDisposable? batteryObserver;
+    private bool rendering;
     public WidgetCompositeHandler() : base(new PropertyMapper<WidgetCompositeView, WidgetCompositeHandler>(ViewMapper)
     { [nameof(WidgetCompositeView.Design)] = (handler, _) => handler.Render() }) { }
     protected override UIImageView CreatePlatformView() => new() { ContentMode = UIViewContentMode.ScaleToFill, Opaque = false,
@@ -21,17 +23,24 @@ internal sealed class WidgetCompositeHandler : ViewHandler<WidgetCompositeView, 
     public override Size GetDesiredSize(double widthConstraint, double heightConstraint) => Size.Zero;
     private void Clear()
     {
-        StopTimer();
+        StopTimer(); batteryObserver?.Dispose(); batteryObserver = null;
         var previous = PlatformView.Image; PlatformView.Image = null; previous?.Dispose();
         compositor?.Dispose(); compositor = null;
     }
     private void Render()
     {
+        if (rendering) return;
         if (VirtualView.Design is not { } design) { Clear(); return; }
+        rendering = true;
         try
         {
+            var hasBattery = design.Layers.Any(x => x.Kind == WidgetLayerKind.Battery && x.Visible && x.Opacity > 0);
+            if (hasBattery && PlatformView.Window is not null) batteryObserver ??= AppleWidgetBattery.Observe(_ => Render());
+            else { batteryObserver?.Dispose(); batteryObserver = null; }
+            var battery = hasBattery ? AppleWidgetBattery.Read() : default;
+            VirtualView.TickBattery(battery);
             compositor ??= new(VirtualView.AssetPath);
-            var rendered = compositor.Render(design); var previous = PlatformView.Image;
+            var rendered = compositor.Render(design, battery: battery); var previous = PlatformView.Image;
             PlatformView.Image = rendered; previous?.Dispose();
             UpdateTimer();
         }
@@ -42,11 +51,12 @@ internal sealed class WidgetCompositeHandler : ViewHandler<WidgetCompositeView, 
             MauiContext?.Services.GetService<ILogger<WidgetCompositeHandler>>()?.LogWarning("Widget composition preview failed. ErrorType={ErrorType}", ex.GetType().Name);
             VirtualView.Failed(ex is IOException ? ex.Message : "Preview unavailable. Try changing the layer or choosing the photo again.");
         }
+        finally { rendering = false; }
     }
     private void StopTimer() { timer?.Invalidate(); timer?.Dispose(); timer = null; timerInterval = 0; }
     private void UpdateTimer()
     {
-        if (VirtualView.Design is not { } design || !WidgetScenes.IsLive(design) || PlatformView.Window is null) { StopTimer(); return; }
+        if (VirtualView.Design is not { } design || !design.Layers.Any(x => WidgetTextLayers.IsText(x) && WidgetTextLayers.IsLive(x) && x.Visible && x.Opacity > 0) || PlatformView.Window is null) { StopTimer(); return; }
         var interval = design.Layers.Any(x => x.Kind == WidgetLayerKind.Clock && x.Visible && x.Opacity > 0 && x.Clock?.ShowSeconds == true) ? 1d : 60;
         if (timer is not null && timerInterval == interval) return;
         StopTimer(); timerInterval = interval;

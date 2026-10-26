@@ -33,6 +33,60 @@ public sealed class PickerCancellationTests : IDisposable
     private static WidgetEditorPage Editor(Store store, string source = "Photo Library", ColourPicker? colours = null)
         => new(store, colours ?? new(), NullLogger.Instance, WidgetDesignRules.New() with { Layers = [Photo()] }, choosePhotoSource: () => Task.FromResult<string?>(source));
     [Theory]
+    [InlineData(AppTheme.Light)] [InlineData(AppTheme.Dark)]
+    public async Task BatteryLayerShapeRulesPlacementAndLocksSaveWithoutScrollJumps(AppTheme theme)
+    {
+        host.App.UserAppTheme = theme; var store = new Store(); var photo = Photo();
+        var page = new WidgetEditorPage(store, new ColourPicker(), NullLogger.Instance, WidgetDesignRules.New() with { Layers = [photo] }, chooseLayerType: () => Task.FromResult<string?>("Battery"));
+        Open(page); await page.AddLayerAsync();
+        void Click(string id) => ((IButtonController)Button(page, id)).SendClicked();
+        var controls = Descendants(page).OfType<WidgetBatteryControls>().Single(); var composite = Descendants(page).OfType<WidgetCompositeView>().Single();
+        var added = composite.Design!.Layers.Last(); Assert.Equal(WidgetLayerKind.Battery, added.Kind); Assert.Equal("Battery 1", added.Name);
+        Assert.True(controls.Toolbar.IsVisible); Assert.False(Descendants(page).OfType<WidgetClockControls>().Single().Toolbar.IsVisible);
+        var scroll = Descendants(page).OfType<WidgetEditorScrollView>().Single(); ((IView)scroll).Arrange(new Rect(0, 0, 350, 600)); scroll.SetScrolledPosition(0, 900);
+        Click("BatteryToolShape"); Click("BatteryShapeRing");
+        var percentage = Descendants(controls).OfType<Switch>().Single(x => x.AutomationId == "BatteryShowPercentage"); percentage.IsToggled = false;
+        Click("BatteryShapePercentage"); Assert.True(percentage.IsToggled); Assert.False(percentage.IsEnabled); Click("BatteryShapeArc");
+        Assert.False(percentage.IsToggled); Assert.True(percentage.IsEnabled);
+        Click("BatteryToolColour"); var threshold = Descendants(controls).OfType<Entry>().Single(x => x.AutomationId == "BatteryThreshold");
+        Assert.True(threshold.IsReadOnly); Click("BatteryColourStop1"); threshold.Text = "25";
+        var picker = Assert.Single(Descendants(controls).OfType<ColourPickerView>()); var hex = Assert.Single(Descendants(controls).OfType<HexColorEntry>());
+        hex.Text = "#123456"; Click("BatteryColourMode1");
+        var options = composite.Design.Layers.Last().Battery!; Assert.Equal(25, options.Stops[1].FromPercent); Assert.Equal("#123456", options.Stops[1].ColourHex); Assert.Equal(WidgetBatteryColourMode.Smooth, options.ColourMode);
+        Click("AddBatteryStop"); Assert.Equal(5, composite.Design.Layers.Last().Battery!.Stops.Count); Click("RemoveBatteryStop"); Assert.Equal(4, composite.Design.Layers.Last().Battery!.Stops.Count);
+        Click("BatteryToolPosition"); Click("CentreBatteryHorizontally"); Click("BatteryPositionNudgeRight");
+        Assert.Equal((1 - added.Frame.Width) / 2 + 1d / 170, composite.Design.Layers.Last().Frame.X, 10);
+        var rotation = Descendants(controls).OfType<Slider>().Single(x => x.AutomationId == "BatteryRotationAngle"); rotation.Value = 31;
+        void Lock() => ((IButtonController)Descendants(Descendants(page).OfType<ClipboardIconButton>().Single(x => x.AutomationId == "WidgetLayerLock" + added.Id.ToString("N"))).OfType<Button>().Single()).SendClicked();
+        Lock(); var locked = composite.Design.Layers.Last(); Assert.False(rotation.IsEnabled); rotation.Value = -70; Click("BatteryPositionNudgeDown"); Assert.Equal(locked, composite.Design.Layers.Last());
+        Lock(); Click("BatteryToolOpacity"); Descendants(controls).OfType<Slider>().Single(x => x.AutomationId == "BatteryOpacity").Value = .5;
+        Assert.Equal(900, scroll.ScrollY); Assert.Equal(photo, composite.Design.Layers[0]); Assert.Equal(0, store.Picks);
+        Click("SaveWidgetDesign"); Assert.Equal(.5, store.Saved!.Layers.Last().Opacity); Assert.Equal(31, store.Saved.Layers.Last().RotationDegrees); Assert.Equal(options, store.Saved.Layers.Last().Battery);
+    }
+    [Fact]
+    public async Task InvalidBatteryRulesBlockTransitionsAndSaveAndPickerCancellationRecovers()
+    {
+        var pending = new TaskCompletionSource<string>(); var colours = new ColourPicker { Pick = (_, _) => pending.Task };
+        var store = new Store(); var photo = Photo(); var battery = WidgetBatteries.New();
+        var page = new WidgetEditorPage(store, colours, NullLogger.Instance, WidgetDesignRules.New() with { Layers = [photo, battery] }); Open(page);
+        void Click(string id) => ((IButtonController)Button(page, id)).SendClicked(); Click("BatteryToolColour"); Click("BatteryColourStop1");
+        var controls = Descendants(page).OfType<WidgetBatteryControls>().Single(); var threshold = Descendants(controls).OfType<Entry>().Single(x => x.AutomationId == "BatteryThreshold");
+        var composite = Descendants(page).OfType<WidgetCompositeView>().Single(); threshold.Text = "90";
+        Click("BatteryColourStop2"); Click("BatteryColourMode1"); Click("BatteryToolShape"); Click("EditorWidgetSize1"); Click("SaveWidgetDesign"); Click("SelectWidgetLayer" + photo.Id.ToString("N"));
+        Assert.Equal(0, store.Saves); Assert.Equal(WidgetBatteryTool.Colour, controls.ActiveTool); Assert.Equal(battery, composite.Design!.Layers.Last()); Assert.Equal(WidgetSize.Small, composite.Design.Size);
+        Assert.Equal("90", threshold.Text); threshold.Text = "25";
+        var hex = Descendants(controls).OfType<HexColorEntry>().Single(); hex.Text = "bad"; Click("BatteryColourStop2"); Click("SaveWidgetDesign"); Assert.Equal(0, store.Saves);
+        Assert.Equal(25, composite.Design.Layers.Last().Battery!.Stops[1].FromPercent); hex.Text = "#ABCDEF";
+        Click("BatteryToolShape"); Click("BatteryToolColour"); var picker = Descendants(controls).OfType<ColourPickerView>().Single();
+        var picking = picker.PickAsync(); Assert.True(controls.IsBusy); Assert.False(Button(page, "SaveWidgetDesign").IsEnabled);
+        ((IWindow)host.App.Windows[0]).Deactivated(); ((IPageController)page).SendDisappearing(); pending.SetResult("#ABCDEF"); await picking;
+        Assert.False(controls.IsBusy); Assert.True(Button(page, "SaveWidgetDesign").IsEnabled);
+        ((IWindow)host.App.Windows[0]).Activated(); ((IPageController)page).SendAppearing();
+        Click("SelectWidgetLayer" + photo.Id.ToString("N")); Assert.False(controls.Toolbar.IsVisible);
+        Click("SelectWidgetLayer" + battery.Id.ToString("N")); Assert.True(controls.Toolbar.IsVisible); Assert.Null(controls.ActiveTool);
+        Click("SaveWidgetDesign"); Assert.Equal("#ABCDEF", store.Saved!.Layers.Last().Battery!.Stops[1].ColourHex);
+    }
+    [Theory]
     [InlineData(WidgetLayerKind.Clock, AppTheme.Light)] [InlineData(WidgetLayerKind.Clock, AppTheme.Dark)]
     [InlineData(WidgetLayerKind.Date, AppTheme.Light)] [InlineData(WidgetLayerKind.Date, AppTheme.Dark)]
     [InlineData(WidgetLayerKind.Text, AppTheme.Light)] [InlineData(WidgetLayerKind.Text, AppTheme.Dark)]

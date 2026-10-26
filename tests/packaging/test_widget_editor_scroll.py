@@ -10,7 +10,7 @@ class WidgetEditorScrollPolicyTests(unittest.TestCase):
     def test_settings_and_strips_never_request_programmatic_scrolls(self):
         # A ScrollToRequested event alone cannot catch the previous bug: its
         # IsLoaded/Handler checks skipped the offending code in headless tests.
-        for name in ["WidgetEditorPage", "WidgetEditorForm", "WidgetLayerRow", "WidgetLayerList", "WidgetEditorToolbar", "WidgetClockControls",
+        for name in ["WidgetEditorPage", "WidgetEditorForm", "WidgetLayerRow", "WidgetLayerList", "WidgetEditorToolbar", "WidgetClockControls", "WidgetBatteryControls",
                      "WidgetClockWeightPicker", "WidgetClockFontPicker", "WidgetDateFormatPicker", "WidgetTextColourControls", "WidgetLayerNudgeControls", "WidgetRotationControls", "WidgetBlendChoices", "WidgetBlendPanel"]:
             with self.subTest(component=name):
                 source = (ROOT / f"src/ControlStudio.App/Views/{name}.cs").read_text(encoding="utf-8")

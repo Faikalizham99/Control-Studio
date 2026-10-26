@@ -25,6 +25,7 @@ internal sealed class WidgetCanvasView : ContentView
     private readonly Action<Guid> select;
     private readonly Action? deselect;
     private readonly Action<WidgetLayer>? change;
+    private WidgetBatteryReading battery;
     private WidgetDesign? design;
     private Guid? selected;
     private WidgetLayer? gestureStart;
@@ -71,12 +72,21 @@ internal sealed class WidgetCanvasView : ContentView
         composite.ClockTicked += (_, time) =>
         {
             if (design is null) return;
-            foreach (var layer in design.Layers.Where(WidgetTextLayers.IsLive))
+            foreach (var layer in design.Layers.Where(x => WidgetTextLayers.IsText(x) && WidgetTextLayers.IsLive(x)))
                 if (photos.TryGetValue(layer.Id, out var view)) { view.Clock.Text = WidgetTextLayers.Text(layer, time); Place(view, layer, 0, 0); }
-            if (design.Layers.FirstOrDefault(x => x.Id == selected) is { } active && WidgetTextLayers.IsLive(active))
+            if (design.Layers.FirstOrDefault(x => x.Id == selected) is { } active && WidgetTextLayers.IsText(active) && WidgetTextLayers.IsLive(active))
             {
                 ghost.Clock.Text = WidgetTextLayers.Text(active, time); var origin = Origin(canvas, workspace); Place(ghost, active, origin.X, origin.Y);
             }
+        };
+        composite.BatteryChanged += (_, reading) =>
+        {
+            battery = reading;
+            if (design is null) return;
+            foreach (var layer in design.Layers.Where(x => x.Kind == WidgetLayerKind.Battery))
+                if (photos.TryGetValue(layer.Id, out var view)) view.Battery.Update(layer.Battery!, reading);
+            if (design.Layers.FirstOrDefault(x => x.Id == selected)?.Battery is { } options) ghost.Battery.Update(options, reading);
+            DescribeCanvas();
         };
         renderError.IsVisible = false; renderError.Margin = 12; renderError.InputTransparent = true;
         renderError.HorizontalTextAlignment = renderError.VerticalTextAlignment = TextAlignment.Center;
@@ -155,10 +165,17 @@ internal sealed class WidgetCanvasView : ContentView
             photo.Frame.IsVisible = layer.Visible; Configure(photo, layer);
         }
         FitCanvas();
-        var active = value.Layers.FirstOrDefault(x => x.Id == selectedId && x.Visible);
-        var mixed = value.Layers.Any(WidgetTextLayers.IsText);
+        DescribeCanvas();
+    }
+    private void DescribeCanvas()
+    {
+        if (design is not { } value) return;
+        var active = value.Layers.FirstOrDefault(x => x.Id == selected && x.Visible);
+        var mixed = value.Layers.Any(x => x.Kind != WidgetLayerKind.Photo);
+        var batteryDescription = value.Layers.Any(x => x.Kind == WidgetLayerKind.Battery && x.Visible && x.Opacity > 0)
+            ? " Battery " + (battery.Known ? battery.Text : "unavailable") + (battery.Known ? battery.Full ? ", fully charged." : battery.Charging ? ", charging." : "." : ".") : "";
         SemanticProperties.SetDescription(this, $"{WidgetDesignRules.SizeName(value.Size)} widget preview. {value.Layers.Count(x => x.Visible)} visible {(mixed ? "layers" : "photo layers")}."
-            + (active is null ? mixed ? " No layer selected." : " No photo selected." : $" Selected {active.Name}." + (active.Locked ? " Locked. Unlock in Layers to move or resize." : "")));
+            + (active is null ? mixed ? " No layer selected." : " No photo selected." : $" Selected {active.Name}." + (active.Locked ? " Locked. Unlock in Layers to move or resize." : "")) + batteryDescription);
     }
     private void ArrangePhotos()
     {
@@ -199,8 +216,10 @@ internal sealed class WidgetCanvasView : ContentView
         handles.SelectionAngle = active?.RotationDegrees ?? 0; handles.ShowAngle = IsRotating;
         handles.WorkspaceSize = new(workspace.Width > 0 ? workspace.Width : WidthRequest - 2, workspace.Height > 0 ? workspace.Height : HeightRequest - 2);
     }
-    private static void Configure(PhotoView photo, WidgetLayer layer)
+    private void Configure(PhotoView photo, WidgetLayer layer)
     {
+        photo.Battery.IsVisible = layer.Kind == WidgetLayerKind.Battery;
+        if (layer.Battery is { } options) { photo.Battery.Update(options, battery); photo.Battery.Opacity = layer.Opacity; }
         photo.Image.IsVisible = layer.Kind == WidgetLayerKind.Photo; photo.Clock.IsVisible = WidgetTextLayers.IsText(layer);
         if (WidgetTextLayers.IsText(layer))
         {
@@ -221,6 +240,7 @@ internal sealed class WidgetCanvasView : ContentView
         var width = layer.Frame.Width * canvas.Width; var height = layer.Frame.Height * canvas.Height;
         AbsoluteLayout.SetLayoutBounds(photo.Frame, new Rect(x + layer.Frame.X * canvas.Width, y + layer.Frame.Y * canvas.Height, width, height));
         photo.Frame.Rotation = layer.RotationDegrees;
+        if (layer.Kind == WidgetLayerKind.Battery) { AbsoluteLayout.SetLayoutBounds(photo.Battery, new Rect(0, 0, width, height)); return; }
         if (WidgetTextLayers.IsText(layer))
         {
             var clock = WidgetTextLayers.Style(layer);
@@ -306,7 +326,7 @@ internal sealed class WidgetCanvasView : ContentView
     {
         if (!double.IsFinite(scale) || scale <= 0 || !double.IsFinite(dx) || !double.IsFinite(dy)) return;
         if (gestureStart is not null && !rotating && canvas.Width > 0 && canvas.Height > 0)
-            change?.Invoke(WidgetTextLayers.IsText(gestureStart) ? WidgetLayerEdits.ScaleCentered(gestureStart, scale)
+            change?.Invoke(gestureStart.Kind != WidgetLayerKind.Photo ? WidgetLayerEdits.ScaleCentered(gestureStart, scale)
                 : WidgetLayerEdits.Move(WidgetLayerRotation.Scale(gestureStart, scale, anchor.X, anchor.Y, canvas.Width, canvas.Height), dx / canvas.Width, dy / canvas.Height));
     }
     public void EndInteraction(bool cancel)
@@ -333,12 +353,13 @@ internal sealed class WidgetCanvasView : ContentView
     {
         public AbsoluteLayout Frame { get; } = new() { IsClippedToBounds = true, InputTransparent = true };
         public Image Image { get; } = new() { Aspect = Aspect.Fill, InputTransparent = true };
+        public WidgetBatteryGlyph Battery { get; } = new();
         public WidgetClockFontLabel Clock { get; } = new() { IsVisible = false, InputTransparent = true, MaxLines = 1, FontAutoScalingEnabled = false,
             VerticalTextAlignment = TextAlignment.Center };
         public PhotoView(string? path)
         {
             Image.Source = path;
-            Frame.Children.Add(Image); Frame.Children.Add(Clock); AutomationProperties.SetIsInAccessibleTree(Frame, false);
+            Frame.Children.Add(Image); Frame.Children.Add(Clock); Frame.Children.Add(Battery); AutomationProperties.SetIsInAccessibleTree(Frame, false);
         }
     }
     private sealed class SelectionOverlay : GraphicsView, IDrawable

@@ -10,6 +10,8 @@ internal sealed class WidgetCompositeView(Func<string, string?> assetPath) : Vie
     public Func<string, string?> AssetPath { get; } = assetPath;
     public event EventHandler<string>? RenderFailed;
     internal event EventHandler<DateTimeOffset>? ClockTicked;
+    internal event EventHandler<WidgetBatteryReading>? BatteryChanged;
+    internal void TickBattery(WidgetBatteryReading reading) => BatteryChanged?.Invoke(this, reading);
     internal void TickClock(DateTimeOffset time) => ClockTicked?.Invoke(this, time);
     internal void Failed(string message) => RenderFailed?.Invoke(this, message);
 }

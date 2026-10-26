@@ -17,6 +17,25 @@ public sealed class WidgetClockSceneTests : IDisposable
         var key = await Repo().ImportPhotoAsync(Png); var photo = new WidgetLayer(Guid.NewGuid(), "Bottom", key, 1, 1, new());
         return WidgetDesignRules.New() with { Layers = [photo, WidgetClocks.New(), photo with { Id = Guid.NewGuid(), Name = "Top" }] };
     }
+    [Fact]
+    public async Task BatteryScenesReopenPublishAssignAndRejectMalformedUpdatesAtomically()
+    {
+        var repo = Repo(); var layer = WidgetBatteries.New() with { RotationDegrees = -27, Locked = true };
+        var draft = WidgetDesignRules.New() with { Layers = [layer, WidgetDates.New()] };
+        var saved = await repo.SaveAsync(draft, Png, scene: Export(draft));
+        await repo.AssignSlotAsync(saved.Size, 8, saved.Id); Assert.Equal(layer, Assert.Single(await Repo().ReadAsync()).Layers[0]);
+        await new WidgetDesignPublisher(Repo(), () => Shared).PublishAsync();
+        var catalog = JsonSerializer.Deserialize(await File.ReadAllBytesAsync(Path.Combine(Shared, "catalog.json")), WidgetDesignRules.JsonContext.WidgetCatalog)!;
+        Assert.Equal(layer, Assert.Single(catalog.Designs).Layers[0]);
+        var scene = JsonSerializer.Deserialize(await File.ReadAllBytesAsync(Path.Combine(Shared, "renders", saved.RenderKey + ".scene.json")), WidgetDesignRules.JsonContext.WidgetScene)!;
+        WidgetScenes.Validate(scene, saved); Assert.Equal(3, scene.SchemaVersion); Assert.Equal(layer, scene.Parts[0].Battery);
+        var before = await File.ReadAllBytesAsync(Path.Combine(Private, "catalog.json"));
+        await Assert.ThrowsAsync<IOException>(() => repo.SaveAsync(saved, Png, scene: Export(saved) with { Scene = scene with { SchemaVersion = 2 } }));
+        Assert.Equal(before, await File.ReadAllBytesAsync(Path.Combine(Private, "catalog.json")));
+        Assert.Equal(saved.Id, Assert.Single((await repo.ReadLibraryAsync()).Slots).DesignId);
+        var invisible = saved with { Layers = [layer with { Visible = false }] };
+        await repo.SaveAsync(invisible, Png); Assert.False(WidgetScenes.IsLive(Assert.Single(await repo.ReadAsync())));
+    }
     [Theory]
     [InlineData(WidgetLayerKind.Clock)] [InlineData(WidgetLayerKind.Date)] [InlineData(WidgetLayerKind.Text)]
     public async Task ThreeColourGradientsReopenPublishAndRetainStopsWhenDisabled(WidgetLayerKind kind)

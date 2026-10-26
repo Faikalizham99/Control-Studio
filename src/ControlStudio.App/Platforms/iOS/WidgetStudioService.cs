@@ -83,7 +83,9 @@ public sealed class WidgetStudioService : IWidgetEditorStore
         await gate.WaitAsync();
         try
         {
-            var render = await Task.Run(() => Render(draft));
+            var battery = draft.Layers.Any(x => x.Kind == WidgetLayerKind.Battery)
+                ? await MainThread.InvokeOnMainThreadAsync(AppleWidgetBattery.Read) : default;
+            var render = await Task.Run(() => Render(draft, battery));
             var saved = await Repository.SaveAsync(draft, render.Full, thumbnail: render.Thumbnail, scene: render.Scene);
             return new(saved, await PublishCoreAsync());
         }
@@ -114,11 +116,11 @@ public sealed class WidgetStudioService : IWidgetEditorStore
         try { await publisher.PublishAsync(); if (slot is { } number) ReloadSlotNative(number); else ReloadNative(); return true; }
         catch (Exception ex) { logger.LogWarning("Widget publication failed. ErrorType={ErrorType}", ex.GetType().Name); return false; }
     }
-    private (byte[] Full, byte[] Thumbnail, WidgetSceneExport? Scene) Render(WidgetDesign design)
+    private (byte[] Full, byte[] Thumbnail, WidgetSceneExport? Scene) Render(WidgetDesign design, WidgetBatteryReading battery)
     {
         using var pool = new NSAutoreleasePool();
         using var compositor = new WidgetPhotoCompositor(Repository.AssetPath);
-        using var rendered = compositor.Render(design);
+        using var rendered = compositor.Render(design, battery: battery);
         using var png = rendered.AsPNG() ?? throw new IOException("The widget preview could not be rendered.");
         if (png.Length > WidgetDesignRules.MaximumImageBytes) throw new IOException("This widget is too detailed. Try fewer photos.");
         var width = rendered.Size.Width; var height = rendered.Size.Height;

@@ -2,7 +2,7 @@ using Microsoft.Maui.Graphics;
 
 namespace ControlStudio.App.Views;
 
-internal enum StudioSymbol { Widgets, Clipboard, Counter, Bars, Calendar, Photo, Text, Link, Chevron, Edit, Delete, Open, Preview, Tag, Expand, Clear, EyeOff, Pin, PinFilled, Check, LayerUp, LayerDown, Plus, Hash, Refresh, RotateLeft, RotateRight, Flip, Opacity, Drag, More, Search, Layers, Blend, Lock, Unlock, Clock, CenterHorizontal, Font, Palette, ArrowUp, ArrowLeft, ArrowDown, ArrowRight }
+internal enum StudioSymbol { Widgets, Clipboard, Counter, Bars, Calendar, Photo, Text, Link, Chevron, Edit, Delete, Open, Preview, Tag, Expand, Clear, EyeOff, Pin, PinFilled, Check, LayerUp, LayerDown, Plus, Hash, Refresh, RotateLeft, RotateRight, Flip, Opacity, Drag, More, Search, Layers, Blend, Lock, Unlock, Clock, CenterHorizontal, Font, Palette, ArrowUp, ArrowLeft, ArrowDown, ArrowRight, Battery }
 
 internal sealed class StudioGlyph : GraphicsView, IDrawable
 {
@@ -23,7 +23,12 @@ internal sealed class StudioGlyph : GraphicsView, IDrawable
     {
         canvas.SaveState(); canvas.Scale((float)Width / 24, (float)Height / 24);
         canvas.StrokeColor = Tint; canvas.StrokeSize = 1.7f; canvas.StrokeLineCap = LineCap.Round; canvas.StrokeLineJoin = LineJoin.Round;
-        if (symbol == StudioSymbol.Counter)
+        if (symbol == StudioSymbol.Battery)
+        {
+            canvas.DrawRoundedRectangle(2, 6, 18, 12, 2); canvas.DrawLine(22, 10, 22, 14);
+            canvas.FillColor = Tint; canvas.FillRoundedRectangle(5, 9, 10, 6, 1);
+        }
+        else if (symbol == StudioSymbol.Counter)
         {
             canvas.FillColor = Tint;
             canvas.FillRoundedRectangle(2, 2, 9, 9, 2); canvas.FillRoundedRectangle(13, 2, 9, 9, 2);

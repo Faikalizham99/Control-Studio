@@ -8,6 +8,21 @@ namespace ControlStudio.App.Tests;
 public sealed class WidgetCanvasTests : IDisposable
 {
     [Fact]
+    public void MixedLiveCanvasSeparatesBatteryReadingsFromTextTicksAndDescribesUnknownAndCharging()
+    {
+        var battery = WidgetBatteries.New(); var clock = WidgetClocks.New(); var date = WidgetDates.New();
+        var design = WidgetDesignRules.New() with { Layers = [clock, date, battery] };
+        var view = new WidgetCanvasView(_ => throw new InvalidOperationException("Battery has no asset"), _ => { }); host.Attach(view);
+        view.Update(design, battery.Id);
+        var border = Assert.IsType<Border>(view.Workspace.Children[1]);
+        var composite = Assert.IsType<WidgetCompositeView>(Assert.IsType<Grid>(border.Content).Children[2]);
+        composite.TickClock(DateTimeOffset.Now); Assert.Contains("Battery unavailable", SemanticProperties.GetDescription(view));
+        composite.TickBattery(new(45, true)); Assert.Contains("Battery 45%, charging", SemanticProperties.GetDescription(view));
+        composite.TickClock(DateTimeOffset.Now.AddMinutes(1)); Assert.Contains("Battery 45%", SemanticProperties.GetDescription(view));
+        composite.TickBattery(new(100, true, true)); Assert.Contains("fully charged", SemanticProperties.GetDescription(view));
+        view.Update(design with { Layers = [battery with { Visible = false }] }, null); Assert.DoesNotContain("Battery 100%", SemanticProperties.GetDescription(view));
+    }
+    [Fact]
     public void OnlyTheOutsideGhostPaintsAGradientAndSuspensionReleasesIt()
     {
         var layers = Enumerable.Range(0, 30).Select(index => WidgetClocks.New("Clock " + index) with { Clock = new(Gradient: new()) }).ToArray();

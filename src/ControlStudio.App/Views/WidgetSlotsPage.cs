@@ -123,7 +123,7 @@ internal sealed class WidgetSlotCard : ContentView
         var details = new VerticalStackLayout { Spacing = 8, VerticalOptions = LayoutOptions.Center, Children = { name } };
         if (design is null) details.Children.Add(SettingsControls.Text("Not assigned", 12, secondary: true));
         else if (!hasPreview) details.Children.Add(SettingsControls.Text("Preview unavailable. Open Edit and save again.", 12, secondary: true));
-        else if (WidgetScenes.IsLive(design)) details.Children.Add(SettingsControls.Text("Saved preview · live text on Home Screen", 12, secondary: true));
+        else if (WidgetScenes.IsLive(design)) details.Children.Add(SettingsControls.Text("Saved preview · live layers on Home Screen", 12, secondary: true));
         details.Children.Add(actions);
         var tap = SettingsControls.TapTarget((design is null ? "Assign " : "Change ") + title, "Open" + family + "Slot" + number);
         tap.Clicked += async (_, _) => await assign();
