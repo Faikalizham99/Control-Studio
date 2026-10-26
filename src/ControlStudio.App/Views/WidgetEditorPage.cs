@@ -101,6 +101,7 @@ internal sealed class WidgetEditorPage : ContentPage
         {
             if (CanEdit && CommitClockColour()) EditLayer(WidgetLayerEdits.CenterHorizontally, closeTools: false);
         };
+        clockControls.NudgeRequested += NudgeLayer;
         clockControls.Changed += changed =>
         {
             if (saved || departed || canvas.IsInteracting || layerList.IsReordering) return;
@@ -172,6 +173,11 @@ internal sealed class WidgetEditorPage : ContentPage
         fitRow.Add(fitLabel); fitRow.Add(fullPhoto, 1); precise.Children.Add(fitRow);
         photoOnlyPrecision.Add(fitRow);
         precise.Children.Add(MenuAction("Centre on widget", StudioSymbol.Widgets, () => EditLayer(WidgetLayerEdits.Center, closeTools: false)));
+        precise.Children.Add(MenuAction("Centre horizontally", StudioSymbol.CenterHorizontal, () => EditLayer(WidgetLayerEdits.CenterHorizontally, closeTools: false)));
+        var nudge = new WidgetLayerNudgeControls("PrecisionPositionNudge");
+        nudge.PositionChanging += view => scroll.PreserveAnchor(view);
+        nudge.MoveRequested += direction => { if (precise.IsVisible) NudgeLayer(direction); };
+        precise.Children.Add(nudge);
         AddSlider("Horizontal position", -WidgetDesignRules.MaximumLayerOffset, WidgetDesignRules.MaximumLayerOffset);
         AddSlider("Vertical position", -WidgetDesignRules.MaximumLayerOffset, WidgetDesignRules.MaximumLayerOffset);
         AddSlider("Width", WidgetDesignRules.MinimumLayerSize, WidgetDesignRules.MaximumLayerSize);
@@ -265,6 +271,11 @@ internal sealed class WidgetEditorPage : ContentPage
         catch (Exception ex) { logger.LogDebug("Widget lock announcement unavailable. ErrorType={ErrorType}", ex.GetType().Name); }
     }
     private void ReplaceLayer(WidgetLayer layer) => draft = draft with { Layers = draft.Layers.Select(x => x.Id == layer.Id ? layer : x).ToArray() };
+    private void NudgeLayer(WidgetMoveDirection direction)
+    {
+        if (CanEdit && CommitClockColour())
+            EditLayer(layer => WidgetLayerEdits.Nudge(layer, direction, draft.Size, draft.CanvasDimensions), closeTools: false);
+    }
     private void EditLayer(Func<WidgetLayer, WidgetLayer> transform, bool closeTools = true, bool changesPlacement = true)
     {
         var layer = draft.Layers.FirstOrDefault(x => x.Id == selected); if (layer is null || (changesPlacement && layer.Locked)) return;

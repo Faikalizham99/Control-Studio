@@ -33,6 +33,99 @@ public sealed class PickerCancellationTests : IDisposable
     private static WidgetEditorPage Editor(Store store, string source = "Photo Library", ColourPicker? colours = null)
         => new(store, colours ?? new(), NullLogger.Instance, WidgetDesignRules.New() with { Layers = [Photo()] }, choosePhotoSource: () => Task.FromResult<string?>(source));
     [Theory]
+    [InlineData(WidgetLayerKind.Photo, AppTheme.Light)] [InlineData(WidgetLayerKind.Photo, AppTheme.Dark)]
+    [InlineData(WidgetLayerKind.Clock, AppTheme.Light)] [InlineData(WidgetLayerKind.Clock, AppTheme.Dark)]
+    [InlineData(WidgetLayerKind.Date, AppTheme.Light)] [InlineData(WidgetLayerKind.Date, AppTheme.Dark)]
+    public void PositionArrowsMoveOnlyTheSelectionKeepThePanelAndScrollAndSaveOnRequest(WidgetLayerKind kind, AppTheme theme)
+    {
+        host.App.UserAppTheme = theme;
+        var source = (kind == WidgetLayerKind.Photo ? Photo() : kind == WidgetLayerKind.Clock ? WidgetClocks.New() : WidgetDates.New())
+            with { Frame = new(0, 0, .4, .3) };
+        var other = WidgetDates.New("Other date"); var store = new Store { Sizing = _ => new(new(338, 158), true) };
+        var page = new WidgetEditorPage(store, new ColourPicker(), NullLogger.Instance,
+            WidgetDesignRules.New() with { Size = WidgetSize.Medium, Layers = [other, source] },
+            chooseLayerAction: (_, _) => Task.FromResult<string?>("Size, position & crop")); Open(page);
+        void Click(string id) => ((IButtonController)Button(page, id)).SendClicked();
+        if (kind == WidgetLayerKind.Photo)
+        {
+            var menu = Descendants(page).OfType<ClipboardIconButton>().Single(x => x.AutomationId == "WidgetLayerOptions" + source.Id.ToString("N"));
+            ((IButtonController)Descendants(menu).OfType<Button>().Single()).SendClicked();
+        }
+        else Click("ClockToolPosition");
+        var prefix = kind == WidgetLayerKind.Photo ? "PrecisionPositionNudge" : "ClockPositionNudge";
+        var nudge = Descendants(page).OfType<WidgetLayerNudgeControls>().Single(x => x.AutomationId == prefix);
+        var body = Assert.IsType<VerticalStackLayout>(nudge.Parent);
+        Assert.Contains(Descendants((Element)body.Children[body.Children.IndexOf(nudge) - 1]).OfType<Button>(),
+            button => SemanticProperties.GetDescription(button).StartsWith("Centre", StringComparison.Ordinal));
+        var composition = Descendants(page).OfType<WidgetCompositeView>().Single();
+        var scroll = Descendants(page).OfType<WidgetEditorScrollView>().Single();
+        ((IView)scroll).Arrange(new Rect(0, 0, 350, 600)); scroll.SetScrolledPosition(0, 900);
+        var requests = 0; scroll.ScrollToRequested += (_, _) => requests++;
+        foreach (var direction in new[] { "Up", "Left", "Down", "Right" }) Click(prefix + direction);
+        Assert.Equal(0, composition.Design!.Layers.Last().Frame.X, 10); Assert.Equal(0, composition.Design.Layers.Last().Frame.Y, 10);
+        for (var i = 0; i < 5; i++) Click(prefix + "Left");
+        for (var i = 0; i < 3; i++) Click(prefix + "Down");
+        var moved = composition.Design.Layers.Last(); Assert.Equal(-5d / 338, moved.Frame.X, 10); Assert.Equal(3d / 158, moved.Frame.Y, 10);
+        Assert.Equal(source with { Frame = moved.Frame }, moved); Assert.Equal(other, composition.Design.Layers[0]);
+        Assert.Equal(900, scroll.ScrollY); Assert.Equal(0, requests); Assert.Equal(0, store.Saves);
+        var lockControl = Descendants(page).OfType<ClipboardIconButton>().Single(x => x.AutomationId == "WidgetLayerLock" + source.Id.ToString("N"));
+        var lockButton = Descendants(lockControl).OfType<Button>().Single(); ((IButtonController)lockButton).SendClicked();
+        Assert.False(Button(page, prefix + "Right").IsEnabled); Click(prefix + "Right");
+        Assert.Equal(moved.Frame, composition.Design.Layers.Last().Frame);
+        ((IButtonController)lockButton).SendClicked(); Assert.True(Button(page, prefix + "Right").IsEnabled);
+        if (kind == WidgetLayerKind.Photo) Click("WidgetDone"); else Click("ClockToolFont");
+        Click(prefix + "Up"); Assert.Equal(moved.Frame, composition.Design.Layers.Last().Frame); // stale hidden-panel callback
+        Click("SaveWidgetDesign"); Assert.Equal(moved.Frame, store.Saved!.Layers.Last().Frame); Assert.Equal(other, store.Saved.Layers[0]);
+    }
+
+    [Fact]
+    public async Task PositionArrowsIgnoreCoveredInactiveBusyAndDeselectedEditorsAndRecoverAfterCancellation()
+    {
+        var pending = new TaskCompletionSource<WidgetLayer?>(); var store = new Store { Pick = _ => pending.Task };
+        var clock = WidgetClocks.New(); var page = new WidgetEditorPage(store, new ColourPicker(), NullLogger.Instance,
+            WidgetDesignRules.New() with { Layers = [clock] }, choosePhotoSource: () => Task.FromResult<string?>("Photo Library"));
+        var editorNavigation = Navigation(page); var otherPage = Navigation(new ContentPage());
+        var tabs = new TabbedPage(); tabs.Children.Add(editorNavigation); tabs.Children.Add(otherPage);
+        Open(tabs); ((IPageController)page).SendAppearing();
+        void Click(string id) => ((IButtonController)Button(page, id)).SendClicked();
+        Click("ClockToolPosition"); var composition = Descendants(page).OfType<WidgetCompositeView>().Single();
+        ((IWindow)host.App.Windows[0]).Deactivated(); Click("ClockPositionNudgeRight"); Assert.Null(composition.Design);
+        ((IWindow)host.App.Windows[0]).Activated(); Assert.Equal(clock, composition.Design!.Layers.Single());
+        var picking = page.AddPhotoAsync(); Assert.Equal(1, store.Picks);
+        Click("ClockPositionNudgeRight"); Assert.Equal(clock, composition.Design.Layers.Single());
+        pending.SetResult(null); await picking;
+        Click("ClockPositionNudgeRight"); var moved = composition.Design.Layers.Single(); Assert.True(moved.Frame.X > clock.Frame.X);
+        tabs.CurrentPage = otherPage; Click("ClockPositionNudgeRight");
+        tabs.CurrentPage = editorNavigation; ((IPageController)page).SendAppearing(); Assert.Equal(moved, composition.Design.Layers.Single());
+        var canvas = Descendants(page).OfType<WidgetCanvasView>().Single(); ((IView)canvas.PhotoSurface).Arrange(new Rect(0, 0, 170, 170));
+        Assert.True(canvas.BeginInteraction(117, 117, true)); Click("ClockPositionNudgeRight"); canvas.EndInteraction(true);
+        Assert.Equal(moved, composition.Design.Layers.Single());
+        Assert.True(Assert.IsType<WidgetEditorSurface>(page.Content).DeselectFromBlankSpace());
+        Click("ClockPositionNudgeRight"); Assert.Equal(moved, composition.Design.Layers.Single()); Assert.Equal(0, store.Saves);
+    }
+
+    [Theory]
+    [InlineData(AppTheme.Light)] [InlineData(AppTheme.Dark)]
+    public void PositionKeysUseTheKeyboardLayoutWithAccessibleHitTargetsAndReadableDisabledSurfaces(AppTheme theme)
+    {
+        host.App.UserAppTheme = theme;
+        var control = new WidgetLayerNudgeControls("TestNudge"); host.Attach(control);
+        var keys = Descendants(control).OfType<Grid>().First();
+        Assert.Equal(8, keys.ColumnSpacing); Assert.Equal(8, keys.RowSpacing);
+        Assert.Equal(4, keys.Children.Count); var moves = new List<WidgetMoveDirection>(); control.MoveRequested += moves.Add;
+        foreach (var (direction, column, row) in new[] { ("Up", 1, 0), ("Left", 0, 1), ("Down", 1, 1), ("Right", 2, 1) })
+        {
+            var key = Assert.IsType<ClipboardEditorActionButton>(keys.Children.OfType<View>().Single(x => Grid.GetColumn(x) == column && Grid.GetRow(x) == row));
+            var button = Descendants(key).OfType<Button>().Single(); Assert.Equal("TestNudge" + direction, button.AutomationId);
+            Assert.Equal(48, key.MinimumHeightRequest); Assert.Equal(48, key.MinimumWidthRequest);
+            Assert.Equal("Move selected layer " + direction.ToLowerInvariant() + " by 1 point", SemanticProperties.GetDescription(button));
+            ((IButtonController)button).SendClicked(); var surface = Descendants(key).OfType<SecondaryActionSurface>().Single();
+            control.IsEnabled = false; Assert.Equal(1, surface.Opacity); Assert.NotNull(surface.Background); Assert.NotNull(surface.Stroke);
+            Assert.Equal(1, surface.Foreground.Alpha); ((IButtonController)button).SendClicked(); control.IsEnabled = true;
+        }
+        Assert.Equal(Enum.GetValues<WidgetMoveDirection>(), moves);
+    }
+    [Theory]
     [InlineData(WidgetLayerKind.Photo)] [InlineData(WidgetLayerKind.Clock)] [InlineData(WidgetLayerKind.Date)]
     public void DuplicateMenuTargetsItsOwnLayerSelectsAnIndependentCopyAndSavesOnlyOnRequest(WidgetLayerKind kind)
     {

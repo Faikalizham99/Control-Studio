@@ -2,6 +2,8 @@ using System.Globalization;
 
 namespace ControlStudio.Core.Widgets;
 
+public enum WidgetMoveDirection { Up, Left, Down, Right }
+
 /// <summary>Finite workspace transforms shared by gestures and accessible controls.</summary>
 public static class WidgetLayerEdits
 {
@@ -43,6 +45,21 @@ public static class WidgetLayerEdits
     }
     public static WidgetLayer Move(WidgetLayer layer, double dx, double dy) => layer.Locked || !double.IsFinite(dx) || !double.IsFinite(dy) ? layer
         : layer with { Frame = layer.Frame with { X = Position(layer.Frame.X + dx), Y = Position(layer.Frame.Y + dy) } };
+    /// <summary>Move by one widget point, independent of editor zoom and display scale.</summary>
+    public static WidgetLayer Nudge(WidgetLayer layer, WidgetMoveDirection direction, WidgetSize size, WidgetCanvasSize? dimensions = null)
+    {
+        if (layer.Locked || !Enum.IsDefined(direction)) return layer;
+        var canvas = dimensions is null ? WidgetDesignRules.Canvas(size) : (Width: dimensions.Width, Height: dimensions.Height);
+        if (!WidgetCanvasSizes.Valid(size, new(canvas.Width, canvas.Height))) return layer;
+        return direction switch
+        {
+            WidgetMoveDirection.Up => Move(layer, 0, -1 / canvas.Height),
+            WidgetMoveDirection.Left => Move(layer, -1 / canvas.Width, 0),
+            WidgetMoveDirection.Down => Move(layer, 0, 1 / canvas.Height),
+            WidgetMoveDirection.Right => Move(layer, 1 / canvas.Width, 0),
+            _ => layer
+        };
+    }
     private static double Position(double value) => Clamp(value, -WidgetDesignRules.MaximumLayerOffset, WidgetDesignRules.MaximumLayerOffset);
     public static WidgetLayer Center(WidgetLayer layer) => layer.Locked ? layer : layer with { Frame = layer.Frame with { X = (1 - layer.Frame.Width) / 2, Y = (1 - layer.Frame.Height) / 2 } };
     public static WidgetLayer CenterHorizontally(WidgetLayer layer) => layer.Locked ? layer

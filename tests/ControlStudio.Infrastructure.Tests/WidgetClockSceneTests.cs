@@ -17,6 +17,25 @@ public sealed class WidgetClockSceneTests : IDisposable
         var key = await Repo().ImportPhotoAsync(Png); var photo = new WidgetLayer(Guid.NewGuid(), "Bottom", key, 1, 1, new());
         return WidgetDesignRules.New() with { Layers = [photo, WidgetClocks.New(), photo with { Id = Guid.NewGuid(), Name = "Top" }] };
     }
+    [Fact]
+    public async Task NudgedPhotoClockAndDateFramesReopenAndPublishAtTheirSavedPositions()
+    {
+        var repo = Repo(); var key = await repo.ImportPhotoAsync(Png);
+        var dimensions = new WidgetCanvasSize(158, 158);
+        var layers = new[] { new WidgetLayer(Guid.NewGuid(), "Photo", key, 1, 1, new(0, 0, .3, .4)), WidgetClocks.New(), WidgetDates.New() }
+            .Select(layer => WidgetLayerEdits.Nudge(WidgetLayerEdits.Nudge(layer, WidgetMoveDirection.Left, WidgetSize.Small, dimensions),
+                WidgetMoveDirection.Down, WidgetSize.Small, dimensions)).ToArray();
+        var draft = WidgetDesignRules.New() with { CanvasDimensions = dimensions, Layers = layers };
+        var saved = await repo.SaveAsync(draft, Png, scene: Export(draft)); await repo.AssignSlotAsync(saved.Size, 2, saved.Id);
+        Assert.Equal(layers, Assert.Single(await Repo().ReadAsync()).Layers);
+        await new WidgetDesignPublisher(Repo(), () => Shared).PublishAsync();
+        var published = JsonSerializer.Deserialize(await File.ReadAllBytesAsync(Path.Combine(Shared, "catalog.json")), WidgetDesignRules.JsonContext.WidgetCatalog)!;
+        Assert.Equal(layers, Assert.Single(published.Designs).Layers);
+        var scene = JsonSerializer.Deserialize(await File.ReadAllBytesAsync(Path.Combine(Shared, "renders", saved.RenderKey + ".scene.json")), WidgetDesignRules.JsonContext.WidgetScene)!;
+        Assert.Equal(layers[1].Frame, scene.Parts.Single(x => x.Clock is not null).Clock!.Frame);
+        Assert.Equal(layers[2].Frame, scene.Parts.Single(x => x.Date is not null).Date!.Frame);
+        Assert.Equal(saved.Id, Assert.Single((await Repo().ReadLibraryAsync()).Slots).DesignId);
+    }
     [Theory]
     [InlineData(false)] [InlineData(true)]
     public async Task DuplicatedLiveLayersPublishDistinctIDsAndKeepIndependentOptions(bool dateLayer)
