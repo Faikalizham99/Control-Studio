@@ -7,10 +7,19 @@ internal interface IWidgetBatteryCanvas
 {
     void Rectangle(float x, float y, float width, float height, float radius, Color colour, bool fill, float stroke = 3);
     void Path(IReadOnlyList<PointF> points, Color colour, float stroke, bool fill = false);
-    void Text(string text, float x, float y, float width, float height, float size, Color colour);
+    void Text(string text, float x, float y, float width, float height, float size, Color colour, Color? outline = null);
 }
+internal readonly record struct WidgetBatteryLabelBox(float X, float Y, float Width, float Height, float FontSize);
 internal static class WidgetBatteryDrawing
 {
+    public static WidgetBatteryLabelBox LabelBox(WidgetBatteryShape shape) => shape switch
+    {
+        WidgetBatteryShape.Battery => new(40, 23, 74, 26, 21),
+        WidgetBatteryShape.Bar => new(24, 20, 112, 26, 21),
+        WidgetBatteryShape.Ring => new(58, 24, 44, 20, 16),
+        WidgetBatteryShape.Arc => new(50, 25, 60, 26, 19),
+        _ => new(4, 22, 152, 56, 44)
+    };
     public static void Draw(IWidgetBatteryCanvas canvas, WidgetBatteryOptions options, WidgetBatteryReading reading)
     {
         var colour = Color.FromArgb(WidgetBatteries.Colour(options, reading));
@@ -35,18 +44,22 @@ internal static class WidgetBatteryDrawing
                 if (fraction > 0) canvas.Rectangle(35, 17, 84 * fraction, 38, Math.Min(4, 42 * fraction), colour, true);
                 break;
             case WidgetBatteryShape.Bar:
-                canvas.Rectangle(12, 24, 136, 18, 9, track, true);
-                if (fraction > 0) canvas.Rectangle(12, 24, 136 * fraction, 18, Math.Min(9, 68 * fraction), colour, true);
+                canvas.Rectangle(12, 18, 136, 30, 15, track, true);
+                if (fraction > 0) canvas.Rectangle(12, 18, 136 * fraction, 30, Math.Min(15, 68 * fraction), colour, true);
                 break;
             case WidgetBatteryShape.Ring:
                 Arc(80, 34, 27, -90, 360, track, 7); Arc(80, 34, 27, -90, 360 * fraction, colour, 7); break;
             case WidgetBatteryShape.Arc:
                 Arc(80, 49, 37, -180, 180, track, 7); Arc(80, 49, 37, -180, 180 * fraction, colour, 7); break;
-            case WidgetBatteryShape.Percentage:
-                canvas.Text(reading.Text, 4, 22, 152, 56, 44, colour); break;
         }
-        if (options.Shape != WidgetBatteryShape.Percentage && (options.ShowPercentage || !reading.Known))
-            canvas.Text(reading.Text, 20, 68, 120, 26, 21, colour);
+        if (options.Shape == WidgetBatteryShape.Percentage || options.ShowPercentage || !reading.Known)
+        {
+            var box = LabelBox(options.Shape);
+            var standalone = options.Shape == WidgetBatteryShape.Percentage;
+            var ink = standalone ? colour : AppearanceColors.ButtonForeground(colour);
+            var outline = standalone ? null : ink == Colors.White ? Colors.Black : Colors.White;
+            canvas.Text(reading.Text, box.X, box.Y, box.Width, box.Height, box.FontSize, ink, outline);
+        }
         if (options.ShowCharging && reading.Known && (reading.Charging || reading.Full))
         {
             if (reading.Full) canvas.Path([new(136, 80), new(141, 85), new(150, 73)], colour, 3);
@@ -85,9 +98,17 @@ internal sealed class WidgetBatteryGlyph : GraphicsView, IDrawable
             if (fill) { path.Close(); canvas.FillColor = colour; canvas.FillPath(path); }
             else { canvas.StrokeColor = colour; canvas.StrokeSize = stroke; canvas.StrokeLineCap = LineCap.Round; canvas.StrokeLineJoin = LineJoin.Round; canvas.DrawPath(path); }
         }
-        public void Text(string text, float x, float y, float width, float height, float size, Color colour)
+        public void Text(string text, float x, float y, float width, float height, float size, Color colour, Color? outline)
         {
-            canvas.Font = new Microsoft.Maui.Graphics.Font("Arial", FontWeights.Bold); canvas.FontSize = size; canvas.FontColor = colour;
+            canvas.Font = new Microsoft.Maui.Graphics.Font("Arial", FontWeights.Bold); canvas.FontSize = size;
+            if (outline is not null)
+            {
+                canvas.FontColor = outline;
+                foreach (var dx in new[] { -.75f, 0, .75f })
+                foreach (var dy in new[] { -.75f, 0, .75f })
+                    if (dx != 0 || dy != 0) canvas.DrawString(text, x + dx, y + dy, width, height, HorizontalAlignment.Center, VerticalAlignment.Center);
+            }
+            canvas.FontColor = colour;
             canvas.DrawString(text, x, y, width, height, HorizontalAlignment.Center, VerticalAlignment.Center);
         }
     }

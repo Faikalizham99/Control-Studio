@@ -193,11 +193,21 @@ private struct StudioClockSceneView: View {
         }
     }
     private func textLayer(_ text: Text, style: WidgetClockStyle, frame: WidgetClockFrame, opacity: Double, rotation: Double, width: CGFloat, height: CGFloat) -> some View {
-        text.font(font(style, size: min(1024, frame.height * height * style.fontScale), height: frame.height * height))
+        styledText(text, style: style)
+            .font(font(style, size: min(1024, frame.height * height * style.fontScale), height: frame.height * height))
             .lineLimit(1).minimumScaleFactor(0.01)
-            .foregroundStyle(fill(style)).multilineTextAlignment(textAlignment(style.alignment))
+            .multilineTextAlignment(textAlignment(style.alignment))
             .frame(width: frame.width * width, height: frame.height * height, alignment: alignment(style.alignment))
             .clipped().opacity(opacity).rotationEffect(.degrees(rotation)).offset(x: frame.x * width, y: frame.y * height)
+    }
+    // Keep the date source and fill inside Text before any View-only modifiers.
+    // The explicit return type selects Text.foregroundStyle, not View.foregroundStyle.
+    // WidgetKit must retain the live text node instead of a view-level gradient recipe.
+    private func styledText(_ text: Text, style: WidgetClockStyle) -> Text {
+        if let options = style.gradient, options.enabled {
+            return text.foregroundStyle(gradient(options))
+        }
+        return text.foregroundStyle(colour(style))
     }
     private func liveText(_ clock: WidgetClockStyle) -> Text {
         if #available(iOS 18.0, *) {
@@ -229,14 +239,13 @@ private struct StudioClockSceneView: View {
     private func colour(_ clock: WidgetClockStyle) -> Color {
         let rgb = clock.rgb ?? (1,1,1); return Color(red: rgb.0, green: rgb.1, blue: rgb.2)
     }
-    private func fill(_ style: WidgetClockStyle) -> AnyShapeStyle {
-        guard let gradient = style.gradient, gradient.enabled else { return AnyShapeStyle(colour(style)) }
-        let colours = [gradient.startHex, gradient.middleHex, gradient.endHex].map { hex -> Color in
+    private func gradient(_ options: WidgetTextGradient) -> LinearGradient {
+        let colours = [options.startHex, options.middleHex, options.endHex].map { hex -> Color in
             let rgb = WidgetClockStyle.colourRGB(hex) ?? (1, 1, 1)
             return Color(red: rgb.0, green: rgb.1, blue: rgb.2)
         }
-        return AnyShapeStyle(LinearGradient(stops: [.init(color: colours[0], location: 0), .init(color: colours[1], location: 0.5), .init(color: colours[2], location: 1)],
-            startPoint: UnitPoint(x: gradient.startPoint.0, y: gradient.startPoint.1), endPoint: UnitPoint(x: gradient.endPoint.0, y: gradient.endPoint.1)))
+        return LinearGradient(stops: [.init(color: colours[0], location: 0), .init(color: colours[1], location: 0.5), .init(color: colours[2], location: 1)],
+            startPoint: UnitPoint(x: options.startPoint.0, y: options.startPoint.1), endPoint: UnitPoint(x: options.endPoint.0, y: options.endPoint.1))
     }
     private func alignment(_ name: String) -> Alignment { name == "left" ? .leading : name == "right" ? .trailing : .center }
     private func textAlignment(_ name: String) -> TextAlignment { name == "left" ? .leading : name == "right" ? .trailing : .center }
@@ -366,8 +375,17 @@ private struct StudioBatteryArtwork: View {
                     return CGPoint(x: cx + radius * cos(angle), y: cy + radius * sin(angle))
                 }, tint, 7)
             }
-            func text(_ value: String, _ x: Double, _ y: Double, _ width: Double, _ height: Double, _ fontSize: Double) {
-                context.draw(Text(value).font(.custom("Arial-BoldMT", fixedSize: fontSize)).foregroundColor(colour), at: CGPoint(x: x + width / 2, y: y + height / 2), anchor: .center)
+            func text(_ value: String, _ box: WidgetBatteryLabelLayout, _ ink: Color, _ outline: Color? = nil) {
+                let label = Text(value).font(.custom("Arial-BoldMT", fixedSize: box.fontSize))
+                let centre = CGPoint(x: box.x + box.width / 2, y: box.y + box.height / 2)
+                if let outline = outline {
+                    for dx in [-0.75, 0, 0.75] {
+                        for dy in [-0.75, 0, 0.75] where dx != 0 || dy != 0 {
+                            context.draw(label.foregroundColor(outline), at: CGPoint(x: centre.x + dx, y: centre.y + dy), anchor: .center)
+                        }
+                    }
+                }
+                context.draw(label.foregroundColor(ink), at: centre, anchor: .center)
             }
             switch style.shape {
             case "battery":
@@ -375,13 +393,17 @@ private struct StudioBatteryArtwork: View {
                 rect(35, 17, 84, 38, 4, track)
                 if fraction > 0 { rect(35, 17, 84 * fraction, 38, min(4, 42 * fraction), colour) }
             case "bar":
-                rect(12, 24, 136, 18, 9, track)
-                if fraction > 0 { rect(12, 24, 136 * fraction, 18, min(9, 68 * fraction), colour) }
+                rect(12, 18, 136, 30, 15, track)
+                if fraction > 0 { rect(12, 18, 136 * fraction, 30, min(15, 68 * fraction), colour) }
             case "ring": arc(80, 34, 27, -90, 360, track); arc(80, 34, 27, -90, 360 * fraction, colour)
             case "arc": arc(80, 49, 37, -180, 180, track); arc(80, 49, 37, -180, 180 * fraction, colour)
-            default: text(reading.text, 4, 22, 152, 56, 44)
+            default: break
             }
-            if style.shape != "percentage" && (style.showPercentage || !reading.known) { text(reading.text, 20, 68, 120, 26, 21) }
+            if style.shape == "percentage" || style.showPercentage || !reading.known {
+                let standalone = style.shape == "percentage"
+                let white = style.usesWhiteLabel(reading)
+                text(reading.text, style.labelLayout, standalone ? colour : white ? .white : .black, standalone ? nil : white ? .black : .white)
+            }
             if style.showCharging && reading.known && (reading.charging || reading.full) {
                 if reading.full { line([CGPoint(x: 136, y: 80), CGPoint(x: 141, y: 85), CGPoint(x: 150, y: 73)], colour, 3) }
                 else { line([CGPoint(x: 144, y: 69), CGPoint(x: 136, y: 81), CGPoint(x: 142, y: 81), CGPoint(x: 139, y: 91), CGPoint(x: 150, y: 77), CGPoint(x: 144, y: 77)], colour, 0, fill: true) }

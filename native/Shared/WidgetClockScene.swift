@@ -258,12 +258,30 @@ struct WidgetBatteryStop: Decodable, Equatable {
     let fromPercent: Int
     let colourHex: String
 }
+struct WidgetBatteryLabelLayout: Equatable {
+    let x: Double, y: Double, width: Double, height: Double, fontSize: Double
+}
 struct WidgetBatteryStyle: Decodable, Equatable {
     let shape: String
     let colourMode: String
     let stops: [WidgetBatteryStop]
     let showPercentage: Bool
     let showCharging: Bool
+    var labelLayout: WidgetBatteryLabelLayout {
+        switch shape {
+        case "battery": return WidgetBatteryLabelLayout(x: 40, y: 23, width: 74, height: 26, fontSize: 21)
+        case "bar": return WidgetBatteryLabelLayout(x: 24, y: 20, width: 112, height: 26, fontSize: 21)
+        case "ring": return WidgetBatteryLabelLayout(x: 58, y: 24, width: 44, height: 20, fontSize: 16)
+        case "arc": return WidgetBatteryLabelLayout(x: 50, y: 25, width: 60, height: 26, fontSize: 19)
+        default: return WidgetBatteryLabelLayout(x: 4, y: 22, width: 152, height: 56, fontSize: 44)
+        }
+    }
+    func usesWhiteLabel(_ reading: WidgetBatteryReading) -> Bool {
+        let rgb = WidgetClockStyle.colourRGB(colourHex(reading)) ?? (0.56, 0.56, 0.58)
+        func linear(_ value: Double) -> Double { value <= 0.04045 ? value / 12.92 : pow((value + 0.055) / 1.055, 2.4) }
+        let luminance = 0.2126 * linear(rgb.0) + 0.7152 * linear(rgb.1) + 0.0722 * linear(rgb.2)
+        return 1.05 / (luminance + 0.05) >= 4.5
+    }
     var valid: Bool {
         guard ["battery", "bar", "ring", "arc", "percentage"].contains(shape), ["ranges", "smooth"].contains(colourMode),
             (2...8).contains(stops.count), stops.first?.fromPercent == 0 else { return false }

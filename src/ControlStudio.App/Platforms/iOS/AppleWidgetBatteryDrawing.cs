@@ -41,12 +41,20 @@ internal static class AppleWidgetBatteryDrawing
             if (fill) { path.ClosePath(); tint.SetFill(); path.Fill(); }
             else { tint.SetStroke(); path.LineWidth = stroke; path.LineCapStyle = CGLineCap.Round; path.LineJoinStyle = CGLineJoin.Round; path.Stroke(); }
         }
-        public void Text(string text, float x, float y, float width, float height, float size, Color colour)
+        public void Text(string text, float x, float y, float width, float height, float size, Color colour, Color? outline)
         {
             using var font = UIFont.FromName("Arial-BoldMT", size) ?? UIFont.BoldSystemFontOfSize(size) ?? throw new IOException("Battery font is unavailable.");
             using var tint = Colour(colour); using var paragraph = new NSMutableParagraphStyle { Alignment = UITextAlignment.Center };
             using var value = new NSString(text);
             var attributes = new UIStringAttributes { Font = font, ForegroundColor = tint, ParagraphStyle = paragraph }; using var map = attributes.Dictionary;
+            if (outline is not null)
+            {
+                using var edge = Colour(outline); attributes.ForegroundColor = edge;
+                foreach (var dx in new[] { -.75f, 0, .75f })
+                foreach (var dy in new[] { -.75f, 0, .75f })
+                    if (dx != 0 || dy != 0) value.DrawString(new CGRect(x + dx, y + dy + (height - font.LineHeight) / 2, width, font.LineHeight), attributes);
+                attributes.ForegroundColor = tint;
+            }
             value.DrawString(new CGRect(x, y + (height - font.LineHeight) / 2, width, font.LineHeight), attributes);
         }
     }

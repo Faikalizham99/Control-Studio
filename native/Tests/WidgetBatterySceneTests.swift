@@ -2,6 +2,28 @@ import XCTest
 @testable import ControlStudioStorage
 
 final class WidgetBatterySceneTests: XCTestCase {
+    func testCentredLabelGeometryAndContrastingInkMatchTheManagedFixture() throws {
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let data = try Data(contentsOf: root.appendingPathComponent("contracts/widget-battery-labels-v1.example.json"))
+        let fixture = try JSONSerialization.jsonObject(with: data) as! [String: Any]
+        let original = try object(); let layer = (original["parts"] as! [[String: Any]])[0]["battery"] as! [String: Any]
+        let base = layer["battery"] as! [String: Any]
+        for row in fixture["labels"] as! [[String: Any]] {
+            var options = base; options["shape"] = row["shape"]
+            let style = try JSONDecoder().decode(WidgetBatteryStyle.self, from: JSONSerialization.data(withJSONObject: options))
+            let box = style.labelLayout
+            for (name, value) in [("x", box.x), ("y", box.y), ("width", box.width), ("height", box.height), ("fontSize", box.fontSize)] {
+                XCTAssertEqual(value, (row[name] as! NSNumber).doubleValue)
+            }
+        }
+        for row in fixture["contrast"] as! [[String: Any]] {
+            var options = base; let colour = row["colourHex"] as! String
+            options["stops"] = [["fromPercent": 0, "colourHex": colour], ["fromPercent": 100, "colourHex": colour]]
+            let style = try JSONDecoder().decode(WidgetBatteryStyle.self, from: JSONSerialization.data(withJSONObject: options))
+            XCTAssertEqual(style.usesWhiteLabel(WidgetBatteryReading(percent: 75)), row["white"] as! Bool)
+            XCTAssertEqual(style.colourHex(WidgetBatteryReading(percent: 75)), colour)
+        }
+    }
     private func fixture() throws -> Data {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
         return try Data(contentsOf: root.appendingPathComponent("contracts/widget-scene-v3-battery.example.json"))
