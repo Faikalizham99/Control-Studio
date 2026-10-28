@@ -1,5 +1,7 @@
 # Photo layer editor
 
+The current editor also has [session Undo/Redo above the live preview](widget-editor-history.md), covering the five layer types and widget settings. The sections below preserve earlier release history.
+
 The owner authorized the editor redesign from the supplied glass-card reference, including live manipulation and transparent backgrounds, then explicitly authorized committing, pushing main and pushing a new version tag. This ships in **0.2.22 (24)** alongside the shared button-caption alignment fix. The owner will monitor the tag-triggered IPA build. The existing ten static slot registrations, literal gallery metadata, Counter widget and tag-only IPA workflow remain in use.
 
 ## Widget boundary and device sizing (0.2.28, 24 October 2026)

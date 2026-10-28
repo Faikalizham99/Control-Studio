@@ -46,6 +46,7 @@
     <Compile Include="../../src/ControlStudio.App/Views/GlassCard.cs" Link="Views/GlassCard.cs" />
     <Compile Include="../../src/ControlStudio.App/Views/EditorPageActivity.cs" Link="Views/EditorPageActivity.cs" />
     <Compile Include="../../src/ControlStudio.App/Views/WidgetEditorPage.cs" Link="Views/WidgetEditorPage.cs" />
+    <Compile Include="../../src/ControlStudio.App/Views/WidgetEditorHistory.cs" Link="Views/WidgetEditorHistory.cs" />
     <Compile Include="../../src/ControlStudio.App/Views/WidgetEditorScrollView.cs" Link="Views/WidgetEditorScrollView.cs" />
     <Compile Include="../../src/ControlStudio.App/Views/WidgetEditorForm.cs" Link="Views/WidgetEditorForm.cs" />
     <Compile Include="../../src/ControlStudio.App/Views/WidgetEditorSurface.cs" Link="Views/WidgetEditorSurface.cs" />
@@ -63,6 +64,9 @@
     <Compile Include="../../src/ControlStudio.App/Views/ColourPickerView.cs" Link="Views/ColourPickerView.cs" />
     <Compile Include="../../src/ControlStudio.App/Views/HexColorEntry.cs" Link="Views/HexColorEntry.cs" />
     <Compile Include="../../src/ControlStudio.App/WidgetSlotSelection.cs" Link="WidgetSlotSelection.cs" />
+    <Compile Include="../../src/ControlStudio.App/WidgetEditHistory.cs" Link="WidgetEditHistory.cs" />
+    <Compile Include="../../src/ControlStudio.App/Views/WidgetHistoryControls.cs" Link="Views/WidgetHistoryControls.cs" />
+    <Compile Include="../../src/ControlStudio.App/Views/WidgetHistorySliderBinding.cs" Link="Views/WidgetHistorySliderBinding.cs" />
     <Compile Include="../../src/ControlStudio.App/Views/WidgetSlotPageBase.cs" Link="Views/WidgetSlotPageBase.cs" />
     <Compile Include="../../src/ControlStudio.App/Views/WidgetSlotCards.cs" Link="Views/WidgetSlotCards.cs" />
     <Compile Include="../../src/ControlStudio.App/Views/WidgetSlotsPage.cs" Link="Views/WidgetSlotsPage.cs" />

@@ -196,6 +196,7 @@ internal sealed class WidgetClockControls : ContentView
             EditDate(value => value with { WeekdayStyle = (WidgetWeekdayStyle)index }, weekdayStyle);
     }
     private void Publish(WidgetLayer value) { layer = value; Changed?.Invoke(value); }
+    public void DiscardPending() => colour.DiscardPendingHex();
     public bool CommitPendingColour()
     {
         if (layer is null || colour.CommitPendingHex()) return true;

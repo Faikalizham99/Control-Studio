@@ -66,6 +66,7 @@ internal sealed class WidgetTextColourControls : ContentView
         var gradient = style.Gradient ?? new WidgetGradientOptions(StartHex: style.ColourHex);
         Publish(style with { Gradient = gradient with { Enabled = index == 1 } });
     }
+    public void DiscardPendingHex() => picker.DiscardPendingHex();
     public bool CommitPendingHex()
     {
         var previous = committing; committing = true;

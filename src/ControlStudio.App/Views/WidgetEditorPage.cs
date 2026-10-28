@@ -4,12 +4,13 @@ using Microsoft.Maui.Accessibility;
 
 namespace ControlStudio.App.Views;
 
-internal sealed class WidgetEditorPage : ContentPage
+internal sealed partial class WidgetEditorPage : ContentPage
 {
     private readonly IWidgetEditorStore studio;
     private readonly Func<Task<string?>> choosePhotoSource;
     private readonly Func<Task<string?>> chooseLayerType;
     private readonly Func<string, string[], Task<string?>>? chooseLayerAction;
+    private readonly Func<WidgetLayer, Task<bool>>? confirmLayerDeletion;
     private readonly ILogger logger;
     private WidgetDesign draft;
     private Guid? selected;
@@ -59,14 +60,17 @@ internal sealed class WidgetEditorPage : ContentPage
     private bool Foreground => EditorPageActivity.IsForeground(this);
     private bool CanEdit => Foreground && !busy && !saved && !departed && !background.IsBusy && !clockControls.IsBusy && !batteryControls.IsBusy && !canvas.IsInteracting && !layerList.IsReordering;
 
-    public WidgetEditorPage(IWidgetEditorStore studio, IColourPicker colourPicker, ILogger logger, WidgetDesign? original = null, WidgetSize initialSize = WidgetSize.Small, Func<Task<string?>>? choosePhotoSource = null, Func<Task<string?>>? chooseLayerType = null, Func<string, string[], Task<string?>>? chooseLayerAction = null)
+    public WidgetEditorPage(IWidgetEditorStore studio, IColourPicker colourPicker, ILogger logger, WidgetDesign? original = null, WidgetSize initialSize = WidgetSize.Small, Func<Task<string?>>? choosePhotoSource = null, Func<Task<string?>>? chooseLayerType = null, Func<string, string[], Task<string?>>? chooseLayerAction = null, Func<WidgetLayer, Task<bool>>? confirmLayerDeletion = null)
     {
         this.studio = studio; this.logger = logger;
         this.choosePhotoSource = choosePhotoSource ?? (() => DisplayActionSheetAsync("Add photo layer", "Cancel", null, "Photo Library", "Files"));
         this.chooseLayerType = chooseLayerType ?? (() => DisplayActionSheetAsync("Add layer", "Cancel", null, "Photo", "Clock", "Date", "Text", "Battery"));
         this.chooseLayerAction = chooseLayerAction;
+        this.confirmLayerDeletion = confirmLayerDeletion;
         draft = WidgetDesignRules.ForEditing(original ?? (WidgetDesignRules.New() with { Size = initialSize, TransparentBackground = OperatingSystem.IsIOSVersionAtLeast(26) }));
         ApplyCanvasSizing();
+        selected = draft.Layers.LastOrDefault()?.Id;
+        history = new(new(draft, selected, draft.Name));
         Title = original is null ? "New widget" : "Edit widget"; AutomationId = "WidgetEditorPage"; WidgetStudioStyle.Page(this);
         name.Text = draft.Name; name.SetAppThemeColor(Entry.TextColorProperty, Color.FromArgb("#16171C"), Colors.White);
         SemanticProperties.SetDescription(name, "Widget name");
@@ -83,7 +87,12 @@ internal sealed class WidgetEditorPage : ContentPage
         });
         blendMenu.LayoutChanging += (_, _) => scroll.PreserveViewport();
         blendMenu.PositionChanging += view => scroll.PreserveAnchor(view);
-        canvas.InteractionChanged += (_, _) => { if (canvas.IsInteracting) ClosePhotoTools(); RefreshActions(); };
+        canvas.InteractionChanged += (_, _) =>
+        {
+            if (canvas.IsInteracting) { history.Begin(canvas); ClosePhotoTools(); }
+            else FinishHistoryInteraction(canvas);
+            RefreshActions();
+        };
         sizes = new WidgetSegments(["Small", "Medium", "Large", "XL"], "EditorWidgetSize", index =>
         {
             if (!CanEdit || !CommitLayerSettings()) { sizes!.Update(Array.IndexOf(WidgetDesignRules.SupportedSizes.ToArray(), draft.Size)); return; }
@@ -110,6 +119,8 @@ internal sealed class WidgetEditorPage : ContentPage
             if (saved || departed || canvas.IsInteracting || layerList.IsReordering) return;
             var current = draft.Layers.FirstOrDefault(x => x.Id == changed.Id && WidgetTextLayers.IsText(x)); if (current is null) return;
             ReplaceLayer(current with { Clock = changed.Clock, Date = changed.Date, Text = changed.Text, Opacity = changed.Opacity }); RefreshControls();
+            var typing = current.Text is { } text && changed.Text is { } typed && typed == (text with { Content = typed.Content });
+            RecordHistory(typing ? "text-content-" + current.Id : null);
             if (Foreground) UpdateCanvas(); else canvas.SuspendComposition();
         };
         batteryControls = new(colourPicker) { CanInteract = () => CanEdit };
@@ -126,6 +137,7 @@ internal sealed class WidgetEditorPage : ContentPage
             if (saved || departed || canvas.IsInteracting || layerList.IsReordering) return;
             var current = draft.Layers.FirstOrDefault(x => x.Id == changed.Id && x.Kind == WidgetLayerKind.Battery); if (current is null) return;
             ReplaceLayer(current with { Battery = changed.Battery, Opacity = changed.Opacity }); RefreshControls();
+            RecordHistory();
             if (Foreground) UpdateCanvas(); else canvas.SuspendComposition();
         };
         layerList.CanStart = () => CanEdit;
@@ -167,13 +179,16 @@ internal sealed class WidgetEditorPage : ContentPage
         photoSettings = Card(new VerticalStackLayout { Spacing = 12, Children = { rotateMenu, flipMenu, opacityMenu, blendMenu } });
         photoSettings.IsVisible = false; adjustments.Children.Add(photoSettings); adjustments.Children.Add(clockControls); adjustments.Children.Add(batteryControls);
         var previewTitle = SettingsControls.Text("Live preview", 22, bold: true); previewTitle.MaxLines = 1;
+        previewTitle.LineBreakMode = LineBreakMode.TailTruncation; previewTitle.VerticalTextAlignment = TextAlignment.Center;
         SemanticProperties.SetHeadingLevel(previewTitle, SemanticHeadingLevel.Level2);
+        var previewHeading = new Grid { ColumnSpacing = 8, ColumnDefinitions = { new(GridLength.Star), new(GridLength.Auto) } };
+        previewHeading.Add(previewTitle); previewHeading.Add(historyControls, 1);
         selectionHint.VerticalTextAlignment = TextAlignment.Center; selectionHint.HorizontalTextAlignment = TextAlignment.Center; selectionHint.MaxLines = 1;
         var toolbarSlot = new Grid { Children = { tools, clockControls.Toolbar, batteryControls.Toolbar, selectionHint } };
         // Let the width-sized canvas request its complete height. A constrained star
         // row would shrink tall widgets instead of letting the page scroll.
         var previewBody = new Grid { RowSpacing = 8, RowDefinitions = { new(GridLength.Auto), new(GridLength.Auto), new(64) } };
-        previewBody.Add(previewTitle); previewBody.Add(new WidgetCanvasViewport(canvas, logger), 0, 1); previewBody.Add(toolbarSlot, 0, 2);
+        previewBody.Add(previewHeading); previewBody.Add(new WidgetCanvasViewport(canvas, logger), 0, 1); previewBody.Add(toolbarSlot, 0, 2);
         var preview = Card(previewBody); preview.AutomationId = "WidgetEditorLivePreview";
         form.Children.Add(preview); form.Children.Add(adjustments);
         addPhoto = AsyncAction("Add layer", StudioSymbol.Plus, "AddWidgetPhoto", ChooseLayerAsync);
@@ -226,8 +241,8 @@ internal sealed class WidgetEditorPage : ContentPage
         form.Arranged += (_, _) => scroll.CompleteReflow();
         layout.Add(ClipboardEditorControls.Header(Title, back, cancel)); layout.Add(scroll, 0, 1);
         Content = new WidgetEditorSurface(layout, () => CanEdit && selected is not null, ClearLayerSelection,
-            canvas, tools, clockControls.Toolbar, batteryControls.Toolbar, rotateMenu, flipMenu, opacityMenu, blendMenu, layerList, precise, background, clockControls, batteryControls);
-        selected = draft.Layers.LastOrDefault()?.Id; RefreshBackground(); RefreshLayers();
+            canvas, historyControls, tools, clockControls.Toolbar, batteryControls.Toolbar, rotateMenu, flipMenu, opacityMenu, blendMenu, layerList, precise, background, clockControls, batteryControls);
+        BindHistoryInputs(); RefreshBackground(); RefreshLayers();
     }
     private static Border Card(View content) => ClipboardEditorControls.Surface(content, 22, 14);
     private WidgetToolButton Tool(StudioSymbol symbol, string title, Action action, bool destructive = false)
@@ -274,12 +289,12 @@ internal sealed class WidgetEditorPage : ContentPage
     {
         if (busy || saved || departed || layerList.IsReordering) return;
         if (!CommitLayerSettings()) return;
-        if (selected != id) CloseTools(); selected = id; RefreshLayers();
+        if (selected != id) { history.BreakTyping(); CloseTools(); } selected = id; RefreshLayers();
     }
     private void ClearLayerSelection()
     {
         if (!CanEdit || selected is null || !CommitLayerSettings()) return;
-        CloseTools(); precise.IsVisible = false; selected = null; name.Unfocus(); RefreshLayers();
+        history.BreakTyping(); CloseTools(); precise.IsVisible = false; selected = null; name.Unfocus(); RefreshLayers();
     }
     private void ToggleLayerLock(Guid id)
     {
@@ -341,9 +356,14 @@ internal sealed class WidgetEditorPage : ContentPage
     }
     private void ResumeCanvas()
     {
-        canvas.EndInteraction(true); ApplyCanvasSizing(); RefreshControls(); UpdateCanvas();
+        canvas.EndInteraction(true); ApplyCanvasSizing(); history.Rebase(CaptureHistory()); RefreshControls(); UpdateCanvas();
     }
-    private void UpdateCanvas() => canvas.Update(draft, selected);
+    private void UpdateCanvas()
+    {
+        RecordHistory();
+        if (saved || departed || (observedWindow is not null && !Foreground)) canvas.SuspendComposition();
+        else canvas.Update(draft, selected);
+    }
     private void RefreshLayers()
     {
         scroll.PreserveViewport();
@@ -519,17 +539,15 @@ internal sealed class WidgetEditorPage : ContentPage
     private async Task RemoveLayerAsync(Guid? id)
     {
         var layer = draft.Layers.FirstOrDefault(x => x.Id == id); if (layer is null) return;
-        if (!await DisplayAlertAsync("Delete layer?", layer.Kind == WidgetLayerKind.Photo ? "Remove this layer from your widget draft? Your original photo is kept." : "Remove this " + layer.Kind.ToString().ToLowerInvariant() + " from your widget draft?", "Delete", "Cancel") || !Foreground || departed) return;
+        var confirmed = confirmLayerDeletion is not null ? await confirmLayerDeletion(layer)
+            : await DisplayAlertAsync("Delete layer?", layer.Kind == WidgetLayerKind.Photo ? "Remove this layer from your widget draft? Your original photo is kept." : "Remove this " + layer.Kind.ToString().ToLowerInvariant() + " from your widget draft?", "Delete", "Cancel");
+        if (!confirmed || !Foreground || departed) return;
         if (rows.TryGetValue(layer.Id, out var row)) scroll.PreserveAnchor(row);
         if (selected == layer.Id) CloseTools();
         draft = draft with { Layers = draft.Layers.Where(x => x.Id != layer.Id).ToArray() };
         if (selected == layer.Id) selected = draft.Layers.LastOrDefault()?.Id;
         RefreshLayers();
-        if (ownedPhotos.Contains(layer.AssetKey) && !draft.Layers.Any(x => x.AssetKey == layer.AssetKey))
-        {
-            try { await studio.RemoveDraftPhotosAsync([layer.AssetKey]); ownedPhotos.Remove(layer.AssetKey); }
-            catch (Exception ex) { logger.LogWarning("Removed widget draft photo cleanup failed. ErrorType={ErrorType}", ex.GetType().Name); }
-        }
+        await CleanupPhotosAsync();
     }
     private async Task ChooseBackgroundAsync()
     {
@@ -556,12 +574,12 @@ internal sealed class WidgetEditorPage : ContentPage
     {
         if (!CommitLayerSettings()) return;
         if (!draft.TransparentBackground && !background.CommitPendingHex()) { ShowStatus("Enter a valid background colour before saving."); return; }
-        name.Unfocus(); draft = draft with { Name = name.Text?.Trim() ?? "", PreserveCanvas = true };
+        name.Unfocus(); var toSave = draft with { Name = name.Text?.Trim() ?? "", PreserveCanvas = true };
         ShowStatus("Saving widget…");
         // Export owns its own compositor on a worker thread. Release the preview's
         // buffers first rather than retaining two full compositions at once.
         canvas.SuspendComposition();
-        var result = await studio.SaveAsync(draft); draft = result.Design; saved = true; await CleanupAsync();
+        var result = await studio.SaveAsync(toSave); draft = result.Design; saved = true; history.Clear(CaptureHistory()); await CleanupAsync();
         if (!Foreground || departed) return;
         if (!result.Published) await DisplayAlertAsync("Saved on this device", "Your design is saved, but the Home Screen update could not be published. Check App Group signing in Settings, then tap Refresh widgets in My Widgets.", "OK");
         if (Foreground && !departed) await CloseSavedAsync();
@@ -593,10 +611,11 @@ internal sealed class WidgetEditorPage : ContentPage
         opacityTool.IsEnabled = deleteTool.IsEnabled = blendTool.IsEnabled = blendMenu.IsEnabled = tools.IsEnabled = canNavigate && !saved && layer?.Kind == WidgetLayerKind.Photo;
         resetTool.IsEnabled = rotateTool.IsEnabled = flipTool.IsEnabled = rotateMenu.IsEnabled = flipMenu.IsEnabled = canNavigate && !saved && layer is { Kind: WidgetLayerKind.Photo, Locked: false };
         precise.IsEnabled = canNavigate && !saved && layer is { Locked: false };
+        RefreshHistory();
     }
     private async Task RunAsync(Func<Task> operation)
     {
-        if (!CanEdit) return;
+        if (!CanEdit || history.IsInteracting) return;
         busy = true; RefreshActions();
         try { await operation(); }
         catch (Exception ex)
@@ -615,11 +634,7 @@ internal sealed class WidgetEditorPage : ContentPage
         try { if (Foreground) SemanticScreenReader.Default.Announce(message); }
         catch (Exception ex) { logger.LogDebug("Widget announcement unavailable. ErrorType={ErrorType}", ex.GetType().Name); }
     }
-    private async Task CleanupAsync()
-    {
-        try { await studio.RemoveDraftPhotosAsync(ownedPhotos); ownedPhotos.Clear(); }
-        catch (Exception ex) { logger.LogWarning("Widget draft cleanup failed. ErrorType={ErrorType}", ex.GetType().Name); }
-    }
+    private Task CleanupAsync() => CleanupPhotosAsync(all: true);
     private async Task CloseSavedAsync()
     {
         if (closing || departed || !Foreground) return; closing = true;
@@ -638,6 +653,9 @@ internal sealed class WidgetEditorPage : ContentPage
     private void SuspendEditor()
     {
         scroll.CancelAnchor(); layerList.CancelReorder(); canvas.EndInteraction(true); canvas.SuspendComposition();
+        foreach (var picker in HistoryDescendants(form).OfType<ColourPickerView>()) picker.FinishHueInteraction();
+        foreach (var slider in historySliders) slider.Interrupt();
+        history.BreakTyping(); historyControls.ResetPressedState();
         blendMenu.SetForeground(false);
         clockControls.ResetPressedState(); batteryControls.ResetPressedState();
         foreach (var tool in new[] { resetTool, rotateTool, flipTool, opacityTool, deleteTool, blendTool }) tool.Scale = 1;
@@ -667,13 +685,16 @@ internal sealed class WidgetEditorPage : ContentPage
         // Keep activation recovery subscribed until this editor actually leaves the stack.
         base.OnDisappearing();
     }
-    protected override bool OnBackButtonPressed() => busy || background.IsBusy || clockControls.IsBusy || batteryControls.IsBusy || canvas.IsInteracting || layerList.IsReordering || base.OnBackButtonPressed();
+    protected override bool OnBackButtonPressed() => busy || background.IsBusy || clockControls.IsBusy || batteryControls.IsBusy || canvas.IsInteracting || layerList.IsReordering || history.IsInteracting || base.OnBackButtonPressed();
     protected override void OnNavigatedFrom(NavigatedFromEventArgs args)
     {
         base.OnNavigatedFrom(args);
         if (!Navigation.NavigationStack.Contains(this))
         {
             departed = true; layerList.CancelReorder(); StopObservingWindow(); RefreshActions(); scroll.ReleaseViewport();
+            foreach (var slider in historySliders) slider.Dispose();
+            historySliders.Clear();
+            history.Clear(CaptureHistory());
             canvas.ReleaseSources(); foreach (var row in rows.Values) row.ReleaseSource(); if (!busy) _ = CleanupAsync();
         }
     }

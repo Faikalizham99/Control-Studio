@@ -70,7 +70,7 @@ internal sealed class ColourPickerView : ContentView
         var bar = new Border { Background = hueBrush, StrokeThickness = 0, StrokeShape = new RoundRectangle { CornerRadius = 8 }, HeightRequest = 15, VerticalOptions = LayoutOptions.Center, Margin = new Thickness(5, 0) };
         hue.AutomationId = prefix + "Hue"; SemanticProperties.SetDescription(hue, colourName + " hue");
         hue.DragStarted += (_, _) => dragging = true;
-        hue.DragCompleted += (_, _) => { dragging = false; Publish(SelectedHex, true); Refresh(); };
+        hue.DragCompleted += (_, _) => FinishHueInteraction();
         hue.ValueChanged += (_, args) =>
         {
             if (!updating) Select(AppearanceColors.ToRgbHex(Color.FromHsv((float)((300 - args.NewValue + 360) % 360) / 360, 1, 1)), !dragging);
@@ -110,6 +110,12 @@ internal sealed class ColourPickerView : ContentView
         Refresh(forceHex: changed);
     }
 
+    public void FinishHueInteraction()
+    {
+        if (!dragging) return;
+        dragging = false; Publish(SelectedHex, true); Refresh();
+    }
+    public void DiscardPendingHex() { dragging = dirtyHex = invalidHex = false; ClearError(); Refresh(forceHex: true); }
     public bool CommitPendingHex()
     {
         if (updating || (!dirtyHex && !invalidHex)) { UpdateHexBorder(); return true; }

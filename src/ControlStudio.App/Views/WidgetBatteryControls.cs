@@ -136,6 +136,7 @@ internal sealed class WidgetBatteryControls : ContentView
     }
     private void Edit(Func<WidgetBatteryOptions, WidgetBatteryOptions> transform) { if (layer?.Battery is { } options) Publish(layer with { Battery = transform(options) }); }
     private void Publish(WidgetLayer value) { layer = value; Refresh(); Changed?.Invoke(value); }
+    public void DiscardPending() { dirtyThreshold = false; error.IsVisible = false; colour.DiscardPendingHex(); }
     public bool CommitPending()
     {
         if (layer?.Battery is not { } options) return true;

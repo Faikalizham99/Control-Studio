@@ -2,7 +2,7 @@ using Microsoft.Maui.Graphics;
 
 namespace ControlStudio.App.Views;
 
-internal enum StudioSymbol { Widgets, Clipboard, Counter, Bars, Calendar, Photo, Text, Link, Chevron, Edit, Delete, Open, Preview, Tag, Expand, Clear, EyeOff, Pin, PinFilled, Check, LayerUp, LayerDown, Plus, Hash, Refresh, RotateLeft, RotateRight, Flip, Opacity, Drag, More, Search, Layers, Blend, Lock, Unlock, Clock, CenterHorizontal, Font, Palette, ArrowUp, ArrowLeft, ArrowDown, ArrowRight, Battery }
+internal enum StudioSymbol { Widgets, Clipboard, Counter, Bars, Calendar, Photo, Text, Link, Chevron, Edit, Delete, Open, Preview, Tag, Expand, Clear, EyeOff, Pin, PinFilled, Check, LayerUp, LayerDown, Plus, Hash, Refresh, RotateLeft, RotateRight, Flip, Opacity, Drag, More, Search, Layers, Blend, Lock, Unlock, Clock, CenterHorizontal, Font, Palette, ArrowUp, ArrowLeft, ArrowDown, ArrowRight, Battery, Undo, Redo }
 
 internal sealed class StudioGlyph : GraphicsView, IDrawable
 {
@@ -135,6 +135,12 @@ internal sealed class StudioGlyph : GraphicsView, IDrawable
             var arc = new PathF(); arc.MoveTo(20, 9); arc.CurveTo(17, 1, 5, 1, 3, 11);
             arc.MoveTo(4, 15); arc.CurveTo(7, 23, 19, 23, 21, 13); canvas.DrawPath(arc);
             Lines(canvas, 20, 3, 20, 9, 14, 9); Lines(canvas, 4, 21, 4, 15, 10, 15);
+        }
+        else if (symbol is StudioSymbol.Undo or StudioSymbol.Redo)
+        {
+            if (symbol == StudioSymbol.Redo) { canvas.Translate(24, 0); canvas.Scale(-1, 1); }
+            var arc = new PathF(); arc.MoveTo(5, 7); arc.LineTo(14, 7); arc.CurveTo(25, 7, 25, 20, 13, 20); canvas.DrawPath(arc);
+            Lines(canvas, 10, 2, 5, 7, 10, 12);
         }
         else if (symbol is StudioSymbol.RotateLeft or StudioSymbol.RotateRight)
         {
