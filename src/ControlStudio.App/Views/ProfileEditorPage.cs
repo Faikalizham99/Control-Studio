@@ -7,6 +7,7 @@ public sealed class ProfileEditorPage : ContentPage
     private readonly AppearancePreferences preferences;
     private readonly IProfilePhotoStore photos;
     private readonly Func<string[], Task<string?>> choosePhotoSource;
+    private readonly Func<Task> close;
     private readonly ProfileNameEntry name = new()
     {
         MaxLength = 40, Placeholder = "Your name", FontSize = 15, BackgroundColor = Colors.Transparent,
@@ -31,10 +32,11 @@ public sealed class ProfileEditorPage : ContentPage
     public ProfileEditorPage(AppearancePreferences preferences, IProfilePhotoStore photos)
         : this(preferences, photos, null) { }
 
-    internal ProfileEditorPage(AppearancePreferences preferences, IProfilePhotoStore photos, Func<string[], Task<string?>>? choosePhotoSource)
+    internal ProfileEditorPage(AppearancePreferences preferences, IProfilePhotoStore photos, Func<string[], Task<string?>>? choosePhotoSource, Func<Task>? close = null)
     {
         this.preferences = preferences; this.photos = photos; photoKey = preferences.PhotoKey;
         this.choosePhotoSource = choosePhotoSource ?? (options => DisplayActionSheetAsync("Choose profile photo", "Cancel", null, options));
+        this.close = close ?? (() => Navigation.PopAsync());
         Title = "Edit profile"; AutomationId = "ProfileEditorPage"; SafeAreaEdges = SafeAreaEdges.All;
         NavigationPage.SetHasNavigationBar(this, false);
         DashboardStyle.NavigationAccent(this);
@@ -137,23 +139,34 @@ public sealed class ProfileEditorPage : ContentPage
         }, 14);
     }
 
-    private async Task SaveAsync()
+    internal async Task SaveAsync()
     {
         if (busy || departed || saved || closing) return;
-        name.Unfocus();
-        var previousPhoto = preferences.PhotoKey;
-        if (!preferences.SaveProfile(name.Text, photoKey)) { ShowStatus("Enter a name of 1–40 characters without control characters.", true); name.Focus(); return; }
-        saved = true;
-        RefreshActions();
-        if (previousPhoto != photoKey) photos.Remove(previousPhoto);
-        await Navigation.PopAsync();
+        var invalidName = false;
+        busy = true; RefreshActions(); name.Unfocus();
+        try
+        {
+            var previousPhoto = preferences.PhotoKey;
+            if (!preferences.SaveProfile(name.Text, photoKey))
+            { invalidName = true; ShowStatus("Enter a name of 1–40 characters without control characters.", true); return; }
+            saved = true;
+            if (previousPhoto != photoKey) photos.Remove(previousPhoto);
+            await close();
+        }
+        catch (Exception)
+        {
+            ShowStatus(saved ? "Your profile is saved. Tap Back or Cancel to return to Settings."
+                : "Your profile could not be saved. Please try again.", true);
+        }
+        finally { busy = false; RefreshActions(); if (invalidName && !departed) name.Focus(); }
     }
 
     private async Task CancelAsync()
     {
-        if (busy || departed || saved || closing) return;
+        if (busy || departed || closing) return;
         closing = true; RefreshActions(); name.Unfocus();
-        try { await Navigation.PopAsync(); }
+        try { await close(); }
+        catch (Exception) { ShowStatus("Could not return to Settings. Tap Back or Cancel to try again.", true); }
         finally { closing = false; RefreshActions(); }
     }
 
@@ -198,7 +211,8 @@ public sealed class ProfileEditorPage : ContentPage
 
     private void RefreshActions()
     {
-        choose.IsEnabled = save.IsEnabled = name.IsEnabled = back.IsEnabled = cancel.IsEnabled = !busy && !saved && !departed && !closing;
+        choose.IsEnabled = save.IsEnabled = name.IsEnabled = !busy && !saved && !departed && !closing;
+        back.IsEnabled = cancel.IsEnabled = !busy && !departed && !closing;
         remove.IsEnabled = !busy && !saved && !departed && !closing && photos.GetPath(photoKey) is not null;
         activity.IsVisible = activity.IsRunning = busy;
         RefreshName();
@@ -212,6 +226,7 @@ public sealed class ProfileEditorPage : ContentPage
     }
 
     private void DiscardDraftPhoto() { if (photoKey != preferences.PhotoKey) photos.Remove(photoKey); }
+    protected override bool OnBackButtonPressed() => busy || closing || base.OnBackButtonPressed();
     protected override void OnNavigatedFrom(NavigatedFromEventArgs args)
     {
         base.OnNavigatedFrom(args);

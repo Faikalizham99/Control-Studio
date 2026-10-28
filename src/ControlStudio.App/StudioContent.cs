@@ -32,11 +32,6 @@ internal static class StudioContent
             : original with { Name = (name ?? "").Trim(), Parameters = parameters };
     }
 
-    public static ActionDefinition ClipboardDraft(ActionDefinition? original, string? name, string? text)
-    {
-        return Draft(original, ClipboardKind.Text, name, text);
-    }
-
     public static CounterSnapshot? WidgetSnapshot(CounterSnapshot snapshot)
     {
         snapshot.Validate();

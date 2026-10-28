@@ -19,7 +19,8 @@ internal static class ClipboardPhotoStore
         if (!library)
         {
             var file = await FilePicker.Default.PickAsync(new PickOptions { PickerTitle = "Choose clipboard photo", FileTypes = FilePickerFileType.Images });
-            return file is null ? null : await ImportAsync(file);
+            try { return file is null ? null : await ImportAsync(file); }
+            finally { (file as IDisposable)?.Dispose(); }
         }
         var files = await MediaPicker.Default.PickPhotosAsync(new MediaPickerOptions { Title = "Choose clipboard photo", SelectionLimit = 1 });
         try { return files.Count == 0 ? null : await ImportAsync(files[0]); }

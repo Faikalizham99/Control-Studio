@@ -37,6 +37,8 @@ jobs:
       - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
         with:
           global-json-file: global.json
+          cache: true
+          cache-dependency-path: '**/packages.lock.json'
       - name: Install pinned MAUI iOS workload
         run: dotnet workload install maui-ios --version 10.0.401.1
       - name: Record toolchain

@@ -14,7 +14,8 @@ public sealed class ProfilePhotoStore(AppearancePreferences preferences) : IProf
         if (!fromLibrary)
         {
             var file = await FilePicker.Default.PickAsync(new PickOptions { PickerTitle = "Choose profile photo", FileTypes = FilePickerFileType.Images });
-            return file is null ? null : await ImportAsync(file);
+            try { return file is null ? null : await ImportAsync(file); }
+            finally { (file as IDisposable)?.Dispose(); }
         }
         var files = await MediaPicker.Default.PickPhotosAsync(new MediaPickerOptions { Title = "Choose profile photo", SelectionLimit = 1 });
         try { return files.Count == 0 ? null : await ImportAsync(files[0]); }
@@ -31,15 +32,7 @@ public sealed class ProfilePhotoStore(AppearancePreferences preferences) : IProf
     private async Task<string?> ImportAsync(FileResult file)
     {
         await using var stream = await file.OpenReadAsync();
-        using var bytes = new MemoryStream();
-        var buffer = new byte[8192];
-        int read;
-        while ((read = await stream.ReadAsync(buffer)) > 0)
-        {
-            if (bytes.Length + read > 10_000_000) throw new IOException("Choose a photo smaller than 10 MB.");
-            bytes.Write(buffer, 0, read);
-        }
-        using var data = NSData.FromArray(bytes.ToArray());
+        using var data = NSData.FromArray(await PhotoImportInput.ReadAsync(stream));
         using var imageSource = CGImageSource.FromData(data) ?? throw new IOException("Choose a supported photo, such as JPEG, PNG or HEIC.");
         using var thumbnail = imageSource.CreateThumbnail(0, new CGImageThumbnailOptions { CreateThumbnailFromImageAlways = true, CreateThumbnailWithTransform = true, MaxPixelSize = 2048 })
             ?? throw new IOException("This photo could not be opened.");

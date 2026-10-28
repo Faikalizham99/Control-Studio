@@ -1,5 +1,7 @@
 # Control Studio
 
+Version **0.2.43 (45)** improves Profile save/dismissal recovery, shares bounded photo-import validation, removes obsolete internal helpers and makes source validation read-only and faster. CI now caches locked NuGet packages; IPA generation remains limited to new version tags. All 819 local automated checks and managed iOS compilation pass; macOS CI and physical iPhone checks remain pending. See the [architecture audit](docs/architecture-audit.md) and [optimization report](docs/architecture-optimization-report.md). The owner authorized committing, pushing main and pushing the new tag, and will monitor the build.
+
 Version **0.2.42 (44)** centres Battery percentages inside their shapes with contrasting labels and adjusts Home Screen Clock/Date gradients to style native live Text before layout. All 808 local automated checks and managed iOS compilation pass; Swift/Xcode, gradient ticking and physical iPhone appearance remain pending. The owner authorized committing, pushing main and pushing the new tag, and will monitor the IPA build. See [gradient clock checks](docs/widget-live-gradient-clock.md) and [battery placement](docs/widget-battery-layers.md).
 
 Version **0.2.41 (43)** corrects the native widget preview pixel-format call and intermediate image ownership, including blend examples and Clipboard blur cleanup. It also adds Battery layers with five shapes, optional percentage/charging indicators and editable percentage colour stops with fixed/smooth modes. All 801 local automated checks and managed iOS compilation pass; Swift/Xcode and physical iPhone rendering, battery refresh and performance checks remain pending. The owner authorized committing, pushing main and pushing the new tag, and will monitor the IPA build. See [rendering findings and verification](docs/widget-preview-rendering-fix.md) and [Battery layers](docs/widget-battery-layers.md).
@@ -124,15 +126,16 @@ The iOS 27 SDK is required for the Extra Large Portrait family. The [Microsoft r
 
 ## Repository
 
-- `src/ControlStudio.App`: iOS MAUI host, Home, Shortcuts dashboard/editor, Settings, theme preference, platform adapters and C interop.
-- `src/ControlStudio.Core`: counter contract, typed actions, validation, execution and repository interfaces.
-- `src/ControlStudio.Infrastructure`: native counter response decoding and private SQLite dashboard repository.
-- `native/Shared`: SQLite implementation shared by all three processes.
+- `src/ControlStudio.App`: iOS MAUI host, Home, Studio, Clipboard/widget editors, Settings, reusable controls, platform adapters and C interop.
+- `src/ControlStudio.Core`: counter/action/widget contracts, validation, execution, layer geometry and repository interfaces.
+- `src/ControlStudio.Infrastructure`: native counter decoding, private Clipboard SQLite and widget library/publication repositories.
+- `native/Shared`: counter SQLite and widget scene/storage contracts shared by the native targets.
 - `native/ControlStudioBridge`: static Swift library with a small C ABI.
-- `native/ControlStudioWidgets`: native small/medium WidgetKit extension.
+- `native/ControlStudioWidgets`: Counter widgets and ten static Studio slots with size-specific designs and live layers.
+- `native/WidgetRuntime`: isolated iOS 27 widget background adapter and guarded Objective-C interop.
 - `native/ControlStudioIntents`: dedicated ExtensionKit App Intents executable and App Shortcuts provider.
 - `tests`: managed contract tests and Python packaging/profile validation tests.
 - `native/Tests`: Swift SQLite persistence, validation and concurrency tests.
 - `scripts`: deterministic Xcode project generation, native build, signing, IPA packaging and validation.
 
-Read [architecture](docs/architecture.md), [Milestone 0 and validation](docs/milestone-0.md), [limitations](docs/known-limitations.md), and [future milestones](docs/roadmap.md). No account, network backend, tracking SDK or iOS permission prompt is required by this proof of concept.
+Read [architecture](docs/architecture.md), [the architecture audit](docs/architecture-audit.md), [optimization report](docs/architecture-optimization-report.md), [Milestone 0 and validation](docs/milestone-0.md), [limitations](docs/known-limitations.md), and [future milestones](docs/roadmap.md). The app needs no account, backend or tracking SDK. System photo pickers, explicit Paste and saving through the share sheet may involve user permissions; opening or previewing a Link is an explicit network action.

@@ -28,6 +28,8 @@ jobs:
       - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
         with:
           global-json-file: global.json
+          cache: true
+          cache-dependency-path: '**/packages.lock.json'
       - run: dotnet test tests/ControlStudio.Core.Tests -c Release -p:RestoreLockedMode=true
       - run: dotnet test tests/ControlStudio.Infrastructure.Tests -c Release -p:RestoreLockedMode=true
       - run: dotnet test tests/ControlStudio.App.Tests -c Release -p:RestoreLockedMode=true

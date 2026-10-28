@@ -73,6 +73,23 @@ public sealed class CounterAppearanceTests : IDisposable
     }
 
     [Theory]
+    [InlineData("profile_name")] [InlineData("profile_photo")]
+    public void FailedProfileWritesDoNotPublishUncommittedStateOrPhotoOwnership(string failedKey)
+    {
+        var storage = new TestPreferences(); var preferences = Preferences(new Publisher(), storage);
+        preferences.SaveProfile("Original", "original-photo");
+        var changes = new List<string?>(); preferences.PropertyChanged += (_, args) => changes.Add(args.PropertyName);
+        storage.FailWriteKey = failedKey;
+        Assert.Throws<IOException>(() => preferences.SaveProfile("Changed", "draft-photo"));
+        Assert.Equal("Original", preferences.DisplayName); Assert.Equal("original-photo", preferences.PhotoKey);
+        Assert.Equal("original-photo", storage.Get("profile_photo", "")); Assert.Empty(changes);
+        storage.FailWriteKey = null;
+        Assert.True(preferences.SaveProfile("Changed", "draft-photo"));
+        var reopened = Preferences(new Publisher(), storage);
+        Assert.Equal("Changed", reopened.DisplayName); Assert.Equal("draft-photo", reopened.PhotoKey);
+    }
+
+    [Theory]
     [InlineData(false)] [InlineData(true)]
     public void BothPreviewsMatchThemeAndExactAccentWithReadableIconWells(bool medium)
     {

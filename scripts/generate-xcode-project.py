@@ -9,7 +9,7 @@ import json
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def generate():
+def generate(*, check=False):
     objects = {}
 
     def add(key, isa, **values):
@@ -75,7 +75,7 @@ def generate():
             "APPLICATION_EXTENSION_API_ONLY": "YES", "IPHONEOS_DEPLOYMENT_TARGET": "17.0",
             "SWIFT_VERSION": "5.0", "SWIFT_OPTIMIZATION_LEVEL": "-O",
             "SWIFT_EMIT_LOC_STRINGS": "YES", "TARGETED_DEVICE_FAMILY": "1,2",
-            "CURRENT_PROJECT_VERSION": "44", "MARKETING_VERSION": "0.2.42",
+            "CURRENT_PROJECT_VERSION": "45", "MARKETING_VERSION": "0.2.43",
             "LD_RUNPATH_SEARCH_PATHS": ["$(inherited)", "@executable_path/Frameworks", "@executable_path/../../Frameworks"],
             "OTHER_LDFLAGS": ["$(inherited)", "-lsqlite3"],
         }
@@ -115,8 +115,12 @@ def generate():
     model = {"archiveVersion": 1, "classes": {}, "objectVersion": 56, "objects": objects, "rootObject": project}
     contents = "// !$*UTF8*$!\n" + value(model) + "\n"
     output = ROOT / "native/ControlStudioNative.xcodeproj/project.pbxproj"
-    output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(contents, encoding="utf-8", newline="\n")
+    if check:
+        if not output.is_file() or output.read_bytes() != contents.encode("utf-8"):
+            raise ValueError("Generated Xcode project is out of date; run scripts/generate-xcode-project.py")
+    else:
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(contents, encoding="utf-8", newline="\n")
     return model
 
 

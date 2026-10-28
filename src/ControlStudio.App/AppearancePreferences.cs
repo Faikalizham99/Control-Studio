@@ -84,9 +84,11 @@ public sealed class AppearancePreferences : BindableObject
     public bool SaveProfile(string? displayName, string photoKey)
     {
         if (!AppearanceValues.TryNormalizeName(displayName, out var normalized)) return false;
-        DisplayName = normalized; PhotoKey = photoKey;
         storage.Set("profile_name", normalized);
         storage.Set("profile_photo", photoKey);
+        // A failed write must not make an imported draft look like the saved
+        // photo to the editor's cleanup or to another observer.
+        DisplayName = normalized; PhotoKey = photoKey;
         OnPropertyChanged(nameof(DisplayName)); OnPropertyChanged(nameof(PhotoKey));
         return true;
     }

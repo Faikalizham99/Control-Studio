@@ -1,5 +1,3 @@
-using Microsoft.Maui.Controls.Shapes;
-
 namespace ControlStudio.App.Views;
 
 internal static class DashboardStyle
@@ -10,12 +8,6 @@ internal static class DashboardStyle
         NavigationAccent(page);
     }
     public static void NavigationAccent(ContentPage page) => page.SetDynamicResource(NavigationPage.IconColorProperty, "AccentText");
-    public static Border Card(View content) {
-        var card = new Border { Content = content, Padding = 20, StrokeThickness = 0,
-            StrokeShape = new RoundRectangle { CornerRadius = 22 } };
-        card.SetAppThemeColor(VisualElement.BackgroundColorProperty, Colors.White, Color.FromArgb("#1C1E27"));
-        return card;
-    }
     public static Button Button(string text)
     {
         return new AccentButton { Text = text };

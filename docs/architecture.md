@@ -6,13 +6,31 @@ The bridge and both native extensions compile the **same** `native/Shared/Counte
 
 Primary UI actions use shared `AccentButton`/`AccentSurface` styling with foreground contrast tied to the effective fill. Neutral card/field gradients are separate. See [shared surface rules and regression coverage](ui-components.md).
 
-## Private dashboard
+## Private Clipboard library
 
 Studio's Clipboard library uses Core's typed action definitions and validator for Text, Photo and Link. Text/link copying and viewing are explicit foreground operations; opening validated web links uses the executor and `IActionPlatform`. Photos use private PNG assets and GUID references, with native image copying and the iOS share sheet. The private SQLite document accepts versions 1/2/3/4 and writes version 4 on mutation for optional per-item header RGB colours (null follows the app accent). A transactional upgrade of versions 1/2 removes the known retired record type at the owner's request; remaining records retain their data and metadata. Other unknown types and future schemas fail without rewriting data. Settings and item editors share `ColourPickerView`; its hosts own persistence, keeping draft item colours separate from global preferences. See [Clipboard details](clipboard.md). The counter action still delegates to `ICounterRepository`, preserving the widget refresh path. Only the statically declared counter App Intent is exposed to Apple's Shortcuts app.
 
 `SqliteActionRepository` stores a versioned dashboard document in a private SQLite database, separate from the provider group and counter database. A small C# interop layer calls the existing iOS system SQLite library; Windows/macOS tests resolve the corresponding OS library. No new NuGet/native dependency is added. Prepared statements bind all user content. `BEGIN IMMEDIATE` serializes mutations, including across independent connections; a semaphore prevents overlapping operations per repository instance. Connections/statements close after each operation. Unknown database/document versions and invalid data are preserved. See [Milestone 1](milestone-1.md) for bounds, cancellation and acceptance checks.
 
-The UI has separate Run and Manage controls, accessible action names, full-color tiles, an editor preview, explicit validation/status messages and CollectionView virtualization. Favorites, categories and names filter the saved order; Move earlier/later changes global ordering. Light/dark appearance continues to use Settings. Drag-and-drop and variable tile sizes are deferred.
+The Clipboard UI has Text/Photo/Link segments, per-item action icons, pinning, a separate Arrange page, persistent concealment, expandable content and optional header colours. Its CollectionView virtualizes item controls. The add/edit page saves a draft only after validation; private photo copies are removed only after replacement/deletion commits. App activation and page lifetime guards prevent stale results from changing a departed page. Light/dark appearance and accent come from Settings; there is no public Shortcuts dashboard tab.
+
+## Personal widget designs
+
+`WidgetDesignRepository` owns a private JSON library and immutable photo/render files, separate from Clipboard SQLite. A shared per-directory semaphore, revision checks and atomic catalog replacement serialize edits and reject stale saves. Schema 1 libraries upgrade to schema 2 on mutation to add size-specific slot assignments. Photo/Clock/Date/Text/Battery layers share Core geometry and validation; retired iPad size identifiers remain readable for recovery without being offered as new sizes.
+
+`WidgetStudioService` renders and saves a design privately, then asks `WidgetDesignPublisher` to install immutable artwork and live scene files into the App Group before replacing shared `catalog.json` and `slots.json`. Failed publication leaves the private save available for retry. Catalog and slots are individually atomic, not a cross-file transaction. Recent shared renders are retained for cached timelines. Original photo sources are not copied to the shared render folder.
+
+Ten static Studio widget kinds each support independent Small/Medium/Large/iPhone XL assignments. There is no App Intent design selector. Swift reads the slot/catalog and validates live scenes; photo/custom-text groups are exported PNGs, Clock/Date use native live Text, and Battery samples at timeline generation with an advisory refresh policy. C# and Swift contracts have shared fixtures and separate behavioral tests. The isolated iOS 27 Objective-C background adapter preserves the owner's working transparent display with ABI checks and a normal-rendering fallback; it is a private-API compatibility risk.
+
+The editor uses bounded Core Image graphs, four raster/two source caches, and explicit wrapper ownership. Saved-library/slot previews hold at most six visible image sources. These are safeguards, not measurements of frame rate or device memory. A 30-layer editor, rapid gestures and repeated publication still require physical profiling.
+
+## Composition and lifecycle
+
+`MauiProgram` registers long-lived services and the three root pages through DI. Root navigation is a TabbedPage containing Home, Studio and Settings NavigationPages. Child editors/pages are constructed explicitly with their required stores and callbacks; native handlers own platform gesture/notification/timer teardown. The UI is code-built C#, with no XAML, Shell routes or mandatory MVVM framework. Core and Infrastructure contain no UIKit dependency.
+
+Profile/appearance use local preferences; Profile photo source/cropped copies remain private. Profile controls distinguish failed persistence from a successful save followed by failed navigation. Preferences are separate keys, not a crash-atomic profile transaction.
+
+See the [repository-wide audit and dependency map](architecture-audit.md) and [implemented improvements/verification](architecture-optimization-report.md). Historical milestone documents describe their release state; they are not the current feature inventory.
 
 ## Counter storage
 
