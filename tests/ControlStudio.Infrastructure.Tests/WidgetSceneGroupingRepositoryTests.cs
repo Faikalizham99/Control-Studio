@@ -47,6 +47,7 @@ public sealed class WidgetSceneGroupingRepositoryTests : IDisposable
         var before = PrivateFiles();
         var publisher = new WidgetDesignPublisher(Repository(), () => Shared);
         await publisher.PublishAsync(); await publisher.PublishAsync(); // Refresh/retry never migrates source data.
+        await publisher.PublishIfChangedAsync(); await publisher.PublishIfChangedAsync(); // Cached reloads preserve the same legacy bytes too.
         var after = PrivateFiles(); Assert.Equal(before.Keys.Order(), after.Keys.Order());
         foreach (var (path, bytes) in before) Assert.Equal(bytes, after[path]);
         var publishedScenePath = Path.Combine(Shared, "renders", saved.RenderKey + ".scene.json");
@@ -64,7 +65,7 @@ public sealed class WidgetSceneGroupingRepositoryTests : IDisposable
         Assert.NotEqual(saved.RenderKey, updated.RenderKey); Assert.Equal(saved.Layers, updated.Layers);
         Assert.Equal(saved.Id, Assert.Single((await Repository().ReadLibraryAsync()).Slots).DesignId);
         Assert.Equal(Png, await File.ReadAllBytesAsync(repository.AssetPath(key)!));
-        await publisher.PublishAsync();
+        await publisher.PublishIfChangedAsync();
         var current = JsonSerializer.Deserialize(await File.ReadAllBytesAsync(Path.Combine(Shared, "renders", updated.RenderKey + ".scene.json")), WidgetDesignRules.JsonContext.WidgetScene)!;
         Assert.Equal(2, current.GroupingVersion); Assert.Equal(new int?[] { 0, null }, current.Parts.Select(item => item.ImageIndex));
         WidgetScenes.Validate(current, updated);

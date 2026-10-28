@@ -79,13 +79,49 @@ public sealed class WidgetStudioLayoutTests : IDisposable
     {
         var oldRead = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
         var page = new ProbePage();
-        page.Read = _ => ++page.Reads == 1 ? oldRead.Task : Task.FromResult("current");
+        page.Read = _ => page.Reads == 1 ? oldRead.Task : Task.FromResult("current");
         page.Appear(); Assert.False(page.Enabled);
         page.Disappear(); Assert.True(page.FirstToken.IsCancellationRequested);
         page.Appear(); oldRead.SetResult("stale");
         await page.Completed.Task.WaitAsync(TimeSpan.FromSeconds(5));
         Assert.Equal(new[] { "current" }, page.Applied); Assert.Equal(2, page.Reads);
         Assert.True(page.Enabled); Assert.Empty(page.Failures); page.Disappear();
+    }
+    [Fact]
+    public void BackgroundingReleasesPreviewSourcesAndReturningRestoresThem()
+    {
+        var page = new ProbePage(); host.App.Windows[0].Page = page;
+        var window = (IWindow)host.App.Windows[0]; window.Activated(); page.Appear();
+        var image = Assert.IsType<Image>(page.Preview.Content); Assert.NotNull(image.Source); Assert.True(page.Enabled);
+        window.Deactivated(); Assert.Null(image.Source); Assert.False(page.Enabled); Assert.True(page.FirstToken.IsCancellationRequested);
+        window.Activated(); Assert.NotNull(image.Source); Assert.True(page.Enabled);
+        var reads = page.Reads; page.Disappear(); Assert.Null(image.Source);
+        window.Deactivated(); window.Activated(); Assert.Equal(reads, page.Reads); Assert.Null(image.Source);
+    }
+    [Fact]
+    public async Task LateBackgroundReadCannotRestoreSourcesOrApplyStaleData()
+    {
+        var pending = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var page = new ProbePage { Read = _ => pending.Task }; host.App.Windows[0].Page = page;
+        var window = (IWindow)host.App.Windows[0]; window.Activated(); page.Appear();
+        window.Deactivated(); pending.SetResult("stale");
+        await page.ReadReturned.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Empty(page.Applied); Assert.Null(Assert.IsType<Image>(page.Preview.Content).Source); Assert.False(page.Enabled);
+        page.Read = _ => Task.FromResult("fresh"); window.Activated();
+        await page.Completed.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(new[] { "fresh" }, page.Applied); Assert.NotNull(Assert.IsType<Image>(page.Preview.Content).Source);
+        page.Disappear();
+    }
+    [Fact]
+    public async Task ActivationDuringAnOldReadQueuesOneFreshReadAndUnlocksControls()
+    {
+        var pending = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var page = new ProbePage(); page.Read = _ => page.Reads == 1 ? pending.Task : Task.FromResult("fresh");
+        host.App.Windows[0].Page = page; var window = (IWindow)host.App.Windows[0]; window.Activated(); page.Appear();
+        window.Deactivated(); window.Activated(); pending.SetResult("stale");
+        await page.Completed.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(new[] { "fresh" }, page.Applied); Assert.Equal(2, page.Reads); Assert.True(page.Enabled); Assert.Empty(page.Failures);
+        page.Disappear();
     }
     private sealed class ProbePage : WidgetStudioPage
     {
@@ -95,6 +131,8 @@ public sealed class WidgetStudioLayoutTests : IDisposable
         public CancellationToken FirstToken;
         public List<string> Applied = [], Failures = [];
         public TaskCompletionSource Completed = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource ReadReturned = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public WidgetRenderPreview Preview = new("fixture.png", Colors.Black);
         public ProbePage() : base(NullLogger.Instance) { }
         public void Appear() => OnAppearing();
         public void Disappear() => OnDisappearing();
@@ -102,8 +140,10 @@ public sealed class WidgetStudioLayoutTests : IDisposable
         protected override async Task LoadAsync(CancellationToken token, int version)
         {
             if (Reads == 0) FirstToken = token;
+            Reads++;
             var result = await Read(token);
             if (IsCurrent(version)) Applied.Add(result);
+            ReadReturned.TrySetResult();
         }
         protected override void SetActionsEnabled(bool enabled)
         {
@@ -111,6 +151,7 @@ public sealed class WidgetStudioLayoutTests : IDisposable
             if (enabled && Applied.Count > 0) Completed.TrySetResult();
         }
         protected override void ShowFailure(string message) => Failures.Add(message);
+        protected override void PreviewActivityChanged(bool visible) => Preview.SetVisible(visible);
     }
     public void Dispose() => host.Dispose();
 }

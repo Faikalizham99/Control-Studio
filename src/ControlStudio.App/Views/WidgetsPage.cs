@@ -58,7 +58,7 @@ internal sealed class WidgetsPage : WidgetStudioPage
         refresh.IsRefreshing = true;
         try
         {
-            await LoadAsync(token, version);
+            await LoadLibraryAsync(token, version, force: true);
             if (IsForeground(version)) Announce(status.IsVisible ? status.Text : studio.Repository.HasSavedLibrary
                 ? "Widget refresh requested. iOS decides when it appears." : "No saved widgets to refresh yet.");
         }
@@ -71,13 +71,14 @@ internal sealed class WidgetsPage : WidgetStudioPage
         finally { refresh.IsRefreshing = false; }
     });
     private void FilterChanged() { xlHint.IsVisible = SelectedSize == WidgetSize.ExtraLargePortrait; ShowDesigns(); }
-    protected override async Task LoadAsync(CancellationToken token, int version)
+    protected override Task LoadAsync(CancellationToken token, int version) => LoadLibraryAsync(token, version, force: false);
+    private async Task LoadLibraryAsync(CancellationToken token, int version, bool force)
     {
         var loaded = await studio.Repository.ReadAsync(token); if (!IsCurrent(version)) return;
         saved = loaded; ShowDesigns();
         if (studio.Repository.HasSavedLibrary)
         {
-            var published = await studio.PublishAsync(); if (!IsCurrent(version)) return;
+            var published = await studio.PublishAsync(force, token); if (!IsCurrent(version)) return;
             if (published) { status.Text = ""; status.IsVisible = false; }
             else ShowFailure("Saved on this device. Tap Refresh to retry the Home Screen update; check App Group access in Settings.");
         }
@@ -165,7 +166,7 @@ internal sealed class WidgetsPage : WidgetStudioPage
         }
         finally { updatingPreviews = false; }
     }
-    protected override void OnAppearing() { previewsActive = true; base.OnAppearing(); UpdateVisiblePreviews(); }
+    protected override void PreviewActivityChanged(bool visible) { previewsActive = visible; UpdateVisiblePreviews(); }
     protected override void OnDisappearing()
     {
         refresh.IsRefreshing = false;

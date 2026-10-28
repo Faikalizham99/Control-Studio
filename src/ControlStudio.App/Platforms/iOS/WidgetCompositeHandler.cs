@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Maui.Handlers;
 using UIKit;
 using Foundation;
+using CoreFoundation;
 using ControlStudio.Core.Widgets;
 
 namespace ControlStudio.App.Platforms.iOS;
@@ -14,9 +15,13 @@ internal sealed class WidgetCompositeHandler : ViewHandler<WidgetCompositeView, 
     private NSTimer? timer;
     private double timerInterval;
     private IDisposable? batteryObserver;
-    private bool rendering;
+    private bool rendering, unloaded;
+    private readonly WidgetRenderQueue renderQueue;
+    private WidgetRenderIdentity? painted;
+    private WidgetBatteryReading? lastBattery;
     public WidgetCompositeHandler() : base(new PropertyMapper<WidgetCompositeView, WidgetCompositeHandler>(ViewMapper)
-    { [nameof(WidgetCompositeView.Design)] = (handler, _) => handler.Render() }) { }
+    { [nameof(WidgetCompositeView.Design)] = (handler, _) => handler.RequestRender() })
+    { renderQueue = new(action => DispatchQueue.MainQueue.DispatchAsync(action), Render); }
     protected override UIImageView CreatePlatformView() => new() { ContentMode = UIViewContentMode.ScaleToFill, Opaque = false,
         UserInteractionEnabled = false, IsAccessibilityElement = false };
     // The widget guide owns layout. A full-resolution bitmap must not contribute
@@ -24,31 +29,50 @@ internal sealed class WidgetCompositeHandler : ViewHandler<WidgetCompositeView, 
     public override Size GetDesiredSize(double widthConstraint, double heightConstraint) => Size.Zero;
     private void Clear()
     {
+        renderQueue.Cancel(); painted = null; lastBattery = null;
         StopTimer(); batteryObserver?.Dispose(); batteryObserver = null;
         var previous = PlatformView.Image; PlatformView.Image = null; previous?.Dispose();
         compositor?.Dispose(); compositor = null;
     }
+    private void RequestRender()
+    {
+        // Null is a lifecycle boundary: release now and invalidate queued work.
+        if (VirtualView.Design is null) Clear(); else if (!unloaded) renderQueue.Request();
+    }
     private void Render()
     {
-        if (rendering) return;
+        if (rendering || unloaded) return;
         if (VirtualView.Design is not { } design) { Clear(); return; }
         rendering = true;
+        var stage = WidgetRenderStage.Initialising; var composing = false;
         try
         {
             var hasBattery = design.Layers.Any(x => x.Kind == WidgetLayerKind.Battery && x.Visible && x.Opacity > 0);
-            if (hasBattery && PlatformView.Window is not null) batteryObserver ??= AppleWidgetBattery.Observe(_ => Render());
+            if (hasBattery && PlatformView.Window is not null) batteryObserver ??= AppleWidgetBattery.Observe(_ => RequestRender());
             else { batteryObserver?.Dispose(); batteryObserver = null; }
             var battery = hasBattery ? AppleWidgetBattery.Read() : default;
-            VirtualView.TickBattery(battery);
-            compositor ??= new(VirtualView.AssetPath);
-            var rendered = compositor.Render(design, battery: battery); var previous = PlatformView.Image;
-            PlatformView.Image = rendered; previous?.Dispose();
+            var time = DateTimeOffset.Now;
+            stage = WidgetRenderStage.Validation;
+            var identity = WidgetRenderIdentity.Create(design, time, battery);
+            var clockChanged = painted is null || !identity.LiveText.SequenceEqual(painted.LiveText);
+            if (!identity.SamePixels(painted))
+            {
+                stage = WidgetRenderStage.Initialising;
+                compositor ??= new(VirtualView.AssetPath);
+                composing = true;
+                var rendered = compositor.Render(design, time: time, battery: battery); var previous = PlatformView.Image;
+                PlatformView.Image = rendered; previous?.Dispose();
+                painted = identity; // Failed paints must remain retryable.
+            }
+            composing = false; stage = WidgetRenderStage.LiveUpdate;
+            if (lastBattery != battery) { VirtualView.TickBattery(battery); lastBattery = battery; }
+            if (clockChanged) VirtualView.TickClock(time);
             UpdateTimer();
         }
         catch (Exception ex)
         {
             // Never show stale/ordinary layers as though the chosen blend succeeded.
-            var stage = compositor?.Stage ?? WidgetRenderStage.Initialising;
+            if (composing) stage = compositor?.Stage ?? stage;
             Clear();
             ReportFailure(ex, stage);
         }
@@ -74,7 +98,7 @@ internal sealed class WidgetCompositeHandler : ViewHandler<WidgetCompositeView, 
             try
             {
                 if (PlatformView.Window is null || VirtualView.Design is null) { StopTimer(); return; }
-                Render(); VirtualView.TickClock(DateTimeOffset.Now);
+                RequestRender();
             }
             catch (Exception ex)
             {
@@ -84,14 +108,14 @@ internal sealed class WidgetCompositeHandler : ViewHandler<WidgetCompositeView, 
         timer.FireDate = NSDate.FromTimeIntervalSinceNow(interval - DateTimeOffset.Now.ToUnixTimeMilliseconds() % (long)(interval * 1000) / 1000d);
         NSRunLoop.Main.AddTimer(timer, NSRunLoopMode.Common);
     }
-    private void Loaded(object? sender, EventArgs args) { Render(); }
-    private void Unloaded(object? sender, EventArgs args) => Clear();
+    private void Loaded(object? sender, EventArgs args) { unloaded = false; RequestRender(); }
+    private void Unloaded(object? sender, EventArgs args) { unloaded = true; Clear(); }
     protected override void ConnectHandler(UIImageView platformView)
     {
-        base.ConnectHandler(platformView); VirtualView.Loaded += Loaded; VirtualView.Unloaded += Unloaded;
+        base.ConnectHandler(platformView); unloaded = false; VirtualView.Loaded += Loaded; VirtualView.Unloaded += Unloaded;
     }
     protected override void DisconnectHandler(UIImageView platformView)
     {
-        VirtualView.Loaded -= Loaded; VirtualView.Unloaded -= Unloaded; Clear(); base.DisconnectHandler(platformView);
+        VirtualView.Loaded -= Loaded; VirtualView.Unloaded -= Unloaded; unloaded = true; Clear(); base.DisconnectHandler(platformView);
     }
 }

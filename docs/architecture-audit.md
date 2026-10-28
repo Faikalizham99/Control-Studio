@@ -105,7 +105,7 @@ The pragmatic split fits this local application. Replacing it with a new Clean A
 - Recommendation: measure representative 1/10/30-layer gestures, one-second clock updates, 50-design publication and repeated navigation on the target phone. Consider revision-aware publication and static-group caching only after measuring and adding invalidation/ownership tests.
 - Benefit: identify actual frame-time, memory and I/O bottlenecks.
 - Risk: medium/high for speculative background rendering or cache changes, especially with UIKit thread affinity and Core Image wrapper aliasing. No unmeasured speedup or leak claim.
-- Status: preserved pending profiling.
+- Follow-up: the owner authorized [measured publication and redraw/lifecycle improvements](widget-performance.md). Unchanged publication was benchmarked locally; native frame times, cache pressure and device footprint still require iPhone profiling.
 
 ### A08 — Native transparency depends on private iOS 27 descriptors
 

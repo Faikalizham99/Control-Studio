@@ -91,10 +91,10 @@ public sealed class WidgetStudioService : IWidgetEditorStore
         }
         finally { gate.Release(); }
     }
-    public async Task<bool> PublishAsync()
+    public async Task<bool> PublishAsync(bool force = true, CancellationToken token = default)
     {
-        await gate.WaitAsync();
-        try { return await PublishCoreAsync(); } finally { gate.Release(); }
+        await gate.WaitAsync(token);
+        try { return await PublishCoreAsync(force: force, token: token); } finally { gate.Release(); }
     }
     public async Task<bool> AssignSlotAsync(WidgetSize size, int number, Guid? designId, CancellationToken token = default)
     {
@@ -102,7 +102,7 @@ public sealed class WidgetStudioService : IWidgetEditorStore
         try
         {
             await Repository.AssignSlotAsync(size, number, designId, token);
-            return await PublishCoreAsync(number);
+            return await PublishCoreAsync(number, token: token);
         }
         finally { gate.Release(); }
     }
@@ -111,9 +111,15 @@ public sealed class WidgetStudioService : IWidgetEditorStore
         await gate.WaitAsync();
         try { await Repository.DeleteAsync(id); return await PublishCoreAsync(); } finally { gate.Release(); }
     }
-    private async Task<bool> PublishCoreAsync(int? slot = null)
+    private async Task<bool> PublishCoreAsync(int? slot = null, bool force = false, CancellationToken token = default)
     {
-        try { await publisher.PublishAsync(); if (slot is { } number) ReloadSlotNative(number); else ReloadNative(); return true; }
+        try
+        {
+            if (force) await publisher.PublishAsync(token); else await publisher.PublishIfChangedAsync(token);
+            token.ThrowIfCancellationRequested();
+            if (slot is { } number) ReloadSlotNative(number); else ReloadNative(); return true;
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
         catch (Exception ex) { logger.LogWarning("Widget publication failed. ErrorType={ErrorType}", ex.GetType().Name); return false; }
     }
     private (byte[] Full, byte[] Thumbnail, WidgetSceneExport? Scene) Render(WidgetDesign design, WidgetBatteryReading battery)
