@@ -24,6 +24,8 @@ Ten static Studio widget kinds each support independent Small/Medium/Large/iPhon
 
 The editor uses bounded Core Image graphs, four raster/two source caches, and explicit wrapper ownership. Saved-library/slot previews hold at most six visible image sources. These are safeguards, not measurements of frame rate or device memory. A 30-layer editor, rapid gestures and repeated publication still require physical profiling.
 
+Scene grouping version 2 omits hidden and zero-opacity layers before splitting static groups. Older scene boundaries remain validated/readable under grouping version 1; publication copies their original bytes unchanged. Editing/saving produces a new immutable export with corrected grouping while retaining the design and its assignments. See [hidden-layer blending](widget-hidden-layer-blending.md) for compatibility and verification.
+
 ## Composition and lifecycle
 
 `MauiProgram` registers long-lived services and the three root pages through DI. Root navigation is a TabbedPage containing Home, Studio and Settings NavigationPages. Child editors/pages are constructed explicitly with their required stores and callbacks; native handlers own platform gesture/notification/timer teardown. The UI is code-built C#, with no XAML, Shell routes or mandatory MVVM framework. Core and Infrastructure contain no UIKit dependency.

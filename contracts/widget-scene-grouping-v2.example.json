@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "groupingVersion": 2,
+  "width": 170,
+  "height": 170,
+  "parts": [
+    { "imageIndex": 0, "clock": null },
+    {
+      "imageIndex": null,
+      "clock": {
+        "id": "11111111-2222-4333-8444-555555555555",
+        "name": "Clock 1",
+        "kind": "clock",
+        "assetKey": "",
+        "pixelWidth": 1,
+        "pixelHeight": 1,
+        "frame": { "x": 0.05, "y": 0.35, "width": 0.9, "height": 0.3 },
+        "visible": true,
+        "opacity": 1,
+        "clock": {
+          "twentyFourHour": true,
+          "showSeconds": true,
+          "font": "rounded",
+          "colourHex": "#FFFFFF",
+          "fontScale": 0.72,
+          "alignment": "centre",
+          "showAmPm": true
+        }
+      }
+    }
+  ]
+}

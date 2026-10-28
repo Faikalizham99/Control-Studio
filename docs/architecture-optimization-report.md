@@ -14,7 +14,7 @@ The project is not an MVVM/XAML/Shell application: it uses code-built pages, exp
 |---|---|---|
 | A02: Profile save can publish uncommitted state, let write errors escape, or disable Back after dismissal fails | High | Fixed and covered by failure/retry/ownership tests |
 | A01: Source validation overwrites stale generated project; traverses local SDK/build trees | Medium | Fixed; read-only failure tests and measured traversal improvement |
-| A06: Hidden live layers retain photo-group boundaries, affecting blends across them | Medium | Documented; keep existing exported-scene behavior until compatibility transition is specified/tested |
+| A06: Hidden live layers retain photo-group boundaries, affecting blends across them | Medium | Documented in the audit; subsequently addressed by the separately authorized [versioned grouping fix](widget-hidden-layer-blending.md) |
 | A07: Entire catalog republished on library load; composition runs on UI thread with bounded but small caches | Medium | Profiling recommendation; no speculative concurrency/cache rewrite |
 | A08: Working transparency uses private iOS 27 descriptors | High compatibility risk | Preserve guarded native adapter; device/OS regression risk remains |
 | A03/A04/A05/A09: Duplicated input validation, uncached packages, obsolete internal helpers and stale documentation | Low | Safe cleanup implemented |
@@ -99,7 +99,7 @@ Bundle IDs, App Group configuration, entitlements, privacy declarations, C ABI s
 ## Remaining work, in priority order
 
 1. **Native/device verification:** run the unchanged native test/build pipeline after the owner authorizes publishing, then complete the above iPhone regression checks. Retest the private transparency adapter on each OS update.
-2. **Blend semantics/compatibility (A06):** reproduce Photo -> hidden live layer -> Multiply Photo; define isolation rules and version a transition so previously saved scenes remain readable. Current behavior is explicitly preserved, not called fixed.
+2. **Blend semantics/compatibility (A06):** subsequently implemented as a separately authorized [follow-up](widget-hidden-layer-blending.md), retaining old exports and applying corrected grouping on save. The audit-release counts above remain historical; follow-up native/device verification is still needed.
 3. **Device performance (A07):** profile 1/10/30 mixed layers, seconds ticks, reorder/rotate/pinch, repeated navigation and 50-design publication. Measure frame times, physical footprint and I/O before selecting invalidation-aware cache/publication changes. Follow [Microsoft's profiling guidance](https://learn.microsoft.com/en-us/dotnet/maui/deployment/performance).
 4. **Persistence resilience:** a single versioned Profile preference record could make name/photo commit together. A future generation manifest could bind shared catalog/slots atomically. Both need migration/interruption tests; neither warrants an unplanned schema rewrite now.
 5. **Maintainability:** extract editor responsibilities only as features change; split the large mixed UI regression fixture by feature with shared test utilities. Preserve the test-linked production-source build check. Consider a matched MAUI patch upgrade separately; no vulnerable pinned packages were reported by this audit.

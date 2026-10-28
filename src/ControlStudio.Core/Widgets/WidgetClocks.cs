@@ -34,46 +34,64 @@ public static class WidgetClocks
     }
 }
 
-/// <summary>Photos and custom text are composited together; Live layers separate those static groups.</summary>
+/// <summary>Photos and custom text are composited together; visible live layers separate those static groups.</summary>
 public sealed record WidgetSceneStep(IReadOnlyList<WidgetLayer> Photos, WidgetLayer? TextLayer);
 public sealed record WidgetScenePart(int? ImageIndex = null, WidgetLayer? Clock = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] WidgetLayer? Date = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] WidgetLayer? Battery = null);
-public sealed record WidgetScene(int SchemaVersion, double Width, double Height, IReadOnlyList<WidgetScenePart> Parts);
+// Missing groupingVersion identifies an existing export, whose image boundaries
+// must be validated as written rather than reinterpreted by a newer renderer.
+public sealed record WidgetScene(int SchemaVersion, double Width, double Height, IReadOnlyList<WidgetScenePart> Parts,
+    [property: JsonNumberHandling(JsonNumberHandling.Strict)] int GroupingVersion = 1);
 public sealed record WidgetSceneExport(WidgetScene Scene, IReadOnlyDictionary<int, byte[]> Images);
 public static class WidgetScenes
 {
     public const int MaximumBytes = 32_768, MaximumPixels = 3_000_000, MaximumImageBytes = 4_000_000;
+    public const int CurrentGroupingVersion = 2;
     public static bool IsLiveLayer(WidgetLayer layer) => WidgetTextLayers.IsLive(layer) || layer.Kind == WidgetLayerKind.Battery;
     public static bool IsLive(WidgetDesign design) => design.Layers.Any(x => IsLiveLayer(x) && x.Visible && x.Opacity > 0);
-    public static IReadOnlyList<WidgetSceneStep> Steps(WidgetDesign design)
+    public static IReadOnlyList<WidgetSceneStep> Steps(WidgetDesign design) => Steps(design, CurrentGroupingVersion);
+    private static IReadOnlyList<WidgetSceneStep> Steps(WidgetDesign design, int groupingVersion)
     {
         var result = new List<WidgetSceneStep>(); var photos = new List<WidgetLayer>();
+        void FlushPhotos()
+        {
+            if (photos.Count == 0) return;
+            result.Add(new(photos.ToArray(), null)); photos.Clear();
+        }
         foreach (var layer in design.Layers)
         {
-            if (!IsLiveLayer(layer)) { if (layer.Visible && layer.Opacity > 0) photos.Add(layer); }
+            if (!layer.Visible || layer.Opacity <= 0)
+            {
+                // Read-only compatibility for exports made before the fix.
+                if (groupingVersion == 1 && IsLiveLayer(layer)) FlushPhotos();
+                continue;
+            }
+            if (!IsLiveLayer(layer)) photos.Add(layer);
             else
             {
-                if (photos.Count > 0) { result.Add(new(photos.ToArray(), null)); photos.Clear(); }
-                if (layer.Visible && layer.Opacity > 0) result.Add(new([], layer));
+                FlushPhotos(); result.Add(new([], layer));
             }
         }
-        if (photos.Count > 0) result.Add(new(photos.ToArray(), null));
+        FlushPhotos();
         return result;
     }
-    public static WidgetScene Manifest(WidgetDesign design)
+    public static WidgetScene Manifest(WidgetDesign design) => Manifest(design, CurrentGroupingVersion);
+    private static WidgetScene Manifest(WidgetDesign design, int groupingVersion)
     {
         var canvas = WidgetDesignRules.Canvas(design);
         return new(design.Layers.Any(x => x.Kind == WidgetLayerKind.Battery && x.Visible && x.Opacity > 0) ? 3 : design.Layers.Any(x => x.Kind == WidgetLayerKind.Date && x.Visible && x.Opacity > 0) ? 2 : 1,
-            canvas.Width, canvas.Height, Steps(design).Select((step, index) => step.TextLayer is null
+            canvas.Width, canvas.Height, Steps(design, groupingVersion).Select((step, index) => step.TextLayer is null
             ? new WidgetScenePart(index) : step.TextLayer.Kind == WidgetLayerKind.Battery
                 ? new WidgetScenePart(Battery: step.TextLayer) : step.TextLayer.Kind == WidgetLayerKind.Date
-                ? new WidgetScenePart(Date: step.TextLayer) : new WidgetScenePart(Clock: step.TextLayer)).ToArray());
+                ? new WidgetScenePart(Date: step.TextLayer) : new WidgetScenePart(Clock: step.TextLayer)).ToArray(), groupingVersion);
     }
     public static void Validate(WidgetScene scene, WidgetDesign design)
     {
         WidgetDesignRules.Validate(design);
-        var expected = Manifest(design);
+        if (scene.GroupingVersion is < 1 or > CurrentGroupingVersion)
+            throw new IOException("The live widget grouping requires a newer app. Data was not changed.");
+        var expected = Manifest(design, scene.GroupingVersion);
         if (!IsLive(design) || scene.SchemaVersion != expected.SchemaVersion || scene.Width != expected.Width || scene.Height != expected.Height
             || scene.Parts is null || !scene.Parts.SequenceEqual(expected.Parts))
             throw new IOException("The live widget scene is invalid. Save the design again.");

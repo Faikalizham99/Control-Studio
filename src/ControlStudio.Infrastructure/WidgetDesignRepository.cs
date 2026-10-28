@@ -98,6 +98,8 @@ public sealed class WidgetDesignRepository
         if (WidgetScenes.IsLive(draft))
         {
             if (scene is null) throw new IOException("The live text scene is missing. Save this design from the widget editor.");
+            if (scene.Scene.GroupingVersion != WidgetScenes.CurrentGroupingVersion)
+                throw new IOException("Save this design from the widget editor to update its live layer grouping.");
             ValidateScene(scene, draft);
         }
         else if (scene is not null) throw new IOException("This design does not need a live text scene.");
@@ -228,10 +230,13 @@ public sealed class WidgetDesignRepository
         if (width is < 1 or > WidgetDesignRules.MaximumImageEdge || height is < 1 or > WidgetDesignRules.MaximumImageEdge)
             throw new IOException("This widget image exceeds the supported dimensions.");
     }
-    public static void ValidateScene(WidgetSceneExport export, WidgetDesign design)
+    public static void ValidateScene(WidgetSceneExport export, WidgetDesign design) => ValidateScene(export, design, null);
+    internal static void ValidateScene(WidgetSceneExport export, WidgetDesign design, int? storedManifestByteCount)
     {
         WidgetScenes.Validate(export.Scene, design);
-        if (JsonSerializer.SerializeToUtf8Bytes(export.Scene, WidgetDesignRules.JsonContext.WidgetScene).Length > WidgetScenes.MaximumBytes)
+        var manifestByteCount = storedManifestByteCount
+            ?? JsonSerializer.SerializeToUtf8Bytes(export.Scene, WidgetDesignRules.JsonContext.WidgetScene).Length;
+        if (manifestByteCount is < 1 or > WidgetScenes.MaximumBytes)
             throw new IOException("The live widget scene is too large.");
         var indices = export.Scene.Parts.Where(x => x.ImageIndex is not null).Select(x => x.ImageIndex!.Value).ToHashSet();
         if (export.Images is null || !indices.SetEquals(export.Images.Keys)) throw new IOException("A live widget photo group is missing.");

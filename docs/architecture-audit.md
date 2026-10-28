@@ -95,7 +95,7 @@ The pragmatic split fits this local application. Replacing it with a new Clean A
 - Recommendation: specify whether live layers isolate blend groups, then implement a versioned scene transition with old-scene/device regression coverage. Do not silently change grouping and invalidate already exported scenes during an unrelated cleanup.
 - Benefit: predictable compositing when hiding layers; potentially fewer groups.
 - Risk: **high** for unversioned changes to existing saved exports. Preserve current behavior in this audit and document the reproduction.
-- Status: retained technical debt; no unverified rendering rewrite.
+- Status at the audit release: retained technical debt. The owner subsequently authorized the [hidden-layer blending fix](widget-hidden-layer-blending.md): new grouping version 2 omits invisible boundaries; old exports retain read compatibility. Local checks pass; new native/device checks remain pending.
 
 ### A07 — Repeated publication and full editor composition need device measurements
 

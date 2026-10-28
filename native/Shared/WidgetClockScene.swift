@@ -204,8 +204,21 @@ struct WidgetClockScene: Decodable, Equatable {
     let width: Double
     let height: Double
     let parts: [WidgetClockScenePart]
+    let groupingVersion: Int
+    private enum CodingKeys: String, CodingKey { case schemaVersion, width, height, parts, groupingVersion }
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        schemaVersion = try values.decode(Int.self, forKey: .schemaVersion)
+        width = try values.decode(Double.self, forKey: .width)
+        height = try values.decode(Double.self, forKey: .height)
+        parts = try values.decode([WidgetClockScenePart].self, forKey: .parts)
+        // Old images already encode their original boundaries. Never regroup
+        // their pixels when reading. Explicit null/wrong types remain invalid.
+        if values.contains(.groupingVersion) { groupingVersion = try values.decode(Int.self, forKey: .groupingVersion) }
+        else { groupingVersion = 1 }
+    }
     var valid: Bool {
-        guard (1...3).contains(schemaVersion), width.isFinite, height.isFinite, (50...600).contains(width), (50...1100).contains(height),
+        guard (1...3).contains(schemaVersion), (1...2).contains(groupingVersion), width.isFinite, height.isFinite, (50...600).contains(width), (50...1100).contains(height),
             !parts.isEmpty, parts.count <= WidgetDesignStore.maximumLayers else { return false }
         var clocks = Set<String>()
         for (index, part) in parts.enumerated() {

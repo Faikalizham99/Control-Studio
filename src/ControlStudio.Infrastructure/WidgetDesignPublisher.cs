@@ -58,7 +58,9 @@ public sealed class WidgetDesignPublisher(WidgetDesignRepository repository, Fun
                             if (new FileInfo(imagePath).Length > WidgetDesignRules.MaximumImageBytes) throw new IOException("A live widget photo group is too large.");
                             images[index] = await File.ReadAllBytesAsync(imagePath, token);
                         }
-                    WidgetDesignRepository.ValidateScene(new(scene, images), design);
+                    // Publish the bounded saved bytes unchanged. Reserializing an
+                    // old scene can add default fields and falsely exceed its budget.
+                    WidgetDesignRepository.ValidateScene(new(scene, images), design, sceneBytes.Length);
                     foreach (var (index, image) in images)
                     {
                         var imageTarget = Path.Combine(directory, "renders", design.RenderKey + $".part-{index}.png");

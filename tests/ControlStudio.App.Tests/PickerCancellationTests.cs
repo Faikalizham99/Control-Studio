@@ -32,6 +32,37 @@ public sealed class PickerCancellationTests : IDisposable
         typeof(NavigationPage), BindingFlags.Instance | BindingFlags.NonPublic, null, [false, root], null)!;
     private static WidgetEditorPage Editor(Store store, string source = "Photo Library", ColourPicker? colours = null)
         => new(store, colours ?? new(), NullLogger.Instance, WidgetDesignRules.New() with { Layers = [Photo()] }, choosePhotoSource: () => Task.FromResult<string?>(source));
+
+    [Theory]
+    [InlineData(WidgetLayerKind.Clock, AppTheme.Light)] [InlineData(WidgetLayerKind.Clock, AppTheme.Dark)]
+    [InlineData(WidgetLayerKind.Date, AppTheme.Light)] [InlineData(WidgetLayerKind.Date, AppTheme.Dark)]
+    [InlineData(WidgetLayerKind.Battery, AppTheme.Light)] [InlineData(WidgetLayerKind.Battery, AppTheme.Dark)]
+    public void HidingAndRestoringLiveLayersUpdatesTheCompositionPlanWithoutLosingRowsScrollOrSavedSettings(WidgetLayerKind kind, AppTheme theme)
+    {
+        host.App.UserAppTheme = theme;
+        var live = (kind switch { WidgetLayerKind.Date => WidgetDates.New(), WidgetLayerKind.Battery => WidgetBatteries.New(), _ => WidgetClocks.New() }) with { Locked = true };
+        var bottom = Photo(); var top = Photo() with { BlendMode = WidgetBlendMode.Multiply };
+        var original = WidgetDesignRules.New() with { Layers = [bottom, live, top] }; var store = new Store();
+        var page = new WidgetEditorPage(store, new ColourPicker(), NullLogger.Instance, original); Open(page);
+        var row = Descendants(page).OfType<WidgetLayerRow>().Single(item => item.LayerId == live.Id);
+        var toggle = Descendants(row).OfType<Switch>().Single();
+        var scroll = Descendants(page).OfType<WidgetEditorScrollView>().Single(); ((IView)scroll).Arrange(new Rect(0, 0, 350, 600)); scroll.SetScrolledPosition(0, 900);
+        var composite = Descendants(page).OfType<WidgetCompositeView>().Single();
+        Assert.Equal(3, WidgetScenes.Steps(composite.Design!).Count);
+        toggle.IsToggled = false;
+        Assert.Equal(new[] { bottom, top }, Assert.Single(WidgetScenes.Steps(composite.Design!)).Photos);
+        Assert.Same(row, Descendants(page).OfType<WidgetLayerRow>().Single(item => item.LayerId == live.Id));
+        Assert.Equal(900, scroll.ScrollY); Assert.Equal(0, store.Saves); Assert.True(original.Layers[1].Visible);
+        ((IWindow)host.App.Windows[0]).Deactivated(); Assert.Null(composite.Design);
+        ((IWindow)host.App.Windows[0]).Activated(); Assert.Single(WidgetScenes.Steps(composite.Design!));
+        toggle.IsToggled = true; Assert.Equal(3, WidgetScenes.Steps(composite.Design!).Count);
+        Assert.Equal(live, composite.Design!.Layers[1]);
+        toggle.IsToggled = false; ((IButtonController)Button(page, "SaveWidgetDesign")).SendClicked();
+        Assert.Equal(live with { Visible = false }, store.Saved!.Layers[1]); Assert.Equal(bottom, store.Saved.Layers[0]); Assert.Equal(top, store.Saved.Layers[2]);
+        var reopened = new WidgetEditorPage(new Store(), new ColourPicker(), NullLogger.Instance, store.Saved); Open(reopened);
+        Assert.Single(WidgetScenes.Steps(Descendants(reopened).OfType<WidgetCompositeView>().Single().Design!));
+    }
+
     [Theory]
     [InlineData(AppTheme.Light)] [InlineData(AppTheme.Dark)]
     public async Task BatteryLayerShapeRulesPlacementAndLocksSaveWithoutScrollJumps(AppTheme theme)

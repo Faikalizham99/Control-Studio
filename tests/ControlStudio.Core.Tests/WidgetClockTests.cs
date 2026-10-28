@@ -73,7 +73,7 @@ public sealed class WidgetClockTests
             Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<WidgetLayer>(json.Replace("\"showAmPm\":true", "\"showAmPm\":" + invalid), WidgetDesignRules.Json));
     }
     [Fact]
-    public void SceneGroupingKeepsStackOrderAndHidingClocksDoesNotChangePhotoGroups()
+    public void SceneGroupingKeepsStackOrderAndOnlyVisibleClocksSeparatePhotoGroups()
     {
         var bottom = Photo(); var top = Photo(); var clock = WidgetClocks.New(); var next = WidgetClocks.New("Clock 2");
         var design = WidgetDesignRules.New() with { Layers = [bottom, clock, top, next] };
@@ -83,8 +83,7 @@ public sealed class WidgetClockTests
         Assert.Equal(new int?[] { 0, null, 2, null }, scene.Parts.Select(x => x.ImageIndex));
         Assert.Throws<IOException>(() => WidgetScenes.Validate(scene with { Parts = scene.Parts.Reverse().ToArray() }, design));
         var hidden = design with { Layers = [bottom, clock with { Visible = false }, top, next with { Opacity = 0 }] };
-        Assert.False(WidgetScenes.IsLive(hidden)); Assert.Equal(2, WidgetScenes.Steps(hidden).Count);
-        Assert.Equal(bottom, WidgetScenes.Steps(hidden)[0].Photos.Single()); Assert.Equal(top, WidgetScenes.Steps(hidden)[1].Photos.Single());
+        Assert.False(WidgetScenes.IsLive(hidden)); Assert.Equal(new[] { bottom, top }, Assert.Single(WidgetScenes.Steps(hidden)).Photos);
     }
     [Fact]
     public void SharedSceneFixtureDecodesWithoutPhotoAssetsForTheClock()
