@@ -111,7 +111,11 @@ struct WidgetSlotCatalog: Decodable {
 
 struct WidgetDesignStore {
     static let maximumLayers = 30
-    static let slotsPerSize = 10
+// BEGIN GENERATED SLOTS limits (scripts/widget_slot_config.py)
+    static let slotsPerSize = 20
+    static let maximumSlotAssignments = 100
+    static let maximumSlotCatalogBytes = 16384
+// END GENERATED SLOTS limits
     static func slotKind(_ number: Int) -> String { "ControlStudio.Slot.\(number)" }
     let directory: URL
     static func shared() throws -> WidgetDesignStore {
@@ -130,9 +134,9 @@ struct WidgetDesignStore {
     func readSlots() throws -> [WidgetSlotAssignment] {
         let url = directory.appendingPathComponent("slots.json")
         guard FileManager.default.fileExists(atPath: url.path) else { return [] }
-        let catalog = try JSONDecoder().decode(WidgetSlotCatalog.self, from: boundedData(url, maximum: 16_384))
+        let catalog = try JSONDecoder().decode(WidgetSlotCatalog.self, from: boundedData(url, maximum: Self.maximumSlotCatalogBytes))
         guard catalog.schemaVersion == 1 else { throw WidgetDesignError.unsupportedSchema }
-        guard catalog.slots.count <= 50 else { throw WidgetDesignError.invalidCatalog }
+        guard catalog.slots.count <= Self.maximumSlotAssignments else { throw WidgetDesignError.invalidCatalog }
         var addresses = Set<String>()
         for slot in catalog.slots {
             guard (1...Self.slotsPerSize).contains(slot.number), UUID(uuidString: slot.designId) != nil,

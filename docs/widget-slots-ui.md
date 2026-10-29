@@ -22,11 +22,11 @@ All **292 app checks** and managed iOS compilation pass with zero warnings/error
 
 ## Widget slots
 
-The page uses the shared Light/Dark glass cards, app accent, a local vector layers icon and the reference's introductory banner. The fixed header provides Back and Refresh. The banner, four size segments and ten numbered slot cards scroll together with a right gutter, so larger text can scroll rather than crowd the header. XL retains its iOS 27 availability hint.
+The page uses the shared Light/Dark glass cards, app accent, a local vector layers icon and the reference's introductory banner. The fixed header provides Back and Refresh. The banner, four size segments and twenty numbered slot cards scroll together with a right gutter, so larger text can scroll rather than crowd the header. XL retains its iOS 27 availability hint. See [the slot capacity change](widget-slot-capacity.md) for generated definitions and compatibility.
 
 Each card shows its address, a correctly proportioned preview, the assigned design name and Change/Clear actions. Empty slots show a dashed preview with a plus and an Assign action. All four families use compact previews 112 layout units wide. Heights follow saved canvas proportions, otherwise the same 170×170, 364×170, 364×382 or 364×594 representative canvases as My Widgets. These are proportions, not a claim of exact physical Home Screen dimensions. Cards keep previews beside details at ordinary widths, stacking them at narrow widths. Compact action captions retain native 44-unit minimum targets. Clear still asks for confirmation and removes only that address's assignment; saved designs and photos remain.
 
-Changing the size changes only which independent set of ten addresses is visible. Assign/Change opens the visual assignment page at that exact size and slot. Refresh republishes existing assignments and requests the native reload; its message distinguishes requested refresh from local-only publication failure. A failed size-switch read cannot leave cards from the previous family beneath the new selected segment.
+Changing the size changes only which independent set of twenty addresses is visible. Assign/Change opens the visual assignment page at that exact size and slot. Refresh republishes existing assignments and requests the native reload; its message distinguishes requested refresh from local-only publication failure. A failed size-switch read cannot leave cards from the previous family beneath the new selected segment.
 
 ## Assign design
 

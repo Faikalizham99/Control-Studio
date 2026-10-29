@@ -91,8 +91,8 @@ public sealed class WidgetSlotsRedesignTests : IDisposable
     {
         var design = Design(size); var store = new Store([design], [new(size, 1, design.Id)]);
         var page = new WidgetSlotsPage(store, NullLogger.Instance, size); Open(page);
-        Assert.Equal(10, Descendants(page).OfType<WidgetSlotCard>().Count());
-        var frames = Descendants(page).OfType<WidgetPreviewFrame>().ToArray(); Assert.Equal(10, frames.Length);
+        Assert.Equal(20, Descendants(page).OfType<WidgetSlotCard>().Count());
+        var frames = Descendants(page).OfType<WidgetPreviewFrame>().ToArray(); Assert.Equal(20, frames.Length);
         foreach (var frame in frames)
         {
             var border = Assert.IsType<Border>(frame.Content); var canvas = WidgetDesignRules.Canvas(size);
@@ -128,6 +128,32 @@ public sealed class WidgetSlotsRedesignTests : IDisposable
             }
             ((IButtonController)Button(page, "Open" + family + "Slot1")).SendClicked(); Assert.Equal((family, 1), Assert.Single(opened));
             Assert.Empty(store.Writes); Assert.Single(store.Library.Designs); Assert.Single(store.Library.Slots);
+        }
+    }
+    [Fact]
+    public async Task SlotTwentyCanBeOpenedAssignedAndClearedIndependentlyInEveryFamily()
+    {
+        foreach (var family in WidgetDesignRules.SupportedSizes)
+        {
+            var design = Design(family);
+            var store = new Store([design], [new(family, 1, design.Id)]);
+            var opened = new List<(WidgetSize, int)>();
+            var page = new WidgetSlotsPage(store, NullLogger.Instance, family,
+                confirmClear: _ => Task.FromResult(true),
+                openAssignment: (size, number) => { opened.Add((size, number)); return Task.CompletedTask; });
+            Open(page);
+            Assert.Equal(20, Descendants(page).OfType<WidgetSlotCard>().Count());
+            ((IButtonController)Button(page, "Assign" + family + "Slot20")).SendClicked();
+            Assert.Equal((family, 20), Assert.Single(opened));
+            var assign = Assignment(store, family, 20); Open(assign);
+            assign.Choose(design.Id); await assign.ConfirmAsync();
+            Assert.Equal((family, 20, (Guid?)design.Id), Assert.Single(store.Writes));
+            Open(page);
+            Assert.NotNull(Button(page, "Change" + family + "Slot20"));
+            await page.ClearAsync(family, 20);
+            Assert.Equal(1, Assert.Single(store.Library.Slots).Number);
+            Assert.Single(store.Library.Designs);
+            ((IPageController)page).SendDisappearing();
         }
     }
     [Fact]
@@ -217,7 +243,7 @@ public sealed class WidgetSlotsRedesignTests : IDisposable
     public async Task AFailedSizeSwitchCannotShowCardsFromThePreviousFamily()
     {
         var store = new Store([Design(WidgetSize.Small)]); var page = new WidgetSlotsPage(store, NullLogger.Instance); Open(page);
-        Assert.Equal(10, Descendants(page).OfType<WidgetSlotCard>().Count());
+        Assert.Equal(20, Descendants(page).OfType<WidgetSlotCard>().Count());
         store.Read = _ => throw new IOException("Cannot read this library.");
         await page.SelectSizeAsync(WidgetSize.Large);
         Assert.Equal(WidgetSize.Large, page.SelectedSize); Assert.Empty(Descendants(page).OfType<WidgetSlotCard>());
@@ -285,7 +311,7 @@ public sealed class WidgetSlotsRedesignTests : IDisposable
         model.Reload(new(2, [chosen with { Name = "Renamed" }], [])); Assert.Equal("Renamed", model.Selected?.Name);
         model.Reload(new(2, [], [])); Assert.Null(model.SelectedId);
         Assert.Throws<IOException>(() => new WidgetSlotSelection(WidgetSize.ExtraLarge, 1));
-        Assert.Throws<IOException>(() => new WidgetSlotSelection(WidgetSize.Small, 11));
+        Assert.Throws<IOException>(() => new WidgetSlotSelection(WidgetSize.Small, 21));
         Assert.Equal(1, WidgetSlotSelection.Columns(WidgetSize.Small, 200)); Assert.Equal(1, WidgetSlotSelection.Columns(WidgetSize.ExtraLargePortrait, 800));
     }
     private sealed class Store(IReadOnlyList<WidgetDesign> designs, IReadOnlyList<WidgetSlotAssignment>? slots = null) : IWidgetSlotStore

@@ -8,8 +8,8 @@
     <SingleProject>true</SingleProject>
     <ApplicationTitle>Control Studio</ApplicationTitle>
     <ApplicationId>com.faikalizham.controlstudio</ApplicationId>
-    <ApplicationDisplayVersion>0.2.46</ApplicationDisplayVersion>
-    <ApplicationVersion>48</ApplicationVersion>
+    <ApplicationDisplayVersion>0.2.47</ApplicationDisplayVersion>
+    <ApplicationVersion>49</ApplicationVersion>
     <SupportedOSPlatformVersion>17.0</SupportedOSPlatformVersion>
     <RuntimeIdentifier>ios-arm64</RuntimeIdentifier>
     <CodesignEntitlements>Platforms/iOS/Entitlements.plist</CodesignEntitlements>

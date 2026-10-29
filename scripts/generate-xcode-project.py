@@ -75,7 +75,7 @@ def generate(*, check=False):
             "APPLICATION_EXTENSION_API_ONLY": "YES", "IPHONEOS_DEPLOYMENT_TARGET": "17.0",
             "SWIFT_VERSION": "5.0", "SWIFT_OPTIMIZATION_LEVEL": "-O",
             "SWIFT_EMIT_LOC_STRINGS": "YES", "TARGETED_DEVICE_FAMILY": "1,2",
-            "CURRENT_PROJECT_VERSION": "48", "MARKETING_VERSION": "0.2.46",
+            "CURRENT_PROJECT_VERSION": "49", "MARKETING_VERSION": "0.2.47",
             "LD_RUNPATH_SEARCH_PATHS": ["$(inherited)", "@executable_path/Frameworks", "@executable_path/../../Frameworks"],
             "OTHER_LDFLAGS": ["$(inherited)", "-lsqlite3"],
         }

@@ -19,19 +19,33 @@ public sealed class WidgetSlotTests
     }
     [Theory]
     [InlineData(0)]
-    [InlineData(11)]
+    [InlineData(21)]
     [InlineData(-1)]
     public void OutOfRangeSlotsCannotBeAssigned(int number) => Assert.Throws<IOException>(() => WidgetSlotRules.ValidateAddress(WidgetSize.Small, number));
     [Fact]
-    public void EveryFamilyHasTenSlotsAndSerializedPayloadFitsItsBound()
+    public void EveryFamilyHasTwentySlotsAndSerializedPayloadFitsItsBound()
     {
-        var slots = WidgetDesignRules.SupportedSizes.SelectMany(size => Enumerable.Range(1, 10).Select(number => new WidgetSlotAssignment(size, number, Guid.NewGuid()))).ToArray();
+        var slots = WidgetDesignRules.SupportedSizes.SelectMany(size => Enumerable.Range(1, WidgetSlotRules.SlotsPerSize).Select(number => new WidgetSlotAssignment(size, number, Guid.NewGuid()))).ToArray();
         var catalog = new WidgetSlotCatalog(1, slots); WidgetSlotRules.Validate(catalog);
-        Assert.Equal(40, slots.Length);
-        Assert.Equal("Extra Large 10", WidgetSlotRules.Title(WidgetSize.ExtraLargePortrait, 10));
+        Assert.Equal(80, slots.Length);
+        Assert.Equal("Extra Large 20", WidgetSlotRules.Title(WidgetSize.ExtraLargePortrait, 20));
         Assert.Throws<IOException>(() => WidgetSlotRules.ValidateAddress(WidgetSize.ExtraLarge, 1));
         Assert.True(JsonSerializer.SerializeToUtf8Bytes(catalog, WidgetDesignRules.JsonContext.WidgetSlotCatalog).Length < WidgetSlotRules.MaximumCatalogBytes);
         Assert.Throws<IOException>(() => WidgetSlotRules.Validate(new WidgetSlotCatalog(1, [.. slots, slots[0]])));
+    }
+    [Fact]
+    public void StoredRetiredAddressesAndAllEightyCurrentAssignmentsFitTheExistingByteBound()
+    {
+        var slots = Enum.GetValues<WidgetSize>().SelectMany(size => Enumerable.Range(1, WidgetSlotRules.SlotsPerSize)
+            .Select(number => new WidgetSlotAssignment(size, number, Guid.NewGuid()))).ToArray();
+        var catalog = new WidgetSlotCatalog(1, slots);
+        WidgetSlotRules.Validate(catalog);
+        Assert.Equal(100, slots.Length);
+        var bytes = JsonSerializer.SerializeToUtf8Bytes(catalog, WidgetDesignRules.JsonContext.WidgetSlotCatalog);
+        Assert.True(bytes.Length < WidgetSlotRules.MaximumCatalogBytes);
+        var restored = JsonSerializer.Deserialize(bytes, WidgetDesignRules.JsonContext.WidgetSlotCatalog)!;
+        WidgetSlotRules.Validate(restored);
+        Assert.Equal(catalog.Slots, restored.Slots);
     }
     [Fact]
     public void DuplicateEmptyUnknownAndFutureValuesAreRejected()

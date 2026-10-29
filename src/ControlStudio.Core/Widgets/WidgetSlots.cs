@@ -6,7 +6,9 @@ public sealed record WidgetLibraryCatalog(int SchemaVersion, IReadOnlyList<Widge
 
 public static class WidgetSlotRules
 {
-    public const int SlotsPerSize = 10, MaximumAssignments = 50, MaximumCatalogBytes = 16_384;
+// BEGIN GENERATED SLOTS limits (scripts/widget_slot_config.py)
+    public const int SlotsPerSize = 20, MaximumAssignments = 100, MaximumCatalogBytes = 16384;
+// END GENERATED SLOTS limits
     public static void ValidateAddress(WidgetSize size, int number)
     {
         if (!WidgetDesignRules.IsSupported(size)) throw new IOException("Choose a supported iPhone widget size.");
@@ -15,7 +17,7 @@ public static class WidgetSlotRules
     private static void ValidateStoredAddress(WidgetSize size, int number)
     {
         if (!Enum.IsDefined(size) || number is < 1 or > SlotsPerSize)
-            throw new IOException("Choose a supported widget size and a slot from 1 to 10.");
+            throw new IOException($"Choose a supported widget size and a slot from 1 to {SlotsPerSize}.");
     }
     public static void Validate(WidgetSlotCatalog catalog)
     {

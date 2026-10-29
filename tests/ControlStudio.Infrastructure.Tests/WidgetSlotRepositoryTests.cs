@@ -38,16 +38,48 @@ public sealed class WidgetSlotRepositoryTests : IDisposable
     {
         var small = await Repository.SaveAsync(WidgetDesignRules.New(), Png);
         var medium = await Repository.SaveAsync(WidgetDesignRules.New() with { Size = WidgetSize.Medium }, Png);
-        await Task.WhenAll(Enumerable.Range(1, 10).SelectMany(number => new[]
+        await Task.WhenAll(Enumerable.Range(1, WidgetSlotRules.SlotsPerSize).SelectMany(number => new[]
         {
             Repository.AssignSlotAsync(WidgetSize.Small, number, small.Id),
             Repository.AssignSlotAsync(WidgetSize.Medium, number, medium.Id)
         }));
-        Assert.Equal(20, (await Repository.ReadLibraryAsync()).Slots.Count);
+        Assert.Equal(40, (await Repository.ReadLibraryAsync()).Slots.Count);
         await Repository.AssignSlotAsync(WidgetSize.Small, 1, null);
-        var slots = (await Repository.ReadLibraryAsync()).Slots; Assert.Equal(19, slots.Count);
+        var slots = (await Repository.ReadLibraryAsync()).Slots; Assert.Equal(39, slots.Count);
         Assert.DoesNotContain(slots, x => x.Size == WidgetSize.Small && x.Number == 1);
         Assert.Contains(slots, x => x.Size == WidgetSize.Medium && x.Number == 1 && x.DesignId == medium.Id);
+    }
+    [Fact]
+    public async Task AllEightyAddressesPublishAndReopenWithoutLosingOriginalTenSlots()
+    {
+        var repository = Repository;
+        var designs = new List<WidgetDesign>();
+        foreach (var size in WidgetDesignRules.SupportedSizes)
+        {
+            var design = await repository.SaveAsync(WidgetDesignRules.New() with { Size = size }, Png);
+            designs.Add(design);
+            for (var number = 1; number <= 10; number++) await repository.AssignSlotAsync(size, number, design.Id);
+        }
+        var original = (await Repository.ReadLibraryAsync()).Slots.ToArray();
+        foreach (var design in designs)
+            for (var number = 11; number <= 20; number++) await Repository.AssignSlotAsync(design.Size, number, design.Id);
+        await Publisher.PublishAsync();
+        var reopened = await Repository.ReadLibraryAsync();
+        Assert.Equal(80, reopened.Slots.Count);
+        foreach (var slot in original) Assert.Contains(slot, reopened.Slots);
+        var path = Path.Combine(Shared, "slots.json");
+        var bytes = await File.ReadAllBytesAsync(path);
+        Assert.True(bytes.Length < WidgetSlotRules.MaximumCatalogBytes);
+        var shared = JsonSerializer.Deserialize(bytes, WidgetDesignRules.JsonContext.WidgetSlotCatalog)!;
+        WidgetSlotRules.Validate(shared);
+        Assert.Equal(reopened.Slots, shared.Slots);
+        await Repository.AssignSlotAsync(WidgetSize.Medium, 20, null);
+        await Publisher.PublishAsync();
+        Assert.Equal(79, (await Repository.ReadLibraryAsync()).Slots.Count);
+        var cleared = JsonSerializer.Deserialize(await File.ReadAllBytesAsync(path), WidgetDesignRules.JsonContext.WidgetSlotCatalog)!;
+        Assert.DoesNotContain(cleared.Slots, x => x.Size == WidgetSize.Medium && x.Number == 20);
+        Assert.Contains(cleared.Slots, x => x.Size == WidgetSize.Small && x.Number == 20);
+        Assert.Equal(4, (await Repository.ReadLibraryAsync()).Designs.Count);
     }
     [Fact]
     public async Task RenameAndPhotoEditKeepAssignmentsButResizeAndDeleteClearThemAtomically()
@@ -61,7 +93,7 @@ public sealed class WidgetSlotRepositoryTests : IDisposable
         Assert.Empty((await Repository.ReadLibraryAsync()).Slots);
         var restored = await Repository.SaveAsync(resized with { Size = WidgetSize.Small }, Png);
         Assert.Empty((await Repository.ReadLibraryAsync()).Slots);
-        await Repository.AssignSlotAsync(restored.Size, 10, restored.Id); await Repository.DeleteAsync(restored.Id);
+        await Repository.AssignSlotAsync(restored.Size, 20, restored.Id); await Repository.DeleteAsync(restored.Id);
         var empty = await Repository.ReadLibraryAsync(); Assert.Empty(empty.Designs); Assert.Empty(empty.Slots);
     }
     [Fact]
@@ -71,7 +103,7 @@ public sealed class WidgetSlotRepositoryTests : IDisposable
         await Repository.AssignSlotAsync(saved.Size, 1, saved.Id);
         var bytes = await File.ReadAllBytesAsync(Catalog);
         await Assert.ThrowsAsync<IOException>(() => Repository.AssignSlotAsync(WidgetSize.Medium, 1, saved.Id));
-        await Assert.ThrowsAsync<IOException>(() => Repository.AssignSlotAsync(WidgetSize.Small, 11, saved.Id));
+        await Assert.ThrowsAsync<IOException>(() => Repository.AssignSlotAsync(WidgetSize.Small, 21, saved.Id));
         await Assert.ThrowsAsync<IOException>(() => Repository.AssignSlotAsync(saved.Size, 1, Guid.NewGuid()));
         using var cancel = new CancellationTokenSource(); cancel.Cancel();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => Repository.AssignSlotAsync(saved.Size, 1, null, cancel.Token));

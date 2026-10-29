@@ -106,7 +106,11 @@ struct ControlStudioWidgets: WidgetBundle {
     init() { CSInstallWidgetBackgroundAdapter() }
     var body: some Widget {
         CounterWidget()
+// BEGIN GENERATED SLOTS bundle (scripts/widget_slot_config.py)
         StudioSlotsOneToFive().body
         StudioSlotsSixToTen().body
+        StudioSlotsElevenToFifteen().body
+        StudioSlotsSixteenToTwenty().body
+// END GENERATED SLOTS bundle
     }
 }

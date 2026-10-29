@@ -233,7 +233,7 @@ internal sealed partial class WidgetEditorPage : ContentPage
         backgroundHeading.Add(backgroundLabel); backgroundHeading.Add(chooseBackground, 1);
         form.Children.Add(Card(new VerticalStackLayout { Spacing = 10, Children = { backgroundHeading, backgroundMode, backgroundHelp, solid, background } }));
         status.IsVisible = false; form.Children.Add(status); form.Children.Add(save);
-        form.Children.Add(SettingsControls.Text("Save, then open Widget slots in My Widgets and assign this design to a matching slot. Add Control Studio → Studio 1–10 on your Home Screen. iOS schedules updates.", 12, secondary: true));
+        form.Children.Add(SettingsControls.Text($"Save, then open Widget slots in My Widgets and assign this design to a matching slot. Add Control Studio → Studio 1–{WidgetSlotRules.SlotsPerSize} on your Home Screen. iOS schedules updates.", 12, secondary: true));
         save.Clicked += async (_, _) => await RunAsync(SaveAsync);
         cancel.Clicked += async (_, _) => await ExitAsync(); back.Clicked += async (_, _) => await ExitAsync();
         var layout = new Grid { RowDefinitions = { new(GridLength.Auto), new(GridLength.Star) } };

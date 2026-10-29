@@ -12,6 +12,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 from app_group_config import synchronize
 from validate_ipa import validate_scene_manifest
 from check_widget_metadata import validate_widget_metadata
+from widget_slot_config import synchronize as synchronize_slots
 
 
 def source_files(root, suffixes):
@@ -26,6 +27,7 @@ def source_files(root, suffixes):
 
 
 def main():
+    synchronize_slots(check=True)
     validate_widget_metadata()
     for path in [*source_files(ROOT, {".csproj"}), ROOT / "Directory.Build.props"]:
         ET.parse(path)

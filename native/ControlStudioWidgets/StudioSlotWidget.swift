@@ -272,58 +272,127 @@ private enum StudioSlotConfiguration {
 
 // WidgetKit requires init(). Each concrete type keeps its slot fixed even when
 // the system reconstructs it, while sharing the configuration and rendering.
+// BEGIN GENERATED SLOTS widgets (scripts/widget_slot_config.py)
 struct StudioSlotOneWidget: Widget {
     var body: some WidgetConfiguration {
         StudioSlotConfiguration.make(slot: 1).configurationDisplayName("Studio 1")
     }
 }
+
 struct StudioSlotTwoWidget: Widget {
     var body: some WidgetConfiguration {
         StudioSlotConfiguration.make(slot: 2).configurationDisplayName("Studio 2")
     }
 }
+
 struct StudioSlotThreeWidget: Widget {
     var body: some WidgetConfiguration {
         StudioSlotConfiguration.make(slot: 3).configurationDisplayName("Studio 3")
     }
 }
+
 struct StudioSlotFourWidget: Widget {
     var body: some WidgetConfiguration {
         StudioSlotConfiguration.make(slot: 4).configurationDisplayName("Studio 4")
     }
 }
+
 struct StudioSlotFiveWidget: Widget {
     var body: some WidgetConfiguration {
         StudioSlotConfiguration.make(slot: 5).configurationDisplayName("Studio 5")
     }
 }
+
 struct StudioSlotSixWidget: Widget {
     var body: some WidgetConfiguration {
         StudioSlotConfiguration.make(slot: 6).configurationDisplayName("Studio 6")
     }
 }
+
 struct StudioSlotSevenWidget: Widget {
     var body: some WidgetConfiguration {
         StudioSlotConfiguration.make(slot: 7).configurationDisplayName("Studio 7")
     }
 }
+
 struct StudioSlotEightWidget: Widget {
     var body: some WidgetConfiguration {
         StudioSlotConfiguration.make(slot: 8).configurationDisplayName("Studio 8")
     }
 }
+
 struct StudioSlotNineWidget: Widget {
     var body: some WidgetConfiguration {
         StudioSlotConfiguration.make(slot: 9).configurationDisplayName("Studio 9")
     }
 }
+
 struct StudioSlotTenWidget: Widget {
     var body: some WidgetConfiguration {
         StudioSlotConfiguration.make(slot: 10).configurationDisplayName("Studio 10")
     }
 }
 
-// Small groups also work with older WidgetBundleBuilder overload limits.
+struct StudioSlotElevenWidget: Widget {
+    var body: some WidgetConfiguration {
+        StudioSlotConfiguration.make(slot: 11).configurationDisplayName("Studio 11")
+    }
+}
+
+struct StudioSlotTwelveWidget: Widget {
+    var body: some WidgetConfiguration {
+        StudioSlotConfiguration.make(slot: 12).configurationDisplayName("Studio 12")
+    }
+}
+
+struct StudioSlotThirteenWidget: Widget {
+    var body: some WidgetConfiguration {
+        StudioSlotConfiguration.make(slot: 13).configurationDisplayName("Studio 13")
+    }
+}
+
+struct StudioSlotFourteenWidget: Widget {
+    var body: some WidgetConfiguration {
+        StudioSlotConfiguration.make(slot: 14).configurationDisplayName("Studio 14")
+    }
+}
+
+struct StudioSlotFifteenWidget: Widget {
+    var body: some WidgetConfiguration {
+        StudioSlotConfiguration.make(slot: 15).configurationDisplayName("Studio 15")
+    }
+}
+
+struct StudioSlotSixteenWidget: Widget {
+    var body: some WidgetConfiguration {
+        StudioSlotConfiguration.make(slot: 16).configurationDisplayName("Studio 16")
+    }
+}
+
+struct StudioSlotSeventeenWidget: Widget {
+    var body: some WidgetConfiguration {
+        StudioSlotConfiguration.make(slot: 17).configurationDisplayName("Studio 17")
+    }
+}
+
+struct StudioSlotEighteenWidget: Widget {
+    var body: some WidgetConfiguration {
+        StudioSlotConfiguration.make(slot: 18).configurationDisplayName("Studio 18")
+    }
+}
+
+struct StudioSlotNineteenWidget: Widget {
+    var body: some WidgetConfiguration {
+        StudioSlotConfiguration.make(slot: 19).configurationDisplayName("Studio 19")
+    }
+}
+
+struct StudioSlotTwentyWidget: Widget {
+    var body: some WidgetConfiguration {
+        StudioSlotConfiguration.make(slot: 20).configurationDisplayName("Studio 20")
+    }
+}
+
 struct StudioSlotsOneToFive: WidgetBundle {
     var body: some Widget {
         StudioSlotOneWidget()
@@ -333,6 +402,7 @@ struct StudioSlotsOneToFive: WidgetBundle {
         StudioSlotFiveWidget()
     }
 }
+
 struct StudioSlotsSixToTen: WidgetBundle {
     var body: some Widget {
         StudioSlotSixWidget()
@@ -343,6 +413,26 @@ struct StudioSlotsSixToTen: WidgetBundle {
     }
 }
 
+struct StudioSlotsElevenToFifteen: WidgetBundle {
+    var body: some Widget {
+        StudioSlotElevenWidget()
+        StudioSlotTwelveWidget()
+        StudioSlotThirteenWidget()
+        StudioSlotFourteenWidget()
+        StudioSlotFifteenWidget()
+    }
+}
+
+struct StudioSlotsSixteenToTwenty: WidgetBundle {
+    var body: some Widget {
+        StudioSlotSixteenWidget()
+        StudioSlotSeventeenWidget()
+        StudioSlotEighteenWidget()
+        StudioSlotNineteenWidget()
+        StudioSlotTwentyWidget()
+    }
+}
+// END GENERATED SLOTS widgets
 
 // Same canonical 160 x 100 artwork as WidgetBatteryDrawing in the app.
 private struct StudioBatteryArtwork: View {

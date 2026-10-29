@@ -1,5 +1,7 @@
 # Control Studio
 
+Version **0.2.47 (49)** adds [twenty slots per widget size](docs/widget-slot-capacity.md), preserving existing addresses and generating native registration, storage limits and transparency membership from one shared configuration. All 951 local automated checks and managed iOS compilation pass; native/iPhone verification remains pending. The owner authorized committing, pushing main and pushing the new tag, and will monitor the IPA build.
+
 Version **0.2.46 (48)** adds [widget editor Undo/Redo](docs/widget-editor-history.md) above the live preview, with up to 100 session steps, grouped gestures/sliders and retained photos for layer restoration. Review corrected slider cancellation recovery and typing-history boundaries. All 944 local checks and managed iOS compilation pass; native/iPhone verification remains pending. The owner authorized committing, pushing main and pushing the new tag, and will monitor the IPA build.
 
 Version **0.2.44 (46)** fixes hidden or zero-opacity Clock/Date/Battery layers splitting photo blend groups in new previews/exports. Existing saved scenes remain readable and are updated only on explicit save. All 851 local checks and managed iOS compilation pass; Swift/Xcode and iPhone visual verification remain pending. See [grouping compatibility and device checks](docs/widget-hidden-layer-blending.md). The owner authorized committing, pushing main and pushing the new tag, and will monitor the build.

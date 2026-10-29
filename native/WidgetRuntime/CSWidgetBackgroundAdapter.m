@@ -25,10 +25,30 @@ BOOL CSIsStudioSlotKind(NSString *kind) {
     static NSSet<NSString *> *kinds;
     static dispatch_once_t once;
     dispatch_once(&once, ^{
-        kinds = [NSSet setWithArray:@[@"ControlStudio.Slot.1", @"ControlStudio.Slot.2",
-            @"ControlStudio.Slot.3", @"ControlStudio.Slot.4", @"ControlStudio.Slot.5",
-            @"ControlStudio.Slot.6", @"ControlStudio.Slot.7", @"ControlStudio.Slot.8",
-            @"ControlStudio.Slot.9", @"ControlStudio.Slot.10"]];
+// BEGIN GENERATED SLOTS kinds (scripts/widget_slot_config.py)
+        kinds = [NSSet setWithArray:@[
+            @"ControlStudio.Slot.1",
+            @"ControlStudio.Slot.2",
+            @"ControlStudio.Slot.3",
+            @"ControlStudio.Slot.4",
+            @"ControlStudio.Slot.5",
+            @"ControlStudio.Slot.6",
+            @"ControlStudio.Slot.7",
+            @"ControlStudio.Slot.8",
+            @"ControlStudio.Slot.9",
+            @"ControlStudio.Slot.10",
+            @"ControlStudio.Slot.11",
+            @"ControlStudio.Slot.12",
+            @"ControlStudio.Slot.13",
+            @"ControlStudio.Slot.14",
+            @"ControlStudio.Slot.15",
+            @"ControlStudio.Slot.16",
+            @"ControlStudio.Slot.17",
+            @"ControlStudio.Slot.18",
+            @"ControlStudio.Slot.19",
+            @"ControlStudio.Slot.20"
+        ]];
+// END GENERATED SLOTS kinds
     });
     return [kinds containsObject:kind];
 }
