@@ -2,6 +2,8 @@
   <PropertyGroup><TargetFramework>net10.0</TargetFramework><IsTestProject>true</IsTestProject><IsPackable>false</IsPackable></PropertyGroup>
   <ItemGroup>
     <Compile Include="../../src/ControlStudio.App/WidgetTapRouter.cs" Link="WidgetTapRouter.cs" />
+    <Compile Include="../../src/ControlStudio.App/WidgetTapSession.cs" Link="WidgetTapSession.cs" />
+    <Compile Include="../../src/ControlStudio.App/WidgetTapLaunchInbox.cs" Link="WidgetTapLaunchInbox.cs" />
     <Compile Include="../../src/ControlStudio.App/Views/WidgetTapNavigation.cs" Link="Views/WidgetTapNavigation.cs" />
     <None Include="../../contracts/widget-battery-labels-v1.example.json" Link="widget-battery-labels-v1.example.json" CopyToOutputDirectory="PreserveNewest" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />

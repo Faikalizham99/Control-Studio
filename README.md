@@ -1,5 +1,7 @@
 # Control Studio
 
+Version **0.2.49 (51)** adds [startup recovery for widget tap navigation](docs/widget-tap-startup-fix.md), restoring standard MAUI delegates, guarding optional link observers and lazily constructing routing only for valid widget links. Ordinary launch/resume skip widget routing and timer creation. All 1,016 local checks and managed iOS compilation pass; physical iPhone launch verification remains pending. The owner authorized committing, pushing main and pushing the new tag, and will monitor the IPA build.
+
 Version **0.2.48 (50)** adds [Home Screen widget tap navigation](docs/widget-tap-navigation.md), opening the assigned design in the existing editor, empty slots at their matching size and Counter at Home. Existing widget drafts are protected. All 998 local checks and managed iOS compilation pass; native/iPhone delivery checks remain pending. The owner authorized committing, pushing main and pushing the new tag, and will monitor the IPA build.
 
 Version **0.2.47 (49)** adds [twenty slots per widget size](docs/widget-slot-capacity.md), preserving existing addresses and generating native registration, storage limits and transparency membership from one shared configuration. All 951 local automated checks and managed iOS compilation pass; native/iPhone verification remains pending. The owner authorized committing, pushing main and pushing the new tag, and will monitor the IPA build.

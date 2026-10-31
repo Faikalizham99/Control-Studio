@@ -1,0 +1,23 @@
+# Widget tap startup recovery
+
+Version **0.2.49 (51)** contains the startup correction described below.
+
+The owner's v0.2.48 (50) report records a foreground SIGABRT on iOS 27.0, about 0.4 seconds after launch, while UIKit connects the scene. Read-only inspection of the matching release IPA confirmed that its executable UUID matches the report. The app frame at offset `0x213c414` lies inside the registered `SceneDelegate.scene:willConnectToSession:options:` implementation beginning at `0x213c3cc`. The report omits the underlying managed exception message and managed throwing frame. It identifies the failing callback boundary, not the precise C# statement; missing URLs and timer initialization are not claimed as proven individual causes.
+
+## Change
+
+SceneDelegate and AppDelegate return to their standard MAUI implementations, with no custom native lifecycle overrides. Guarded public MAUI lifecycle observers now capture cold URL data before the window exists, retain at most one validated address for its scene, and deliver it through the public Window.Created event or scene activation once the corresponding native window can be found. Warm URLs and the application-delegate fallback use the same guarded forwarding. Null, disposed or empty native URL collections are ignored, and managed errors from optional observers are contained and logged by error type only. Base MAUI scene/window creation remains outside those exception boundaries. The existing Info.plist scene manifest and URL scheme are unchanged.
+
+App's constructor again takes its original four dependencies. A normal icon launch and resume only create/update the small per-window WidgetTapSession object. They do not resolve optional widget services, construct a router, obtain a dispatcher or create a timer. A validated widget address is retained without initialization until activation and posted processing. Router/service/timer construction then occurs behind a managed exception boundary. Partial initialization, readiness, timer setup/start/stop and cleanup failures clear only the optional request, release owned resources and permit a later tap to retry. Logging failures cannot escape this boundary either.
+
+The existing router still serializes navigation, cancels stale reads, resolves current assignments and protects open widget drafts. Native/MAUI modal and editor-busy guards still defer requests. The timer exists only after a valid widget request and only runs while active work is pending. Backgrounding cancels reads and stops it; window destruction cancels and unsubscribes it. A runtime generation guard prevents late work from a failed/disposed router from touching its replacement timer. Scene disconnect discards undelivered data for that scene; a different scene cannot consume it.
+
+No saved library, slot assignment, photo, profile, layer, appearance or widget rendering format changes. There is no new user-facing setting, diagnostic page, persistence migration, dependency or workflow change. The owner subsequently authorized committing, pushing main and pushing a new version tag. IPA generation remains exclusive to a new version tag; the owner will monitor the build.
+
+## Verification and limits
+
+New portable tests execute the production session and launch inbox with simulated native dependencies: ordinary icon launch/resume with throwing factories, inactive/cold links, null/empty/unrelated payloads, scene matching, duplicate delivery, broken payload enumeration, failed/reentrant delivery, initialization/registration/start/stop failures, cancellation, disposal, logging failure and late completion after runtime replacement. Existing routing, editor protection, Undo history, photo-picker cancellation, all four families and assignment-race tests continue to run.
+
+These tests do not execute UIKit or the iOS startup callback on Windows. Managed iOS compilation checks the actual lifecycle API signatures; source/project, packaging and whitespace checks also run. Physical iPhone verification must confirm ordinary icon launch first, then cold/warm widget taps, background/return, empty slots, Counter, picker interruption and retained drafts. Because the original exception message was not recorded, device confirmation is required before treating the launch regression as resolved.
+
+All **1,016 local automated checks** pass: 298 Core, 121 Infrastructure, 539 App and 58 packaging checks, with no skipped cases. This includes 18 new startup/session cases and the existing widget navigation regressions. Managed iOS compilation passes with zero warnings/errors. No native launch, simulator run or physical iPhone confirmation is claimed by these results.

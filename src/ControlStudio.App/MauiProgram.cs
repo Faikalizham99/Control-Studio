@@ -4,6 +4,7 @@ using ControlStudio.Core;
 using ControlStudio.Core.Actions;
 using ControlStudio.Infrastructure;
 using Microsoft.Extensions.Logging;
+using Microsoft.Maui.LifecycleEvents;
 
 namespace ControlStudio.App;
 
@@ -12,6 +13,12 @@ public static class MauiProgram
     public static MauiApp CreateMauiApp()
     {
         var builder = MauiApp.CreateBuilder().UseMauiApp<App>();
+        builder.ConfigureLifecycleEvents(events => events.AddiOS(ios => ios
+            .SceneWillConnect(AppleWidgetTapLinks.Connecting)
+            .SceneOnActivated(AppleWidgetTapLinks.Activated)
+            .SceneDidDisconnect(AppleWidgetTapLinks.Disconnected)
+            .SceneOpenUrl(AppleWidgetTapLinks.Open)
+            .OpenUrl((_, url, _) => AppleWidgetTapLinks.OpenApplication(url))));
         builder.ConfigureMauiHandlers(handlers =>
         {
             handlers.AddHandler<TabbedPage, SpinningGearTabbedRenderer>();
