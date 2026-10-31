@@ -1,0 +1,13 @@
+{
+  "counter": "controlstudio://counter",
+  "slots": [
+    { "size": "small", "number": 1, "url": "controlstudio://widget/small/1" },
+    { "size": "small", "number": 20, "url": "controlstudio://widget/small/20" },
+    { "size": "medium", "number": 1, "url": "controlstudio://widget/medium/1" },
+    { "size": "medium", "number": 20, "url": "controlstudio://widget/medium/20" },
+    { "size": "large", "number": 1, "url": "controlstudio://widget/large/1" },
+    { "size": "large", "number": 20, "url": "controlstudio://widget/large/20" },
+    { "size": "extraLargePortrait", "number": 1, "url": "controlstudio://widget/extraLargePortrait/1" },
+    { "size": "extraLargePortrait", "number": 20, "url": "controlstudio://widget/extraLargePortrait/20" }
+  ]
+}

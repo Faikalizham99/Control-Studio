@@ -2,6 +2,19 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>com.faikalizham.controlstudio.widget</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>controlstudio</string>
+			</array>
+		</dict>
+	</array>
 	<key>ControlStudioAppGroup</key>
 	<string>group.23b5a5355f697168.1</string>
 	<key>LSRequiresIPhoneOS</key>

@@ -24,12 +24,13 @@ internal sealed class WidgetsPage : WidgetStudioPage
     private IReadOnlyList<WidgetDesign> saved = [];
     private WidgetSize SelectedSize => MainSizes[sizes.SelectedIndex];
 
-    public WidgetsPage(WidgetStudioService studio, AppleColorPicker colourPicker, ILogger logger) : base(logger)
+    public WidgetsPage(WidgetStudioService studio, AppleColorPicker colourPicker, ILogger logger, WidgetSize initialSize = WidgetSize.Small) : base(logger)
     {
         this.studio = studio; this.colourPicker = colourPicker;
         Title = "My Widgets"; AutomationId = "WidgetsPage";
         sizes = new(["Small", "Medium", "Large", "XL"], "WidgetSizeFilter", _ => FilterChanged());
-        xlHint.IsVisible = false;
+        sizes.Update(Math.Max(0, Array.IndexOf(MainSizes, initialSize)));
+        xlHint.IsVisible = SelectedSize == WidgetSize.ExtraLargePortrait;
         add.Clicked += async (_, _) => await RunAsync((_, _) => Navigation.PushAsync(new WidgetEditorPage(studio, colourPicker, Logger, initialSize: SelectedSize)));
         back.Clicked += async (_, _) => await RunAsync((_, _) => Navigation.PopAsync());
         refresh.Clicked += async (_, _) => await RefreshWidgetsAsync();

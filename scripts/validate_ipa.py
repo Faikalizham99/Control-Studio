@@ -53,10 +53,20 @@ def validate_scene_manifest(info):
                 for scene in scenes), "Required MAUI scene configuration missing")
 
 
+def validate_widget_link_scheme(info):
+    entries = info.get("CFBundleURLTypes", [])
+    require(isinstance(entries, list), "Widget tap URL registration missing")
+    schemes = [scheme for entry in entries if isinstance(entry, dict)
+               and isinstance(entry.get("CFBundleURLSchemes"), list)
+               for scheme in entry["CFBundleURLSchemes"]]
+    require(schemes.count("controlstudio") == 1, "Widget tap URL registration missing or duplicated")
+
+
 def validate_metadata(app):
     app = Path(app)
     host = read_plist(app / "Info.plist")
     validate_scene_manifest(host)
+    validate_widget_link_scheme(host)
     bundles = []
     for relative, (identifier, point) in BUNDLES.items():
         bundle = app / relative

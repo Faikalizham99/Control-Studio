@@ -59,6 +59,9 @@ internal sealed partial class WidgetEditorPage : ContentPage
     private Window? observedWindow;
     private bool Foreground => EditorPageActivity.IsForeground(this);
     private bool CanEdit => Foreground && !busy && !saved && !departed && !background.IsBusy && !clockControls.IsBusy && !batteryControls.IsBusy && !canvas.IsInteracting && !layerList.IsReordering;
+    internal Guid DesignId => draft.Id;
+    internal bool CanAcceptWidgetTap => !busy && !saved && !departed && !closing && !background.IsBusy && !clockControls.IsBusy
+        && !batteryControls.IsBusy && !canvas.IsInteracting && !layerList.IsReordering && !history.IsInteracting;
 
     public WidgetEditorPage(IWidgetEditorStore studio, IColourPicker colourPicker, ILogger logger, WidgetDesign? original = null, WidgetSize initialSize = WidgetSize.Small, Func<Task<string?>>? choosePhotoSource = null, Func<Task<string?>>? chooseLayerType = null, Func<string, string[], Task<string?>>? chooseLayerAction = null, Func<WidgetLayer, Task<bool>>? confirmLayerDeletion = null)
     {

@@ -86,6 +86,8 @@ struct CounterWidgetView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .foregroundStyle(dark ? Color.white : Color(red: 22 / 255.0, green: 23 / 255.0, blue: 28 / 255.0))
         .environment(\.colorScheme, dark ? .dark : .light)
+        .widgetURL(WidgetTapLinks.counter)
+        .accessibilityHint("Opens the counter in Control Studio.")
         .containerBackground(for: .widget) { background }
     }
 }

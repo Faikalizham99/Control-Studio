@@ -1,0 +1,27 @@
+# Open the widget editor from the Home Screen
+
+Version **0.2.48 (50)** opens the normal Edit widget page for the current design at that size/slot when an assigned Studio widget is tapped. Empty slots open Widget slots with the matching size selected. Counter opens Home. The editor, layer controls, Undo/Redo, Save and preview are reused; no separate editing implementation is introduced.
+
+## Routing and draft protection
+
+The widget uses Apple's public [`widgetURL`](https://developer.apple.com/documentation/widgetkit/linking-to-specific-app-scenes-from-your-widget-or-live-activity) mechanism. Studio links contain only `controlstudio://widget/<size>/<number>`; Counter uses `controlstudio://counter`. The link uses the actual WidgetKit family, independently of whether the widget is showing a photo, live layers or an empty/error state. Supported families are Small, Medium, Large and iPhone XL, at slots 1–20. Gallery metadata and transparency policy are unchanged.
+
+The app reads its private saved library and resolves the current assignment when the link is opened. It does not trust a cached design ID from a widget timeline. If navigation to My Widgets yields, the app rereads the assignment before opening an editor, preventing an outdated design from being opened after an assignment changes during that transition. A shared C#/Swift fixture covers size tokens and both slot boundaries.
+
+If that design already has an editor open, the existing draft and Undo history are reused. If a different widget editor is open, it stays intact and a message asks the user to save or cancel it before tapping the other widget again. No draft, imported photo or history is silently discarded. Counter can switch to Home while the Studio draft remains on its navigation stack. Studio and Settings navigation stacks stay intact. Back from a newly opened editor returns through My Widgets.
+
+The URL parser accepts only bounded local navigation addresses. It rejects unsupported schemes/hosts/sizes, retired iPad XL, slots outside 1–20, queries, fragments, credentials, ports, escaped paths, path traversal and malformed numbers. Opening a link cannot assign, save, delete or import anything. Resolving an unreadable/corrupt library reports an error rather than modifying it or substituting another design.
+
+## iOS lifecycle
+
+The app registers `controlstudio` in its Info.plist. Cold delivery is read from SceneDelegate connection options **after** MAUI has created that scene's window; warm delivery uses the scene's URL callback. AppDelegate retains a single-window fallback, and all overrides preserve MAUI's base handling. This follows the pinned [MAUI 10.0.110 scene delegate](https://github.com/dotnet/maui/blob/10.0.110/src/Core/src/Platform/iOS/MauiUISceneDelegate.cs), whose connection options and URL callbacks are separate paths. Scene URLs are routed only to the corresponding MAUI window.
+
+Requests are dispatched on the UI thread, wait for an active/ready window, and serialize navigation. The latest pending tap replaces an older pending read; repeated delivery during the same request does not duplicate navigation. Backgrounding cancels pending reads and retains the request for resume. A widget editor's active gestures, sliders, native pickers, saves and closing state defer routing. Native/MAUI modal presentation also defers routing. A 250 ms dispatcher retry timer runs only while an active window has pending work, including picker dismissal that does not raise a MAUI activation event; it stops on completion, backgrounding or destruction. No library reads occur while readiness is false. Window destruction cancels the router and disconnects its timer callback. Errors are reported once per request and logs contain only error types.
+
+## Review and verification
+
+Automated checks exercise all 80 valid addresses, malformed input, shared native/managed links, current assignment resolution, cold/ready delivery, duplicates, replacement/cancellation, background/resume, disposal, recoverable errors, native-modal deferral, all four editor/fallback families, preserved draft/history, cancelled photo-picker recovery and Counter navigation. A review regression first reproduced the outdated assignment after opening My Widgets; the second resolution fixes it. The IPA validator and source checks require the tap scheme to be registered exactly once, so an omitted scheme fails validation before release.
+
+All **998 local automated checks** pass: 298 Core, 121 Infrastructure, 521 App and 58 packaging checks, with no skipped cases. Source/project and whitespace checks pass. Managed iOS C# compilation passes with zero warnings/errors. Widgets include VoiceOver tap hints; existing app styling, controls and editor accessibility are reused.
+
+Managed iOS compilation includes the actual scene/application delegate callback signatures. Native Swift tests have been added, but cannot run on this Windows workstation. Physical iPhone checks remain necessary for real cold/warm URL delivery, unsigned-to-signed IPA preservation of the scheme, Studio slots 1/11/20 in each size, live/static/transparent content, empty/error widgets, Back behavior, repeated taps, native picker/background interruptions and VoiceOver. Existing Home Screen widgets may require a timeline refresh to receive the new tap destination. The owner subsequently authorized committing, pushing main and pushing the new version tag. IPA generation remains exclusive to a new version tag; the owner will monitor the build.

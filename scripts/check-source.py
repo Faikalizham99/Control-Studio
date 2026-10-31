@@ -10,7 +10,7 @@ import os
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 from app_group_config import synchronize
-from validate_ipa import validate_scene_manifest
+from validate_ipa import validate_scene_manifest, validate_widget_link_scheme
 from check_widget_metadata import validate_widget_metadata
 from widget_slot_config import synchronize as synchronize_slots
 
@@ -41,6 +41,7 @@ def main():
     assert toolchain["workload"]["version"] == "10.0.401.1"
     host = plistlib.loads((ROOT / "src/ControlStudio.App/Platforms/iOS/Info.plist").read_bytes())
     validate_scene_manifest(host)
+    validate_widget_link_scheme(host)
     spec = importlib.util.spec_from_file_location("generator", ROOT / "scripts/generate-xcode-project.py")
     generator = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(generator)

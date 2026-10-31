@@ -32,6 +32,8 @@ class PackagingTests(unittest.TestCase):
                     for filename in [font["file"], font["licence"]]:
                         shutil.copyfile(folder / filename, bundle / filename)
             if not relative:
+                info["CFBundleURLTypes"] = [{"CFBundleURLName": "com.faikalizham.controlstudio.widget",
+                                            "CFBundleURLSchemes": ["controlstudio"]}]
                 info["UIApplicationSceneManifest"] = {"UIApplicationSupportsMultipleScenes": False, "UISceneConfigurations": {
                     "UIWindowSceneSessionRoleApplication": [{"UISceneConfigurationName": "__MAUI_DEFAULT_SCENE_CONFIGURATION__",
                                                            "UISceneDelegateClassName": "SceneDelegate"}]}}
@@ -67,6 +69,20 @@ class PackagingTests(unittest.TestCase):
 
     def test_accepts_expected_structure_only(self):
         self.assertEqual(len(validate_metadata(self.app)), 3)
+
+    def test_widget_tap_scheme_cannot_be_missing_changed_or_duplicated(self):
+        for entries in [None, [], [{"CFBundleURLSchemes": ["other"]}],
+                        [{"CFBundleURLSchemes": "controlstudio"}],
+                        [{"CFBundleURLSchemes": ["controlstudio", "controlstudio"]}]]:
+            with self.subTest(entries=entries):
+                if entries is None:
+                    path = self.app / "Info.plist"
+                    info = plistlib.loads(path.read_bytes()); info.pop("CFBundleURLTypes", None)
+                    path.write_bytes(plistlib.dumps(info))
+                else:
+                    self.mutate("", "CFBundleURLTypes", entries)
+                with self.assertRaisesRegex(ValueError, "Widget tap URL registration"):
+                    validate_metadata(self.app)
 
     def test_clock_fonts_must_be_registered_in_both_rendering_bundles(self):
         for relative in ["", "PlugIns/ControlStudioWidgets.appex"]:

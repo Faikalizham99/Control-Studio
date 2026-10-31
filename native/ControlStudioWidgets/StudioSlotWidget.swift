@@ -22,7 +22,7 @@ struct StudioSlotProvider: TimelineProvider {
     let slot: Int
     func placeholder(in context: Context) -> StudioSlotEntry { StudioSlotEntry(date: .now, slot: slot) }
     func getSnapshot(in context: Context, completion: @escaping (StudioSlotEntry) -> Void) {
-        // Ten gallery entries should not decode ten full-size photos at once. The app shows assigned previews.
+        // Gallery entries must not decode every full-size photo at once. The app shows assigned previews.
         if context.isPreview {
             completion(StudioSlotEntry(date: .now, slot: slot, message: "Shows the design assigned to this slot and size. Choose it in Control Studio → Widget slots."))
             return
@@ -122,6 +122,20 @@ struct StudioSlotProvider: TimelineProvider {
 
 struct StudioSlotView: View {
     let entry: StudioSlotEntry
+    @Environment(\.widgetFamily) private var family
+    private var tapURL: URL? {
+        let size: WidgetDesignSize
+        if #available(iOS 27.0, *), family == .systemExtraLargePortrait { size = .extraLargePortrait }
+        else {
+            switch family {
+            case .systemSmall: size = .small
+            case .systemMedium: size = .medium
+            case .systemLarge: size = .large
+            default: return nil
+            }
+        }
+        return WidgetTapLinks.slot(size: size, number: entry.slot)
+    }
     var body: some View {
         Group {
             if #available(iOS 18.0, *), let scene = entry.scene {
@@ -151,6 +165,8 @@ struct StudioSlotView: View {
                     .background(Color(uiColor: .systemBackground))
             }
         }
+        .widgetURL(tapURL)
+        .accessibilityHint("Opens Control Studio for this widget slot.")
         .containerBackground(for: .widget) {
             if (entry.image != nil || entry.scene != nil) && entry.transparentBackground { Color.clear }
             else { Color(uiColor: .systemBackground) }

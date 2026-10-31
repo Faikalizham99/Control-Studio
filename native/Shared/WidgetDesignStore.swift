@@ -1,5 +1,14 @@
 import Foundation
 
+// Address the slot, not its cached image/design, so the app resolves current assignments.
+enum WidgetTapLinks {
+    static let counter = URL(string: "controlstudio://counter")!
+    static func slot(size: WidgetDesignSize, number: Int) -> URL? {
+        guard size.isSupported, (1...WidgetDesignStore.slotsPerSize).contains(number) else { return nil }
+        return URL(string: "controlstudio://widget/\(size.rawValue)/\(number)")
+    }
+}
+
 // Four bounded layout records, separate from the user's library. No images,
 // sessions or diagnostics. A failed write must never prevent timeline delivery.
 struct WidgetDisplayMeasurement: Encodable {
