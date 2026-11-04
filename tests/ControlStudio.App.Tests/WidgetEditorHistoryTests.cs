@@ -343,8 +343,9 @@ public sealed class WidgetEditorHistoryTests : IDisposable
         var editedKey = Guid.NewGuid().ToString("N");
         var store = new Store { Edit = layer => Task.FromResult<WidgetLayer?>(layer with { AssetKey = editedKey }) };
         var page = Editor(store, WidgetDesignRules.New() with { Layers = [original] }, menu: (_, choices) =>
-        { Assert.Contains("Edit photo / cut-out", choices); return Task.FromResult<string?>("Edit photo / cut-out"); }); Open(page);
+        { Assert.DoesNotContain("Edit photo / cut-out", choices); return Task.FromResult<string?>("Cancel"); }); Open(page);
         Click(page, "WidgetLayerOptions" + original.Id.ToString("N"));
+        Click(page, "WidgetEditPhoto");
         Assert.Equal(original with { AssetKey = editedKey }, Draft(page).Layers.Single());
         Assert.Contains("1 step", SemanticProperties.GetHint(Button(page, "WidgetUndo")));
         Click(page, "WidgetUndo"); Assert.Equal(original, Draft(page).Layers.Single()); Assert.DoesNotContain(editedKey, store.Removed);
@@ -354,14 +355,26 @@ public sealed class WidgetEditorHistoryTests : IDisposable
         Click(page, "WidgetUndo"); Lock(page, original.Id); Assert.Contains(editedKey, store.Removed);
     }
     [Theory]
-    [InlineData(false)] [InlineData(true)]
-    public void Cancelled_or_failed_cutout_keeps_draft_and_recovers_buttons(bool fails)
+    [InlineData(0)] [InlineData(1)] [InlineData(2)]
+    public void Cancelled_or_failed_cutout_keeps_draft_and_recovers_buttons(int failure)
     {
-        var original = Photo(); var store = new Store { Edit = _ => fails ? Task.FromException<WidgetLayer?>(new IOException("Cannot process photo")) : Task.FromResult<WidgetLayer?>(null) };
-        var page = Editor(store, WidgetDesignRules.New() with { Layers = [original] }, menu: (_, _) => Task.FromResult<string?>("Edit photo / cut-out")); Open(page);
-        Click(page, "WidgetLayerOptions" + original.Id.ToString("N"));
+        var original = Photo(); var store = new Store { Edit = _ => failure switch
+        {
+            1 => Task.FromException<WidgetLayer?>(new IOException("Cannot process photo")),
+            2 => Task.FromException<WidgetLayer?>(new InvalidOperationException("Private native details")),
+            _ => Task.FromResult<WidgetLayer?>(null)
+        } };
+        var page = Editor(store, WidgetDesignRules.New() with { Layers = [original] }); Open(page);
+        Click(page, "WidgetEditPhoto");
         Assert.Equal(original, Draft(page).Layers.Single()); Assert.True(Button(page, "SaveWidgetDesign").IsEnabled);
         Assert.False(Button(page, "WidgetUndo").IsEnabled); Assert.Empty(store.Removed);
+        Assert.True(Button(page, "WidgetEditPhoto").IsEnabled);
+        var message = All(page).OfType<Label>().Single(x => x.AutomationId == "WidgetPhotoEditStatus");
+        Assert.Equal(failure != 0, message.IsVisible);
+        if (failure == 1) Assert.Equal("Cannot process photo", message.Text);
+        if (failure == 2) { Assert.Contains("photo editor", message.Text); Assert.Contains("unchanged", message.Text); Assert.DoesNotContain("Private native", message.Text); }
+        Assert.Contains(message, All(All(page).OfType<Border>().Single(x => x.AutomationId == "WidgetEditorLivePreview")));
+        store.Edit = _ => Task.FromResult<WidgetLayer?>(null); Click(page, "WidgetEditPhoto"); Assert.False(message.IsVisible);
         Lock(page, original.Id); Assert.True(Draft(page).Layers.Single().Locked);
     }
     [Fact]
@@ -370,11 +383,15 @@ public sealed class WidgetEditorHistoryTests : IDisposable
         var completion = new TaskCompletionSource<WidgetLayer?>(); var calls = 0; var original = Photo();
         var store = new Store { Edit = _ => { calls++; return completion.Task; } };
         var root = new ContentPage(); var nav = Navigation(root); Open(nav);
-        var page = Editor(store, WidgetDesignRules.New() with { Layers = [original] }, menu: (_, _) => Task.FromResult<string?>("Edit photo / cut-out"));
+        var page = Editor(store, WidgetDesignRules.New() with { Layers = [original] });
         await nav.PushAsync(page); ((IPageController)page).SendAppearing();
-        Click(page, "WidgetLayerOptions" + original.Id.ToString("N")); Assert.False(Button(page, "SaveWidgetDesign").IsEnabled);
-        Click(page, "WidgetLayerOptions" + original.Id.ToString("N")); Assert.Equal(1, calls);
+        Click(page, "WidgetEditPhoto"); Assert.False(Button(page, "SaveWidgetDesign").IsEnabled);
+        Assert.True(store.CanPresentPhoto!());
+        Assert.NotNull(All(page).OfType<WidgetCompositeView>().Single().Design); // No blank canvas before the modal appears.
+        store.DidPresentPhoto!(); Assert.Null(All(page).OfType<WidgetCompositeView>().Single().Design);
+        Click(page, "WidgetEditPhoto"); Assert.Equal(1, calls);
         await nav.PopAsync();
+        Assert.False(store.CanPresentPhoto!());
         var edited = original with { AssetKey = Guid.NewGuid().ToString("N") }; completion.SetResult(edited);
         for (var i = 0; i < 20 && !store.Removed.Contains(edited.AssetKey); i++) await Task.Yield();
         Assert.Contains(edited.AssetKey, store.Removed); Assert.DoesNotContain(original.AssetKey, store.Removed);
@@ -384,10 +401,45 @@ public sealed class WidgetEditorHistoryTests : IDisposable
     {
         foreach (var layer in new[] { Photo() with { Locked = true }, WidgetClocks.New() })
         {
-            var page = Editor(new(), WidgetDesignRules.New() with { Layers = [layer] }, menu: (_, choices) =>
+            var calls = 0; var store = new Store { Edit = _ => { calls++; return Task.FromResult<WidgetLayer?>(null); } };
+            var page = Editor(store, WidgetDesignRules.New() with { Layers = [layer] }, menu: (_, choices) =>
             { Assert.DoesNotContain("Edit photo / cut-out", choices); return Task.FromResult<string?>("Cancel"); }); Open(page);
             Click(page, "WidgetLayerOptions" + layer.Id.ToString("N"));
+            Assert.False(Button(page, "WidgetEditPhoto").IsEnabled); Click(page, "WidgetEditPhoto"); Assert.Equal(0, calls);
         }
+    }
+    [Theory]
+    [InlineData(AppTheme.Light)] [InlineData(AppTheme.Dark)]
+    public void Photo_toolbar_exposes_edit_first_with_full_hit_target_and_recovers_after_unlock(AppTheme theme)
+    {
+        host.App.UserAppTheme = theme; host.App.Resources["AccentText"] = Colors.Purple;
+        var photo = Photo(); var page = Editor(new(), WidgetDesignRules.New() with { Layers = [photo] }); Open(page);
+        var tools = All(page).OfType<WidgetHorizontalStrip>().Single(x => x.AutomationId == "WidgetEditorToolbar");
+        var buttons = All(tools).OfType<WidgetToolButton>().ToArray(); Assert.Equal(7, buttons.Length);
+        Assert.Equal("WidgetEditPhotoTool", buttons[0].AutomationId); Assert.Equal(48, buttons[0].WidthRequest); Assert.Equal(48, buttons[0].HeightRequest);
+        var target = Button(page, "WidgetEditPhoto"); Assert.Contains("Remove background", SemanticProperties.GetDescription(target));
+        Assert.Contains(All(buttons[0]).OfType<StudioGlyph>(), x => x.Symbol == StudioSymbol.Edit && x.Tint == Colors.Purple);
+        Lock(page, photo.Id); Assert.False(target.IsEnabled); Lock(page, photo.Id); Assert.True(target.IsEnabled);
+    }
+    [Fact]
+    public void Empty_widget_cannot_open_photo_editor()
+    {
+        var calls = 0; var store = new Store { Edit = _ => { calls++; return Task.FromResult<WidgetLayer?>(null); } };
+        var page = Editor(store, WidgetDesignRules.New()); Open(page);
+        Assert.False(Button(page, "WidgetEditPhoto").IsEnabled); Click(page, "WidgetEditPhoto"); Assert.Equal(0, calls);
+    }
+    [Fact]
+    public async Task Backgrounding_before_presentation_invalidates_owner_and_cancel_recovers_preview()
+    {
+        var completion = new TaskCompletionSource<WidgetLayer?>(); var photo = Photo(); var store = new Store { Edit = _ => completion.Task };
+        var page = Editor(store, WidgetDesignRules.New() with { Layers = [photo] }); Open(page);
+        Click(page, "WidgetEditPhoto"); Assert.True(store.CanPresentPhoto!());
+        ((IWindow)host.App.Windows[0]).Deactivated(); Assert.False(store.CanPresentPhoto!());
+        completion.SetResult(null);
+        for (var i = 0; i < 20 && !Button(page, "SaveWidgetDesign").IsEnabled; i++) await Task.Yield();
+        ((IWindow)host.App.Windows[0]).Activated();
+        Assert.True(Button(page, "WidgetEditPhoto").IsEnabled); Assert.Equal(photo, Draft(page).Layers.Single());
+        Assert.False(Button(page, "WidgetUndo").IsEnabled);
     }
     private sealed class Picker : IColourPicker
     {
@@ -400,7 +452,10 @@ public sealed class WidgetEditorHistoryTests : IDisposable
         public WidgetCanvasSizing? CanvasSizing(WidgetSize size) => Sizing(size);
         public Func<bool, Task<WidgetLayer?>> Pick = _ => Task.FromResult<WidgetLayer?>(null);
         public Func<WidgetLayer, Task<WidgetLayer?>> Edit = _ => Task.FromResult<WidgetLayer?>(null);
-        public Task<WidgetLayer?> EditPhotoAsync(WidgetLayer layer) => Edit(layer);
+        public Func<bool>? CanPresentPhoto;
+        public Action? DidPresentPhoto;
+        public Task<WidgetLayer?> EditPhotoAsync(WidgetLayer layer, Func<bool> canPresent, Action didPresent)
+        { CanPresentPhoto = canPresent; DidPresentPhoto = didPresent; return Edit(layer); }
         public WidgetDesign? Saved;
         public bool FailSave;
         public int CleanupFailures;

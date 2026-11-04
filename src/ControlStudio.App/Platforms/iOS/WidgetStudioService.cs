@@ -91,9 +91,12 @@ public sealed class WidgetStudioService : IWidgetEditorStore
         }
         finally { gate.Release(); }
     }
-    public async Task<WidgetLayer?> EditPhotoAsync(WidgetLayer layer)
+    public async Task<WidgetLayer?> EditPhotoAsync(WidgetLayer layer, Func<bool> canPresent, Action didPresent)
     {
         if (layer.Kind != WidgetLayerKind.Photo || layer.Locked) return null;
+        var windows = Application.Current?.Windows.Where(x => x.IsActivated).ToArray();
+        if (windows is not { Length: 1 } || windows[0].Handler?.PlatformView is not UIWindow owner)
+            throw new IOException("Return to Control Studio, then tap Edit photo again.");
         var data = await Repository.ReadCutoutAsync(layer.AssetKey);
         using var imaging = await Task.Run(() => { using var pool = new NSAutoreleasePool(); return new PhotoCutoutImaging(data.Original); });
         if (imaging.Width != layer.PixelWidth || imaging.Height != layer.PixelHeight) throw new IOException("The photo dimensions changed. Choose the photo again.");
@@ -101,13 +104,13 @@ public sealed class WidgetStudioService : IWidgetEditorStore
         string? imported = null, accepted = null;
         try
         {
-            accepted = await PhotoCutoutEditor.EditAsync(imaging, data.Mask, accent, async result =>
+            accepted = await MainThread.InvokeOnMainThreadAsync(() => PhotoCutoutEditor.EditAsync(owner, canPresent, didPresent, imaging, data.Mask, accent, async result =>
             {
                 if (data.Mask is { } old && old.AsSpan().SequenceEqual(result.Mask)
                     || data.Mask is null && result.Mask.All(x => x == 255)) return layer.AssetKey;
                 imported = await Repository.ImportCutoutAsync(data.Original, result.Mask, result.Png);
                 return imported;
-            });
+            }));
             return accepted is null || accepted == layer.AssetKey ? null : layer with { AssetKey = accepted };
         }
         finally

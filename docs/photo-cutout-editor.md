@@ -1,6 +1,6 @@
 # Photo cut-out editor
 
-Open an unlocked photo layer's actions and choose **Edit photo / cut-out**.
+Select an unlocked photo layer, then tap the **Edit photo** pencil at the start of the photo toolbar beneath Live preview. The layer's three-dot menu no longer contains a cut-out entry.
 The full-screen editor supports:
 
 - On-device **Remove background**, using Apple's public Vision foreground instance mask request (iOS 17+). All detected foreground subjects are retained. Unavailable processing or no detected subject leaves the existing mask unchanged and offers manual editing.
@@ -47,3 +47,19 @@ Primary API references: [Apple subject lifting](https://developer.apple.com/vide
 ## Release authorization
 
 The owner subsequently authorized committing, pushing main and pushing a new version tag. This feature is released as **0.2.50 (52)** with host and extension metadata aligned. The `v0.2.50` tag push triggers IPA generation; branch pushes do not. The owner will monitor the build. Native and physical iPhone checks above remain pending.
+
+## Toolbar and opening correction (0.2.51)
+
+The owner reported that choosing the original menu entry briefly flashed the photo and showed “The widget could not be updated. Try again.” No native exception details were supplied, so that message alone does not establish the exact device exception.
+
+Review found an unsafe native setup: assigning `page.PanGestureRecognizer.ShouldBegin` installs a managed gesture delegate over a scroll view's built-in delegate. The assignment and its matching teardown reset have been removed. A `UIScrollView` subclass now overrides `GestureRecognizerShouldBegin` to filter canvas touches while leaving UIKit's delegate intact. A source guard rejects direct built-in pan/pinch delegate replacements across the app's iOS components; it is a regression guard for this pattern, not native execution or full semantic analysis. Other gesture callbacks found in the app belong to recognizers the app creates itself.
+
+The new first toolbar icon uses the shared 48-point target, dynamic accent and accessible action description. It works only with an unlocked selected photo, and remains in the existing single horizontal scrolling row. The duplicate three-dot entry is removed. Errors and opening status appear beneath that toolbar, with VoiceOver announcements. Unexpected exceptions do not expose raw native details in the UI; logs retain exception and cause types. Cancel and failures preserve the draft and restore buttons; a subsequent tap can retry.
+
+The native opening path captures the initiating MAUI window, runs presentation on the main thread, waits only while a controller/alert transition remains active (bounded to two seconds), and checks that the widget editor still owns navigation before presenting. A tab/page change or backgrounding before presentation abandons opening. The widget composition remains visible until the modal finishes its opening animation, then releases its resources before removal work; it is restored on return. Saved originals, masks, PNG keys and widget Undo/Redo ownership are unchanged.
+
+Follow-up verification: **549 App tests and 61 Packaging checks passed, zero skipped**, source validation passed, and managed iOS compilation passed with zero warnings/errors. Tests cover the real toolbar ordering/target size/accent in both themes, selected-photo dispatch, lock/unlock and empty/live-layer exclusions, removal from the old menu, specific nearby errors, retry, duplicate-tap prevention, deferred preview suspension, background cancellation, departure cleanup and existing Undo/Redo. Packaging tests initially could not create temporary fixture files in the restricted runner; rerunning with normal local temporary-folder access passed.
+
+Native UIKit execution is unavailable on Windows. On iPhone, verify the pencil opens the full cut-out screen with Remove background visible, ordinary controls scroll, one-finger brush strokes stay on the canvas, two-finger pan/pinch work, Cancel/Apply return correctly, and rapid taps/backgrounding do not leave controls disabled. Native exception evidence and actual removal quality remain device checks.
+
+The owner authorized committing, pushing main and pushing the new **v0.2.51** tag for **0.2.51 (53)**. Host and native extension metadata are aligned. Only the new version tag triggers IPA generation, and the owner will monitor the build.

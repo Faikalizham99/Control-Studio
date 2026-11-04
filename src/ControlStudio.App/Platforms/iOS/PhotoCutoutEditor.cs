@@ -1,4 +1,5 @@
 using ControlStudio.Core.Widgets;
+using System.Diagnostics;
 using CoreGraphics;
 using Foundation;
 using Microsoft.Maui.Platform;
@@ -9,22 +10,70 @@ namespace ControlStudio.App.Platforms.iOS;
 internal static class PhotoCutoutEditor
 {
     internal sealed record Result(byte[] Mask, byte[] Png);
-    public static async Task<string?> EditAsync(PhotoCutoutImaging imaging, byte[]? pixels, Color accent, Func<Result, Task<string>> saveResult)
+    public static async Task<string?> EditAsync(UIWindow owner, Func<bool> canPresent, Action didPresent, PhotoCutoutImaging imaging, byte[]? pixels, Color accent, Func<Result, Task<string>> saveResult)
     {
-        var presenter = Platform.GetCurrentUIViewController() ?? throw new IOException("The photo editor is unavailable. Try again.");
-        if (presenter.View?.Window is null || UIApplication.SharedApplication.ApplicationState != UIApplicationState.Active)
-            throw new IOException("Return to Control Studio and try Edit photo again.");
-        using var editor = new CutoutController(imaging, pixels, accent, saveResult);
         try
         {
-            await presenter.PresentViewControllerAsync(editor, true);
-            return await editor.Completion.Task;
+            var presenter = await WaitForPresenterAsync(owner, canPresent);
+            if (presenter is null) return null;
+            using var editor = new CutoutController(imaging, pixels, accent, saveResult);
+            try
+            {
+                await presenter.PresentViewControllerAsync(editor, true);
+                // Retain the widget image through the opening animation, then
+                // release its composition before background removal can run.
+                didPresent();
+                return await editor.Completion.Task;
+            }
+            finally
+            {
+                // Vision/rendering must release the source before the caller disposes it.
+                await editor.Work;
+                if (editor.PresentingViewController is not null) await editor.DismissViewControllerAsync(true);
+            }
         }
-        finally
+        catch (Exception ex) when (ex is not IOException)
         {
-            // Vision/rendering must release the source before the caller disposes it.
-            await editor.Work;
-            if (editor.PresentingViewController is not null) await editor.DismissViewControllerAsync(true);
+            throw new IOException("The cut-out screen could not open. Your photo is unchanged. Tap Edit photo to try again.", ex);
+        }
+    }
+    private static async Task<UIViewController?> WaitForPresenterAsync(UIWindow owner, Func<bool> canPresent)
+    {
+        // Use the initiating MAUI window rather than the global topmost controller,
+        // which can be an alert that is still dismissing. Yield only while UIKit
+        // reports an actual transition, with a bound if a panel remains open.
+        var elapsed = Stopwatch.StartNew();
+        while (elapsed.Elapsed < TimeSpan.FromSeconds(2))
+        {
+            if (!canPresent()) return null; // Page/tab changed while decoding the source or dismissing a panel.
+            if (owner.Handle == IntPtr.Zero || owner.RootViewController is not { } candidate
+                || UIApplication.SharedApplication.ApplicationState != UIApplicationState.Active
+                || owner.WindowScene?.ActivationState != UISceneActivationState.ForegroundActive)
+                throw new IOException("Return to Control Studio, then tap Edit photo again.");
+            var transitioning = false;
+            while (true)
+            {
+                transitioning |= candidate.IsBeingDismissed || candidate.IsBeingPresented || candidate.GetTransitionCoordinator() is not null;
+                if (candidate.PresentedViewController is not { } next) break;
+                candidate = next;
+            }
+            if (!transitioning && candidate is not UIAlertController && candidate.ViewIfLoaded?.Window?.Handle == owner.Handle)
+                return candidate;
+            await Task.Delay(16);
+        }
+        throw new IOException("Close the open panel, then tap Edit photo again. Your photo is unchanged.");
+    }
+
+    private sealed class CutoutPageScrollView : UIScrollView
+    {
+        public UIView? Canvas { get; set; }
+        public override bool GestureRecognizerShouldBegin(UIGestureRecognizer recognizer)
+        {
+            // The scroll view remains the delegate of its built-in recognizer.
+            // Filtering through the view override avoids replacing that delegate.
+            if (recognizer.Handle == PanGestureRecognizer.Handle && Canvas is { } canvas
+                && canvas.Bounds.Contains(recognizer.LocationInView(canvas))) return false;
+            return base.GestureRecognizerShouldBegin(recognizer);
         }
     }
 
@@ -34,7 +83,7 @@ internal static class PhotoCutoutEditor
         private readonly PhotoCutoutMask mask;
         private readonly Color accent;
         private readonly Func<Result, Task<string>> saveResult;
-        private readonly UIScrollView page = new() { AlwaysBounceVertical = true };
+        private readonly CutoutPageScrollView page = new() { AlwaysBounceVertical = true };
         private readonly UIStackView stack = new() { Axis = UILayoutConstraintAxis.Vertical, Spacing = 12 };
         private readonly UIScrollView zoom = new()
         {
@@ -98,7 +147,7 @@ internal static class PhotoCutoutEditor
                 AccessibleAction("Move view down", () => AccessiblePan(0, 1))];
             // The surrounding controls scroll with one finger. That recognizer must
             // never steal a brush stroke or a two-finger canvas gesture.
-            page.PanGestureRecognizer.ShouldBegin = recognizer => !zoom.Bounds.Contains(recognizer.LocationInView(zoom));
+            page.Canvas = zoom;
             zoom.DidZoom += ZoomChanged;
             stack.AddArrangedSubview(zoom); previewHeight = zoom.HeightAnchor.ConstraintEqualTo(300); previewHeight.Active = true;
             brush = new UIPanGestureRecognizer(Paint) { MinimumNumberOfTouches = 1, MaximumNumberOfTouches = 1 };
@@ -283,7 +332,7 @@ internal static class PhotoCutoutEditor
             {
                 dismissed = true; backgroundObserver?.Dispose(); backgroundObserver = null;
                 zoom.ViewForZoomingInScrollView = null; zoom.DidZoom -= ZoomChanged;
-                page.PanGestureRecognizer.ShouldBegin = null;
+                page.Canvas = null;
                 cancel.TouchUpInside -= Cancel; apply.TouchUpInside -= Apply; automatic.TouchUpInside -= Automatic;
                 undo.TouchUpInside -= Undo; redo.TouchUpInside -= Redo; before.TouchUpInside -= Compare; reset.TouchUpInside -= Reset;
                 size.ValueChanged -= BrushChanged; softness.ValueChanged -= BrushChanged; magnification.ValueChanged -= MagnificationChanged;

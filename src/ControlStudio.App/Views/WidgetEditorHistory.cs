@@ -80,7 +80,7 @@ internal sealed partial class WidgetEditorPage
             background.DiscardPendingHex(); clockControls.DiscardPending(); batteryControls.DiscardPending();
             foreach (var input in HistoryDescendants(form).OfType<InputView>()) input.Unfocus();
             var state = redo ? history.Redo()! : history.Undo()!;
-            if (selected != state.Selection) { CloseTools(); precise.IsVisible = false; }
+            if (selected != state.Selection) { CloseTools(); precise.IsVisible = false; photoEditStatus.IsVisible = false; }
             draft = state.Design; selected = state.Selection; name.Text = state.NameText;
             if (!draft.Layers.Any(x => x.Id == selected)) selected = null;
             ApplyCanvasSizing(); history.Rebase(CaptureHistory());

@@ -13,6 +13,7 @@ from app_group_config import synchronize
 from validate_ipa import validate_scene_manifest, validate_widget_link_scheme
 from check_widget_metadata import validate_widget_metadata
 from widget_slot_config import synchronize as synchronize_slots
+from check_gesture_ownership import validate_builtin_gesture_ownership
 
 
 def source_files(root, suffixes):
@@ -27,6 +28,8 @@ def source_files(root, suffixes):
 
 
 def main():
+    for path in source_files(ROOT / "src/ControlStudio.App/Platforms/iOS", {".cs"}):
+        validate_builtin_gesture_ownership(path.read_text(encoding="utf-8"), path.name)
     synchronize_slots(check=True)
     validate_widget_metadata()
     for path in [*source_files(ROOT, {".csproj"}), ROOT / "Directory.Build.props"]:
@@ -46,7 +49,7 @@ def main():
     generator = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(generator)
     generator.generate(check=True)
-    print("Source XML/plists, entitlements, pins, widget metadata and native project generation passed.")
+    print("Source XML/plists, entitlements, pins, gesture ownership, widget metadata and native project generation passed.")
 
 
 if __name__ == "__main__":
