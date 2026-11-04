@@ -20,6 +20,7 @@ internal static class PhotoCutoutEditor
             try
             {
                 await presenter.PresentViewControllerAsync(editor, true);
+                editor.VerifyInitialLayout();
                 // Retain the widget image through the opening animation, then
                 // release its composition before background removal can run.
                 didPresent();
@@ -131,7 +132,9 @@ internal static class PhotoCutoutEditor
                 page.TopAnchor.ConstraintEqualTo(View.SafeAreaLayoutGuide.TopAnchor), page.BottomAnchor.ConstraintEqualTo(View.SafeAreaLayoutGuide.BottomAnchor),
                 stack.LeadingAnchor.ConstraintEqualTo(page.ContentLayoutGuide.LeadingAnchor, 16), stack.TrailingAnchor.ConstraintEqualTo(page.ContentLayoutGuide.TrailingAnchor, -16),
                 stack.TopAnchor.ConstraintEqualTo(page.ContentLayoutGuide.TopAnchor, 8), stack.BottomAnchor.ConstraintEqualTo(page.ContentLayoutGuide.BottomAnchor, -20),
-                stack.WidthAnchor.ConstraintEqualTo(page.FrameLayoutGuide.WidthAnchor, -32)]);
+                // NSLayoutDimension's second argument is a multiplier, unlike
+                // position anchors' offset argument. Always name both values.
+                stack.WidthAnchor.ConstraintEqualTo(page.FrameLayoutGuide.WidthAnchor, multiplier: 1, constant: -32)]);
             var title = Label("Edit cut-out"); title.Font = UIFont.GetPreferredFontForTextStyle(UIFontTextStyle.Headline)!; title.TextAlignment = UITextAlignment.Center;
             stack.AddArrangedSubview(Row(cancel, title, apply));
             stack.AddArrangedSubview(Label("Remove the background, then refine with Erase and Restore. Pinch to zoom; move with two fingers."));
@@ -169,6 +172,17 @@ internal static class PhotoCutoutEditor
             size.ValueChanged += BrushChanged; softness.ValueChanged += BrushChanged; magnification.ValueChanged += MagnificationChanged;
             backgroundObserver = NSNotificationCenter.DefaultCenter.AddObserver(UIApplication.WillResignActiveNotification, _ => EndPainting(cancelled: true));
             Update();
+        }
+        public void VerifyInitialLayout()
+        {
+            View!.LayoutIfNeeded(); page.LayoutIfNeeded(); stack.LayoutIfNeeded();
+            var expectedWidth = (double)page.Bounds.Width - 32;
+            var actualWidth = (double)stack.Bounds.Width;
+            if (!double.IsFinite(expectedWidth) || !double.IsFinite(actualWidth) || expectedWidth < 44
+                || Math.Abs(actualWidth - expectedWidth) > 1 || zoom.Bounds.Width <= 0 || zoom.Bounds.Height <= 0
+                || preview.Bounds.Width <= 0 || preview.Bounds.Height <= 0
+                || new[] { cancel, apply, automatic }.Any(button => button.Bounds.Width < 44 || button.Bounds.Height < 44))
+                throw new IOException("The photo editor could not fit this screen. Your photo is unchanged. Return to the widget and try Edit photo again.");
         }
         public override void ViewDidLayoutSubviews()
         {
