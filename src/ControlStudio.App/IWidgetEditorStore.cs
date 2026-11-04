@@ -9,6 +9,7 @@ internal interface IWidgetEditorStore
     WidgetCanvasSizing? CanvasSizing(WidgetSize size) => null;
     string? AssetPath(string key);
     Task<WidgetLayer?> PickPhotoAsync(bool library);
+    Task<WidgetLayer?> EditPhotoAsync(WidgetLayer layer) => Task.FromResult<WidgetLayer?>(null);
     Task<WidgetSaveResult> SaveAsync(WidgetDesign draft);
     Task RemoveDraftPhotosAsync(IEnumerable<string> keys);
 }

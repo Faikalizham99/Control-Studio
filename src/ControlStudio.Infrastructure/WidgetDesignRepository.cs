@@ -17,6 +17,47 @@ public sealed class WidgetDesignRepository
     private string CatalogPath => Path.Combine(directory, "catalog.json");
     public bool HasSavedLibrary => File.Exists(CatalogPath);
     public string? AssetPath(string key) => ImagePath("photos", key);
+    private string PhotoPart(string key, string suffix) => Path.Combine(directory, "photos", key + suffix);
+    public async Task<(byte[] Original, byte[]? Mask)> ReadCutoutAsync(string key, CancellationToken token = default)
+    {
+        var source = AssetPath(key) ?? throw new IOException("This photo is missing. Choose the photo again.");
+        var originalPath = PhotoPart(key, ".original.png"); var maskPath = PhotoPart(key, ".mask");
+        // Sidecars are a pair. Never silently lose a previously editable original.
+        var edited = File.Exists(originalPath) || File.Exists(maskPath);
+        if (edited && (!File.Exists(originalPath) || !File.Exists(maskPath))) throw new IOException("The editable cut-out is incomplete. Choose the photo again.");
+        var original = await ReadBoundedAsync(edited ? originalPath : source, WidgetDesignRules.MaximumImageBytes, token);
+        ValidatePng(original);
+        byte[]? mask = edited ? await ReadBoundedAsync(maskPath, WidgetDesignRules.MaximumImageEdge * WidgetDesignRules.MaximumImageEdge, token) : null;
+        if (mask is not null && mask.Length != PngWidth(original) * PngHeight(original)) throw new IOException("The saved photo mask is invalid.");
+        return (original, mask);
+    }
+    public async Task<string> ImportCutoutAsync(byte[] original, byte[] mask, byte[] rendered, CancellationToken token = default)
+    {
+        ValidatePng(original); ValidatePng(rendered);
+        if (mask.Length != PngWidth(original) * PngHeight(original) || PngWidth(original) != PngWidth(rendered) || PngHeight(original) != PngHeight(rendered))
+            throw new IOException("The cut-out dimensions are invalid.");
+        var key = Guid.NewGuid().ToString("N");
+        try
+        {
+            await AtomicWriteAsync(PhotoPart(key, ".original.png"), original, token);
+            await AtomicWriteAsync(PhotoPart(key, ".mask"), mask, token);
+            await WriteImageAsync("photos", key, rendered, token); return key;
+        }
+        catch { RemovePhoto(key); throw; }
+    }
+    private static int PngWidth(byte[] png) => System.Buffers.Binary.BinaryPrimitives.ReadInt32BigEndian(png.AsSpan(16, 4));
+    private static int PngHeight(byte[] png) => System.Buffers.Binary.BinaryPrimitives.ReadInt32BigEndian(png.AsSpan(20, 4));
+    private static async Task<byte[]> ReadBoundedAsync(string path, int maximum, CancellationToken token)
+    {
+        await using var input = File.OpenRead(path);
+        if (input.Length is < 1 || input.Length > maximum) throw new IOException("The photo data is invalid.");
+        var bytes = new byte[(int)input.Length]; await input.ReadExactlyAsync(bytes, token); return bytes;
+    }
+    private void RemovePhoto(string key)
+    {
+        if (!WidgetDesignRules.ValidKey(key)) return;
+        TryRemove(AssetPath(key)); TryRemove(PhotoPart(key, ".original.png")); TryRemove(PhotoPart(key, ".mask"));
+    }
     public string? RenderPath(string key) => ImagePath("renders", key);
     public string? ScenePath(string key) => SceneArtifact(key, ".scene.json");
     public string? SceneImagePath(string key, int index) => index is >= 0 and < WidgetDesignRules.MaximumLayers ? SceneArtifact(key, $".part-{index}.png") : null;
@@ -178,7 +219,7 @@ public sealed class WidgetDesignRepository
         try
         {
             var referenced = (await ReadCoreAsync(default)).Designs.SelectMany(x => x.Layers).Select(x => x.AssetKey).ToHashSet();
-            foreach (var key in keys.Where(x => !referenced.Contains(x))) TryRemove(AssetPath(key));
+            foreach (var key in keys.Where(x => !referenced.Contains(x))) RemovePhoto(key);
         }
         finally { gate.Release(); }
     }
@@ -200,7 +241,7 @@ public sealed class WidgetDesignRepository
     private void RemoveUnusedSources(IEnumerable<string> candidates, IEnumerable<WidgetDesign> designs)
     {
         var referenced = designs.SelectMany(x => x.Layers).Select(x => x.AssetKey).ToHashSet();
-        foreach (var key in candidates.Where(x => !referenced.Contains(x))) TryRemove(AssetPath(key));
+        foreach (var key in candidates.Where(x => !referenced.Contains(x))) RemovePhoto(key);
     }
     private async Task WriteCatalogAsync(WidgetLibraryCatalog catalog, CancellationToken token)
     {

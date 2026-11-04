@@ -392,7 +392,7 @@ internal sealed partial class WidgetEditorPage : ContentPage
             }
             var currentIndex = layerList.Items.IndexOf(row);
             if (currentIndex != index) { layerList.Items.RemoveAt(currentIndex); layerList.Items.Insert(index, row); }
-            row.Update(layer, selected == layer.Id); index++;
+            row.UpdatePhoto(layer, studio.AssetPath); row.Update(layer, selected == layer.Id); index++;
         }
         RefreshControls(); RefreshActions(); UpdateCanvas();
     }
@@ -453,7 +453,11 @@ internal sealed partial class WidgetEditorPage : ContentPage
         if (!layer.Locked)
         {
             choices.Add(layer.Kind == WidgetLayerKind.Photo ? "Size, position & crop" : "Size & position"); choices.Add("Centre on widget");
-            if (layer.Kind == WidgetLayerKind.Photo) choices.Add(layer.FitPhoto ? "Crop to frame" : "Show full photo");
+            if (layer.Kind == WidgetLayerKind.Photo)
+            {
+                choices.Add("Edit photo / cut-out");
+                choices.Add(layer.FitPhoto ? "Crop to frame" : "Show full photo");
+            }
         }
         if (index < draft.Layers.Count - 1) choices.Add("Move forward"); if (index > 0) choices.Add("Move backward");
         var choice = chooseLayerAction is null ? await DisplayActionSheetAsync(layer.Name, "Cancel", "Delete layer", choices.ToArray())
@@ -463,6 +467,15 @@ internal sealed partial class WidgetEditorPage : ContentPage
         if (rows.TryGetValue(id, out var row)) scroll.PreserveAnchor(row);
         switch (choice)
         {
+            case "Edit photo / cut-out":
+                if (layer.Locked || layer.Kind != WidgetLayerKind.Photo) return;
+                canvas.SuspendComposition();
+                var editedPhoto = await studio.EditPhotoAsync(layer);
+                if (editedPhoto is null) return;
+                ownedPhotos.Add(editedPhoto.AssetKey);
+                if (departed) { await CleanupAsync(); return; }
+                ReplaceLayer(layer with { AssetKey = editedPhoto.AssetKey }); RefreshLayers();
+                ShowStatus("Photo updated. You can undo this edit."); return;
             case "Duplicate layer": DuplicateLayer(id); return;
             case "Lock layer": ReplaceLayer(layer with { Locked = true }); RefreshLayerState(id); return;
             case "Unlock layer": ReplaceLayer(layer with { Locked = false }); RefreshLayerState(id); return;

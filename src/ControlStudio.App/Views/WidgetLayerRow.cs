@@ -17,11 +17,12 @@ internal sealed class WidgetLayerRow : ContentView
     public View DragHandle { get; }
     public event EventHandler? ActionStarting;
     private bool updating, reordering, layerVisible;
+    private string photoKey;
     public WidgetLayerRow(WidgetLayer layer, string? path, string dragScope, Action<Guid> select,
         Action<Guid, bool> show, Action<Guid> menu, Action<Guid, Guid> reorder, Action<Guid>? toggleLock = null)
     {
         LayerId = layer.Id;
-        photo.Source = path; name.MaxLines = 2; name.LineBreakMode = LineBreakMode.TailTruncation;
+        photoKey = layer.AssetKey; photo.Source = path; name.MaxLines = 2; name.LineBreakMode = LineBreakMode.TailTruncation;
         var thumbnail = ClipboardEditorControls.Field(layer.Kind != WidgetLayerKind.Photo ? ClipboardEditorControls.Icon(layer.Kind switch { WidgetLayerKind.Battery => StudioSymbol.Battery, WidgetLayerKind.Text => StudioSymbol.Text, WidgetLayerKind.Date => StudioSymbol.Calendar, _ => StudioSymbol.Clock }, size: 28) : photo, 0); thumbnail.WidthRequest = thumbnail.HeightRequest = 48;
         thumbnail.VerticalOptions = LayoutOptions.Center;
         var thumbnailTap = new TapGestureRecognizer(); thumbnailTap.Tapped += (_, _) => Act(() => select(layer.Id));
@@ -93,6 +94,11 @@ internal sealed class WidgetLayerRow : ContentView
     {
         reordering = value; tap.IsEnabled = visible.IsEnabled = more.IsEnabled = placementLock.IsEnabled = !value;
         if (!value) { updating = true; visible.IsToggled = layerVisible; updating = false; }
+    }
+    public void UpdatePhoto(WidgetLayer layer, Func<string, string?> path)
+    {
+        if (layer.Kind != WidgetLayerKind.Photo || layer.AssetKey == photoKey) return;
+        photoKey = layer.AssetKey; photo.Source = path(photoKey);
     }
     public void ReleaseSource() => photo.Source = null;
 }

@@ -91,6 +91,34 @@ public sealed class WidgetStudioService : IWidgetEditorStore
         }
         finally { gate.Release(); }
     }
+    public async Task<WidgetLayer?> EditPhotoAsync(WidgetLayer layer)
+    {
+        if (layer.Kind != WidgetLayerKind.Photo || layer.Locked) return null;
+        var data = await Repository.ReadCutoutAsync(layer.AssetKey);
+        using var imaging = await Task.Run(() => { using var pool = new NSAutoreleasePool(); return new PhotoCutoutImaging(data.Original); });
+        if (imaging.Width != layer.PixelWidth || imaging.Height != layer.PixelHeight) throw new IOException("The photo dimensions changed. Choose the photo again.");
+        var accent = Application.Current?.Resources.TryGetValue("Accent", out var value) == true && value is Color colour ? colour : Color.FromArgb("#007AFF");
+        string? imported = null, accepted = null;
+        try
+        {
+            accepted = await PhotoCutoutEditor.EditAsync(imaging, data.Mask, accent, async result =>
+            {
+                if (data.Mask is { } old && old.AsSpan().SequenceEqual(result.Mask)
+                    || data.Mask is null && result.Mask.All(x => x == 255)) return layer.AssetKey;
+                imported = await Repository.ImportCutoutAsync(data.Original, result.Mask, result.Png);
+                return imported;
+            });
+            return accepted is null || accepted == layer.AssetKey ? null : layer with { AssetKey = accepted };
+        }
+        finally
+        {
+            if (imported is not null && imported != accepted)
+            {
+                try { await Repository.RemoveDraftPhotosAsync([imported]); }
+                catch (Exception ex) { logger.LogWarning("Cancelled cut-out cleanup failed. ErrorType={ErrorType}", ex.GetType().Name); }
+            }
+        }
+    }
     public async Task<bool> PublishAsync(bool force = true, CancellationToken token = default)
     {
         await gate.WaitAsync(token);

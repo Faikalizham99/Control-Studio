@@ -336,6 +336,59 @@ public sealed class WidgetEditorHistoryTests : IDisposable
         for (var i = 0; i < WidgetEditHistory.MaximumSteps; i++) Click(page, "WidgetUndo");
         Assert.Contains(Draft(page).Layers, x => x.AssetKey == imported.AssetKey); Assert.DoesNotContain(imported.AssetKey, store.Removed);
     }
+    [Fact]
+    public void Cutout_changes_only_asset_and_widget_undo_redo_retains_both_photos()
+    {
+        var original = Photo() with { RotationDegrees = 31, FlipHorizontal = true, Opacity = .6, Frame = new(-.2, .1, .7, .6) };
+        var editedKey = Guid.NewGuid().ToString("N");
+        var store = new Store { Edit = layer => Task.FromResult<WidgetLayer?>(layer with { AssetKey = editedKey }) };
+        var page = Editor(store, WidgetDesignRules.New() with { Layers = [original] }, menu: (_, choices) =>
+        { Assert.Contains("Edit photo / cut-out", choices); return Task.FromResult<string?>("Edit photo / cut-out"); }); Open(page);
+        Click(page, "WidgetLayerOptions" + original.Id.ToString("N"));
+        Assert.Equal(original with { AssetKey = editedKey }, Draft(page).Layers.Single());
+        Assert.Contains("1 step", SemanticProperties.GetHint(Button(page, "WidgetUndo")));
+        Click(page, "WidgetUndo"); Assert.Equal(original, Draft(page).Layers.Single()); Assert.DoesNotContain(editedKey, store.Removed);
+        Click(page, "WidgetRedo"); Assert.Equal(editedKey, Draft(page).Layers.Single().AssetKey);
+        var image = All(All(page).OfType<WidgetLayerRow>().Single()).OfType<Image>().Single();
+        Assert.EndsWith(editedKey + ".png", Assert.IsType<FileImageSource>(image.Source).File);
+        Click(page, "WidgetUndo"); Lock(page, original.Id); Assert.Contains(editedKey, store.Removed);
+    }
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public void Cancelled_or_failed_cutout_keeps_draft_and_recovers_buttons(bool fails)
+    {
+        var original = Photo(); var store = new Store { Edit = _ => fails ? Task.FromException<WidgetLayer?>(new IOException("Cannot process photo")) : Task.FromResult<WidgetLayer?>(null) };
+        var page = Editor(store, WidgetDesignRules.New() with { Layers = [original] }, menu: (_, _) => Task.FromResult<string?>("Edit photo / cut-out")); Open(page);
+        Click(page, "WidgetLayerOptions" + original.Id.ToString("N"));
+        Assert.Equal(original, Draft(page).Layers.Single()); Assert.True(Button(page, "SaveWidgetDesign").IsEnabled);
+        Assert.False(Button(page, "WidgetUndo").IsEnabled); Assert.Empty(store.Removed);
+        Lock(page, original.Id); Assert.True(Draft(page).Layers.Single().Locked);
+    }
+    [Fact]
+    public async Task Pending_cutout_blocks_reentry_and_cleans_new_asset_after_departure()
+    {
+        var completion = new TaskCompletionSource<WidgetLayer?>(); var calls = 0; var original = Photo();
+        var store = new Store { Edit = _ => { calls++; return completion.Task; } };
+        var root = new ContentPage(); var nav = Navigation(root); Open(nav);
+        var page = Editor(store, WidgetDesignRules.New() with { Layers = [original] }, menu: (_, _) => Task.FromResult<string?>("Edit photo / cut-out"));
+        await nav.PushAsync(page); ((IPageController)page).SendAppearing();
+        Click(page, "WidgetLayerOptions" + original.Id.ToString("N")); Assert.False(Button(page, "SaveWidgetDesign").IsEnabled);
+        Click(page, "WidgetLayerOptions" + original.Id.ToString("N")); Assert.Equal(1, calls);
+        await nav.PopAsync();
+        var edited = original with { AssetKey = Guid.NewGuid().ToString("N") }; completion.SetResult(edited);
+        for (var i = 0; i < 20 && !store.Removed.Contains(edited.AssetKey); i++) await Task.Yield();
+        Assert.Contains(edited.AssetKey, store.Removed); Assert.DoesNotContain(original.AssetKey, store.Removed);
+    }
+    [Fact]
+    public void Locked_photo_and_live_layer_do_not_offer_cutout()
+    {
+        foreach (var layer in new[] { Photo() with { Locked = true }, WidgetClocks.New() })
+        {
+            var page = Editor(new(), WidgetDesignRules.New() with { Layers = [layer] }, menu: (_, choices) =>
+            { Assert.DoesNotContain("Edit photo / cut-out", choices); return Task.FromResult<string?>("Cancel"); }); Open(page);
+            Click(page, "WidgetLayerOptions" + layer.Id.ToString("N"));
+        }
+    }
     private sealed class Picker : IColourPicker
     {
         public Func<string, Action<string>, Task<string>> Pick = (hex, _) => Task.FromResult(hex);
@@ -346,6 +399,8 @@ public sealed class WidgetEditorHistoryTests : IDisposable
         public Func<WidgetSize, WidgetCanvasSizing?> Sizing = _ => null;
         public WidgetCanvasSizing? CanvasSizing(WidgetSize size) => Sizing(size);
         public Func<bool, Task<WidgetLayer?>> Pick = _ => Task.FromResult<WidgetLayer?>(null);
+        public Func<WidgetLayer, Task<WidgetLayer?>> Edit = _ => Task.FromResult<WidgetLayer?>(null);
+        public Task<WidgetLayer?> EditPhotoAsync(WidgetLayer layer) => Edit(layer);
         public WidgetDesign? Saved;
         public bool FailSave;
         public int CleanupFailures;
