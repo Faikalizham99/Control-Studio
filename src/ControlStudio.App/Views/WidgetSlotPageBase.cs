@@ -3,12 +3,12 @@ using Microsoft.Extensions.Logging;
 namespace ControlStudio.App.Views;
 
 /// <summary>Slot pages cancel pending reads and queued writes when hidden or backgrounded.</summary>
-internal abstract class WidgetSlotPageBase : ContentPage
+internal abstract class WidgetSlotPageBase : ContentPage, IAsyncPageLoad
 {
     protected readonly ILogger Logger;
     private CancellationTokenSource lifetime = new();
     private Window? observedWindow;
-    private bool active, busy, reloadPending;
+    private bool active, busy, reloadPending, reading;
     private int epoch;
     protected bool Current(int version) => active && version == epoch && !lifetime.IsCancellationRequested;
     protected bool Foreground => active && Window?.IsActivated == true && !lifetime.IsCancellationRequested;
@@ -16,13 +16,26 @@ internal abstract class WidgetSlotPageBase : ContentPage
     protected abstract void SetActionsEnabled(bool enabled);
     protected abstract void ShowFailure(string message);
     protected virtual void ReleasePreviews() { }
+    protected virtual void ReadingChanged(bool value) { }
+    protected bool CanGoBack => Foreground && (!busy || reading);
+    protected async Task NavigateBackAsync()
+    {
+        if (!CanGoBack) return;
+        try { await PageNavigation.PopAsync(this); }
+        catch (Exception ex) { Logger.LogWarning("Page Back failed. ErrorType={ErrorType}", ex.GetType().Name); if (Foreground) ShowFailure("Could not go back. Please try again."); }
+    }
     protected WidgetSlotPageBase(ILogger logger) { Logger = logger; WidgetStudioStyle.Page(this); }
-    protected Task ReloadAsync() => RunAsync(LoadAsync, queueReload: true);
-    protected async Task RunAsync(Func<CancellationToken, int, Task> action, bool queueReload = false)
+    protected Task ReloadAsync() => RunAsync(async (token, version) =>
+    {
+        if (!await PageNavigation.WaitForTransitionAsync(this, token) || !Current(version)) return;
+        await LoadAsync(token, version);
+        if (Current(version)) PageNavigation.DataReady(this);
+    }, queueReload: true, readOnly: true);
+    protected async Task RunAsync(Func<CancellationToken, int, Task> action, bool queueReload = false, bool readOnly = false)
     {
         if (!Foreground) return;
-        if (busy) { if (queueReload) reloadPending = true; return; }
-        busy = true; var version = epoch; var token = lifetime.Token; SetActionsEnabled(false);
+        if (busy) { if (queueReload) { reloadPending = true; ReadingChanged(reading); } return; }
+        busy = true; reading = readOnly; var version = epoch; var token = lifetime.Token; SetActionsEnabled(false); ReadingChanged(reading);
         try { await action(token, version); }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
         catch (Exception ex)
@@ -32,7 +45,7 @@ internal abstract class WidgetSlotPageBase : ContentPage
         }
         finally
         {
-            busy = false; SetActionsEnabled(Foreground);
+            busy = reading = false; SetActionsEnabled(Foreground); ReadingChanged(false);
             if (Foreground && reloadPending) { reloadPending = false; await ReloadAsync(); }
         }
     }
@@ -50,11 +63,11 @@ internal abstract class WidgetSlotPageBase : ContentPage
     }
     private void Deactivated(object? sender, EventArgs args)
     {
-        epoch++; lifetime.Cancel(); ReleasePreviews(); SetActionsEnabled(false);
+        epoch++; lifetime.Cancel(); ReleasePreviews(); SetActionsEnabled(false); ReadingChanged(false);
     }
     protected override async void OnAppearing()
     {
-        base.OnAppearing(); active = true; epoch++; lifetime.Dispose(); lifetime = new();
+        base.OnAppearing(); active = true; epoch++; lifetime.Cancel(); lifetime.Dispose(); lifetime = new();
         Unsubscribe(); observedWindow = Window;
         if (observedWindow is not null) { observedWindow.Activated += Activated; observedWindow.Deactivated += Deactivated; }
         await ReloadAsync();
@@ -65,7 +78,7 @@ internal abstract class WidgetSlotPageBase : ContentPage
     }
     protected override void OnDisappearing()
     {
-        active = false; epoch++; lifetime.Cancel(); reloadPending = false; Unsubscribe(); ReleasePreviews(); SetActionsEnabled(false); base.OnDisappearing();
+        active = false; epoch++; lifetime.Cancel(); reloadPending = false; Unsubscribe(); ReleasePreviews(); SetActionsEnabled(false); ReadingChanged(false); base.OnDisappearing();
     }
-    protected override bool OnBackButtonPressed() => busy || base.OnBackButtonPressed();
+    protected override bool OnBackButtonPressed() => (busy && !reading) || base.OnBackButtonPressed();
 }

@@ -44,6 +44,10 @@
     <Compile Include="../../src/ControlStudio.App/Views/WidgetStudioPage.cs" Link="Views/WidgetStudioPage.cs" />
     <Compile Include="../../src/ControlStudio.App/IWidgetSlotStore.cs" Link="IWidgetSlotStore.cs" />
     <Compile Include="../../src/ControlStudio.App/IWidgetEditorStore.cs" Link="IWidgetEditorStore.cs" />
+    <Compile Include="../../src/ControlStudio.App/IWidgetGalleryStore.cs" Link="IWidgetGalleryStore.cs" />
+    <Compile Include="../../src/ControlStudio.App/Views/WidgetsPage.cs" Link="Views/WidgetsPage.cs" />
+    <Compile Include="../../src/ControlStudio.App/Views/PageNavigation.cs" Link="Views/PageNavigation.cs" />
+    <Compile Include="../../src/ControlStudio.App/Views/PageLoadIndicator.cs" Link="Views/PageLoadIndicator.cs" />
     <Compile Include="../../src/ControlStudio.App/IColourPicker.cs" Link="IColourPicker.cs" />
     <Compile Include="../../src/ControlStudio.App/IProfilePhotoStore.cs" Link="IProfilePhotoStore.cs" />
     <Compile Include="../../src/ControlStudio.App/Views/ProfileEditorPage.cs" Link="Views/ProfileEditorPage.cs" />

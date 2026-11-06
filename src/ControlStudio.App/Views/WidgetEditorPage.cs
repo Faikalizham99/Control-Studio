@@ -88,7 +88,7 @@ internal sealed partial class WidgetEditorPage : ContentPage
         {
             if (!CanEdit) return;
             EditLayer(layer => layer with { BlendMode = mode }, closeTools: false, changesPlacement: false);
-        });
+        }, defer: true);
         blendMenu.LayoutChanging += (_, _) => scroll.PreserveViewport();
         blendMenu.PositionChanging += view => scroll.PreserveAnchor(view);
         canvas.InteractionChanged += (_, _) =>

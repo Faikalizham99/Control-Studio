@@ -11,9 +11,15 @@ using UIKit;
 
 namespace ControlStudio.App.Platforms.iOS;
 
-public sealed class WidgetStudioService : IWidgetEditorStore
+public sealed class WidgetStudioService : IWidgetEditorStore, IWidgetGalleryStore
 {
     public WidgetDesignRepository Repository { get; }
+    bool IWidgetGalleryStore.HasSavedLibrary => Repository.HasSavedLibrary;
+    Task<IReadOnlyList<WidgetDesign>> IWidgetGalleryStore.ReadAsync(CancellationToken token) => Repository.ReadAsync(token);
+    string? IWidgetGalleryStore.RenderPath(string key) => Repository.RenderPath(key);
+    DateTimeOffset? IWidgetGalleryStore.RenderUpdatedAt(string key) => Repository.RenderUpdatedAt(key);
+    Task<bool> IWidgetGalleryStore.PublishAsync(bool force, CancellationToken token) => PublishAsync(force, token);
+    IWidgetSlotStore IWidgetGalleryStore.Slots => new AppleWidgetSlotStore(this);
     string? IWidgetEditorStore.AssetPath(string key) => Repository.AssetPath(key);
     Task IWidgetEditorStore.RemoveDraftPhotosAsync(IEnumerable<string> keys) => Repository.RemoveDraftPhotosAsync(keys);
     WidgetCanvasSizing IWidgetEditorStore.CanvasSizing(WidgetSize size) => AppleWidgetCanvasSizing.Read(size, SharedDirectory);
@@ -146,9 +152,12 @@ public sealed class WidgetStudioService : IWidgetEditorStore
     {
         try
         {
-            if (force) await publisher.PublishAsync(token); else await publisher.PublishIfChangedAsync(token);
+            // Publication validates catalogs and image payloads; none of that
+            // filesystem/JSON work needs the UI thread.
+            await Task.Run(() => force ? publisher.PublishAsync(token) : publisher.PublishIfChangedAsync(token), token).ConfigureAwait(false);
             token.ThrowIfCancellationRequested();
-            if (slot is { } number) ReloadSlotNative(number); else ReloadNative(); return true;
+            await MainThread.InvokeOnMainThreadAsync(() => { token.ThrowIfCancellationRequested(); if (slot is { } number) ReloadSlotNative(number); else ReloadNative(); });
+            return true;
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
         catch (Exception ex) { logger.LogWarning("Widget publication failed. ErrorType={ErrorType}", ex.GetType().Name); return false; }

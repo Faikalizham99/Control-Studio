@@ -14,6 +14,7 @@ internal sealed class WidgetSlotsPage : WidgetSlotPageBase
     private readonly WidgetSegments sizes;
     private readonly VerticalStackLayout slots = new() { Spacing = 12 };
     private readonly Label status = SettingsControls.Text("", 14, secondary: true);
+    private readonly PageLoadIndicator loading = new("Loading slots…", "WidgetSlotsLoading");
     private readonly Label xlHint = SettingsControls.Text("Extra Large requires iOS 27 or later on iPhone.", 12, secondary: true);
     private readonly WidgetSlotPreviewWindow previews;
     private string? pendingStatus;
@@ -25,12 +26,12 @@ internal sealed class WidgetSlotsPage : WidgetSlotPageBase
     {
         WidgetSlotRules.ValidateAddress(initialSize, 1); this.store = store;
         this.confirmClear = confirmClear ?? (title => DisplayAlertAsync($"Clear {title}?", "This empties the slot. Your saved design and original photos are kept.", "Clear", "Cancel"));
-        this.openAssignment = openAssignment ?? ((family, number) => Navigation.PushAsync(new WidgetAssignDesignPage(store, Logger, family, number,
-            published => pendingStatus = published ? "Design assigned. Home Screen refresh requested." : "Assignment saved on this iPhone. Tap Refresh to retry the Home Screen update.")));
+        this.openAssignment = openAssignment ?? ((family, number) => PageNavigation.PushAsync(this, () => new WidgetAssignDesignPage(store, Logger, family, number,
+            published => pendingStatus = published ? "Design assigned. Home Screen refresh requested." : "Assignment saved on this iPhone. Tap Refresh to retry the Home Screen update."), Logger));
         Title = "Widget slots"; AutomationId = "WidgetSlotsPage";
         sizes = new(["Small", "Medium", "Large", "XL"], "WidgetSlotsSize", async index => await SelectSizeAsync(Sizes[index]));
         sizes.Update(Array.IndexOf(Sizes, initialSize));
-        back.Clicked += async (_, _) => await RunAsync((_, _) => Navigation.PopAsync());
+        back.Clicked += async (_, _) => await NavigateBackAsync();
         refresh.Clicked += async (_, _) => await RefreshSlotsAsync();
         status.IsVisible = false; xlHint.IsVisible = initialSize == WidgetSize.ExtraLargePortrait;
         var icon = ClipboardEditorControls.Icon(StudioSymbol.Layers, size: 36);
@@ -44,7 +45,7 @@ internal sealed class WidgetSlotsPage : WidgetSlotPageBase
         } }, 1);
         var banner = WidgetStudioStyle.Card(bannerRow); banner.SetDynamicResource(Border.StrokeProperty, "AccentSelectionStroke");
         var body = new VerticalStackLayout { Padding = new Thickness(16, 8, 24, 24), Spacing = 12, MaximumWidthRequest = 800, Children = {
-            banner, SettingsControls.Text("Widget size", 14, bold: true), sizes, xlHint, status, slots,
+            banner, SettingsControls.Text("Widget size", 14, bold: true), sizes, xlHint, loading, status, slots,
             SettingsControls.Text("Each size has independent assignments. Copies of the same slot and size show the same design.", 12, secondary: true)
         } };
         var scroll = new ScrollView { Content = body }; previews = new(scroll, body);
@@ -100,6 +101,7 @@ internal sealed class WidgetSlotsPage : WidgetSlotPageBase
     {
         back.IsEnabled = refresh.IsEnabled = sizes.IsEnabled = enabled; slots.IsEnabled = enabled && loaded;
     }
+    protected override void ReadingChanged(bool value) { loading.SetActive(value && Foreground); back.IsEnabled = CanGoBack; }
     protected override void ShowFailure(string message) { status.Text = message; status.IsVisible = message.Length > 0; }
 }
 

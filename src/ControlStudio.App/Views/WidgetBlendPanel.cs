@@ -5,7 +5,10 @@ namespace ControlStudio.App.Views;
 /// <summary>A persistent, accessible audition panel; browsing groups does not edit the layer.</summary>
 internal sealed class WidgetBlendPanel : ContentView
 {
-    private readonly WidgetBlendGroups groups;
+    private WidgetBlendGroups groups = null!;
+    private readonly Action<WidgetBlendMode> choose;
+    private readonly Func<WidgetBlendMode, ImageSource?>? sampleSource;
+    private bool built;
     private readonly Label summary = SettingsControls.Text("", 14, bold: true);
     private readonly Label notice = SettingsControls.Text("", 12, secondary: true);
     private readonly Grid modes = new() { ColumnSpacing = ActionSpacing.Gap, RowSpacing = ActionSpacing.Gap,
@@ -15,9 +18,16 @@ internal sealed class WidgetBlendPanel : ContentView
     private bool foreground = true;
     public event EventHandler? LayoutChanging;
     public event Action<View>? PositionChanging;
-    public WidgetBlendPanel(Action<WidgetBlendMode> choose, Func<WidgetBlendMode, ImageSource?>? sampleSource = null)
+    public WidgetBlendPanel(Action<WidgetBlendMode> choose, Func<WidgetBlendMode, ImageSource?>? sampleSource = null, bool defer = false)
     {
+        this.choose = choose; this.sampleSource = sampleSource;
         AutomationId = "WidgetBlendPanel"; IsVisible = false;
+        PropertyChanged += (_, args) => { if (args.PropertyName == nameof(IsVisible)) RefreshPictures(); };
+        if (!defer) EnsureLoaded();
+    }
+    private void EnsureLoaded()
+    {
+        if (built) return;
         groups = new WidgetBlendGroups(ShowGroup);
         foreach (var mode in WidgetBlending.Modes)
         {
@@ -34,10 +44,10 @@ internal sealed class WidgetBlendPanel : ContentView
         Content = new VerticalStackLayout { Spacing = 10, Children = { summary,
             SettingsControls.Text("Blue/orange examples show each effect. Photo layers blend together until a clock or date layer separates them. Text and wallpaper are not included in photo blending.", 12, secondary: true),
             notice, groups, modes, done } };
-        PropertyChanged += (_, args) => { if (args.PropertyName == nameof(IsVisible)) RefreshPictures(); };
+        built = true;
         ShowGroup(0);
     }
-    public void Show(WidgetLayer value) { Update(value); groups.Update(WidgetBlending.Group(value.BlendMode)); ShowGroup(groups.SelectedIndex); IsVisible = true; }
+    public void Show(WidgetLayer value) { EnsureLoaded(); Update(value); groups.Update(WidgetBlending.Group(value.BlendMode)); ShowGroup(groups.SelectedIndex); IsVisible = true; }
     public void Update(WidgetLayer? value)
     {
         layer = value;

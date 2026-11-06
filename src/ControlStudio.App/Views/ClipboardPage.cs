@@ -6,7 +6,7 @@ using System.Collections.ObjectModel;
 
 namespace ControlStudio.App.Views;
 
-public sealed class ClipboardPage : ContentPage
+public sealed class ClipboardPage : ContentPage, IAsyncPageLoad
 {
     private readonly IActionRepository repository;
     private readonly IActionValidator validator;
@@ -18,6 +18,7 @@ public sealed class ClipboardPage : ContentPage
     // This leaves a gutter for the native scroll indicator outside the cards.
     private readonly CollectionView items = new() { SelectionMode = SelectionMode.None, ItemSizingStrategy = ItemSizingStrategy.MeasureAllItems, AutomationId = "ClipboardItems", Margin = new Thickness(0, 0, 0, 16) };
     private readonly Label status = SettingsControls.Text("", 13, secondary: true);
+    private readonly PageLoadIndicator loading = new("Loading Clipboard…", "ClipboardLoading");
     private readonly Label description = SettingsControls.Text("", 15, secondary: true);
     private readonly RefreshView refresh = new();
     private readonly Dictionary<ClipboardKind, ClipboardSegment> segments = [];
@@ -35,7 +36,8 @@ public sealed class ClipboardPage : ContentPage
     private IReadOnlyList<ActionDefinition> saved = [];
     private ClipboardKind selected;
     private CancellationTokenSource lifetime = new();
-    private bool busy, active, reloadPending, loaded;
+    private bool busy, active, reloadPending, loaded, reading;
+    private int pageEpoch;
 
     public ClipboardPage(IActionRepository repository, IActionValidator validator, IActionExecutor executor, ILogger<ClipboardPage> logger, AppearancePreferences preferences, AppleColorPicker colourPicker)
     {
@@ -43,8 +45,13 @@ public sealed class ClipboardPage : ContentPage
         this.preferences = preferences; this.colourPicker = colourPicker;
         Title = "Clipboard"; AutomationId = "ClipboardPage"; SafeAreaEdges = SafeAreaEdges.All; DashboardStyle.Page(this);
         NavigationPage.SetHasNavigationBar(this, false);
-        back.Clicked += async (_, _) => await GuardAsync(_ => Navigation.PopAsync());
-        add.Clicked += async (_, _) => await GuardAsync(_ => Navigation.PushAsync(new ClipboardEditorPage(repository, validator, preferences, colourPicker, selected)));
+        back.Clicked += async (_, _) =>
+        {
+            if (!active || (busy && !reading)) return;
+            try { await PageNavigation.PopAsync(this); }
+            catch (Exception ex) { logger.LogWarning("Clipboard Back failed. ErrorType={ErrorType}", ex.GetType().Name); if (active) ShowStatus("Could not go back. Please try again."); }
+        };
+        add.Clicked += async (_, _) => await GuardAsync(token => PageNavigation.PushAsync(this, () => new ClipboardEditorPage(repository, validator, preferences, colourPicker, selected), logger, token));
         arrange.Clicked += async (_, _) => await GuardAsync(_ =>
         {
             var navigation = new NavigationPage(new ClipboardArrangePage(repository, logger, selected, visible.ToArray()));
@@ -66,7 +73,7 @@ public sealed class ClipboardPage : ContentPage
         var heading = new VerticalStackLayout { Padding = new Thickness(16, 12, 16, 16), Spacing = 12, Children =
         {
             SettingsControls.Text("Keep it in Clipboard.", 25, bold: true),
-            SettingsControls.Rounded(switcher, 24), description, arrangeHint, status
+            SettingsControls.Rounded(switcher, 24), description, loading, arrangeHint, status
         } };
         var layout = new Grid { RowDefinitions = { new(GridLength.Auto), new(GridLength.Auto), new(GridLength.Star) } };
         layout.Add(PageActionBar.Clipboard(back, arrange, add)); layout.Add(heading, 0, 1); layout.Add(refresh, 0, 2);
@@ -76,12 +83,12 @@ public sealed class ClipboardPage : ContentPage
 
     protected override async void OnAppearing()
     {
-        base.OnAppearing(); active = foreground = true; lifetime.Dispose(); lifetime = new();
+        base.OnAppearing(); active = foreground = true; pageEpoch++; lifetime.Cancel(); lifetime.Dispose(); lifetime = new();
         ObserveWindow(); await ReloadAsync();
     }
     protected override void OnDisappearing()
     {
-        active = foreground = false; lifetime.Cancel(); ResetCopyFeedback(); StopObservingWindow(); base.OnDisappearing();
+        active = foreground = false; pageEpoch++; lifetime.Cancel(); loading.SetActive(false); ResetCopyFeedback(); StopObservingWindow(); base.OnDisappearing();
     }
 
     private void ObserveWindow()
@@ -95,8 +102,13 @@ public sealed class ClipboardPage : ContentPage
         if (observedWindow is null) return;
         observedWindow.Stopped -= WindowStopped; observedWindow.Resumed -= WindowResumed; observedWindow = null;
     }
-    private void WindowStopped(object? sender, EventArgs args) { foreground = false; ResetCopyFeedback(); }
-    private void WindowResumed(object? sender, EventArgs args) => foreground = active;
+    private void WindowStopped(object? sender, EventArgs args) { foreground = false; pageEpoch++; lifetime.Cancel(); loading.SetActive(false); ResetCopyFeedback(); }
+    private async void WindowResumed(object? sender, EventArgs args)
+    {
+        if (!active) return;
+        foreground = true; if (lifetime.IsCancellationRequested) { lifetime.Dispose(); lifetime = new(); }
+        await ReloadAsync();
+    }
     private void ResetCopyFeedback() { copyEpoch++; copyFeedback.Clear(); }
 
     private void Filter()
@@ -125,11 +137,17 @@ public sealed class ClipboardPage : ContentPage
     }
     private async Task ReloadAsync()
     {
-        if (busy) { reloadPending = true; return; }
+        if (busy) { reloadPending = true; loading.SetActive(reading && active && foreground); UpdateActions(); return; }
         await GuardAsync(async token =>
         {
-            reloadPending = false; saved = await repository.ReadAsync(token); token.ThrowIfCancellationRequested(); loaded = true; Filter();
-        });
+            reloadPending = false;
+            if (!await PageNavigation.WaitForTransitionAsync(this, token)) return;
+            var version = pageEpoch;
+            var latest = await repository.ReadAsync(token); token.ThrowIfCancellationRequested();
+            if (!active || !foreground || version != pageEpoch) return;
+            saved = latest; loaded = true; Filter();
+            PageNavigation.DataReady(this);
+        }, readOnly: true);
     }
     private Task SecondaryAsync(ActionDefinition item) => item.Parameters switch
     {
@@ -190,10 +208,11 @@ public sealed class ClipboardPage : ContentPage
         validator.Validate(item);
         if (StudioContent.Kind(item.Parameters) is not { } kind) return;
         token.ThrowIfCancellationRequested();
-        await Navigation.PushAsync(new ClipboardEditorPage(repository, validator, preferences, colourPicker, kind, item));
+        await PageNavigation.PushAsync(this, () => new ClipboardEditorPage(repository, validator, preferences, colourPicker, kind, item), logger, token);
     });
     private Task DeleteAsync(ActionDefinition item) => GuardAsync(async token =>
     {
+        var version = pageEpoch;
         if (!await DisplayAlertAsync("Delete clipboard item?", $"Remove “{item.Name}” from your saved clipboard?", "Delete", "Cancel")) return;
         token.ThrowIfCancellationRequested();
         // Finish the delete before removing its file; cancellation cannot orphan a committed item.
@@ -201,39 +220,45 @@ public sealed class ClipboardPage : ContentPage
         try { visibility.Remove(item.Id); }
         catch (Exception ex) { logger.LogWarning("Deleted clipboard item's visibility cleanup failed. ErrorType={ErrorType}", ex.GetType().Name); }
         if (item.Parameters is PhotoParameters photo) ClipboardPhotoStore.Remove(photo.AssetKey);
-        if (!active) return;
-        saved = await repository.ReadAsync(); Filter(); ShowStatus("Clipboard item deleted.");
+        var latest = await repository.ReadAsync();
+        if (!active || !foreground || version != pageEpoch) { reloadPending = active; return; }
+        saved = latest; Filter(); ShowStatus("Clipboard item deleted.");
     });
     private Task PinAsync(ActionDefinition item) => GuardAsync(async token =>
     {
+        var version = pageEpoch;
         await repository.SetPinnedAsync(item.Id, !item.IsFavorite, token);
-        saved = await repository.ReadAsync();
-        if (!active) { reloadPending = true; return; }
-        Filter(); ShowStatus(item.IsFavorite ? "Item unpinned." : "Item pinned to the top.");
+        var latest = await repository.ReadAsync();
+        if (!active || !foreground || version != pageEpoch) { reloadPending = active; return; }
+        saved = latest; Filter(); ShowStatus(item.IsFavorite ? "Item unpinned." : "Item pinned to the top.");
         SemanticScreenReader.Default.Announce(status.Text);
     });
-    private async Task GuardAsync(Func<CancellationToken, Task> operation)
+    private async Task GuardAsync(Func<CancellationToken, Task> operation, bool readOnly = false)
     {
-        if (busy || !active) return;
-        busy = true; items.IsEnabled = false; UpdateActions();
+        if (busy || !active || !foreground) return;
+        var version = pageEpoch;
+        busy = true; reading = readOnly; loading.SetActive(readOnly); items.IsEnabled = false; UpdateActions();
         try { await operation(lifetime.Token); }
         catch (OperationCanceledException) { }
         catch (Exception ex)
         {
             logger.LogWarning("Clipboard operation failed. ErrorType={ErrorType}", ex.GetType().Name);
-            ShowStatus(ex is IOException or ActionValidationException or ActionExecutionException ? ex.Message : "Clipboard is unavailable. Pull down to try again.");
-            SemanticScreenReader.Default.Announce(status.Text);
+            if (active && foreground && version == pageEpoch)
+            {
+                ShowStatus(ex is IOException or ActionValidationException or ActionExecutionException ? ex.Message : "Clipboard is unavailable. Pull down to try again.");
+                SemanticScreenReader.Default.Announce(status.Text);
+            }
         }
         finally
         {
-            busy = false; items.IsEnabled = true; UpdateActions(); refresh.IsRefreshing = false;
-            if (active && reloadPending) { reloadPending = false; await ReloadAsync(); }
+            busy = reading = false; loading.SetActive(false); items.IsEnabled = true; UpdateActions(); refresh.IsRefreshing = false;
+            if (active && foreground && reloadPending) { reloadPending = false; await ReloadAsync(); }
         }
     }
     private void UpdateActions()
     {
         var availability = ClipboardArrangeAvailability.For(visible, selected);
-        back.IsEnabled = add.IsEnabled = !busy;
+        back.IsEnabled = active && (!busy || reading); add.IsEnabled = !busy;
         back.DisabledReason = add.DisabledReason = "Please wait for the current action to finish.";
         arrange.DisabledReason = busy ? "Please wait for the current action to finish." : !loaded ? "Load your items to arrange." : availability.Reason;
         arrange.IsEnabled = loaded && !busy && availability.CanArrange;

@@ -14,12 +14,13 @@ internal sealed class WidgetAssignDesignPage : WidgetSlotPageBase
     private readonly SearchBar search = new() { AutomationId = "SearchMatchingWidgets", IsVisible = false, MaximumWidthRequest = 800 };
     private readonly Grid choices = new() { ColumnSpacing = 12, RowSpacing = 12, AutomationId = "MatchingWidgetDesigns" };
     private readonly Label status = SettingsControls.Text("", 14, secondary: true);
+    private readonly PageLoadIndicator loading = new("Loading designs…", "AssignDesignLoading");
     private readonly Label summary = SettingsControls.Text("Choose a design to assign.", 13, secondary: true);
     private readonly PageActionButton retry = new("Try again", "RetryWidgetAssignments");
     private readonly ClipboardEditorActionButton confirm;
     private readonly WidgetSlotPreviewWindow previews;
     private readonly List<(Guid Id, WidgetDesignChoiceCard Card)> cards = [];
-    private bool enabled, committed, loaded;
+    private bool enabled, committed, loaded, closing;
     private bool? publication;
     private int columns;
     internal WidgetSize Size => selection.Size;
@@ -28,10 +29,17 @@ internal sealed class WidgetAssignDesignPage : WidgetSlotPageBase
     public WidgetAssignDesignPage(IWidgetSlotStore store, ILogger logger, WidgetSize size, int number,
         Action<bool>? assigned = null, Func<Task>? close = null) : base(logger)
     {
-        this.store = store; selection = new(size, number); this.assigned = assigned ?? (_ => { }); this.close = close ?? (() => Navigation.PopAsync());
+        this.store = store; selection = new(size, number); this.assigned = assigned ?? (_ => { }); this.close = close ?? (() => PageNavigation.PopAsync(this));
         var slotTitle = WidgetSlotRules.Title(size, number); var sizeTitle = WidgetDesignRules.SizeName(size);
         Title = "Assign design"; AutomationId = "WidgetAssignDesignPage";
-        back.Clicked += async (_, _) => await RunAsync((_, _) => this.close());
+        back.Clicked += async (_, _) =>
+        {
+            if (!CanGoBack || closing) return;
+            closing = true;
+            try { await this.close(); }
+            catch (Exception ex) { Logger.LogWarning("Assignment Back failed. ErrorType={ErrorType}", ex.GetType().Name); if (Foreground) ShowFailure("Could not go back. Please try again."); }
+            finally { closing = false; }
+        };
         searchButton.Describe($"Search {sizeTitle} designs");
         searchButton.Clicked += (_, _) =>
         {
@@ -49,7 +57,7 @@ internal sealed class WidgetAssignDesignPage : WidgetSlotPageBase
         var lockedSize = WidgetStudioStyle.Card(locked, new Thickness(14, 10), 20);
         lockedSize.SetDynamicResource(BackgroundProperty, "AccentSelectionBrush"); lockedSize.SetDynamicResource(Border.StrokeProperty, "AccentSelectionStroke");
         var body = new VerticalStackLayout { Padding = new Thickness(16, 8, 24, 20), Spacing = 12, MaximumWidthRequest = 800, Children = {
-            lockedSize, SettingsControls.Text("Choose a saved design for " + slotTitle + ".", 14, secondary: true), search, status, retry, choices
+            lockedSize, SettingsControls.Text("Choose a saved design for " + slotTitle + ".", 14, secondary: true), search, loading, status, retry, choices
         } };
         status.IsVisible = retry.IsVisible = false;
         retry.Clicked += async (_, _) => await ReloadAsync();
@@ -141,5 +149,6 @@ internal sealed class WidgetAssignDesignPage : WidgetSlotPageBase
         UpdateSelection();
     }
     protected override void ReleasePreviews() { previews.Activate(false); previews.Clear(); }
+    protected override void ReadingChanged(bool value) { loading.SetActive(value && Foreground); back.IsEnabled = CanGoBack; }
     protected override void ShowFailure(string message) { status.Text = message; status.IsVisible = message.Length > 0; retry.IsVisible = !committed; }
 }

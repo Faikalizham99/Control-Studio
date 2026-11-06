@@ -679,6 +679,9 @@ public sealed class PickerCancellationTests : IDisposable
         var controls = Descendants(page).OfType<WidgetClockControls>().Single();
         var picker = Descendants(page).OfType<WidgetClockFontPicker>().Single();
         var composition = Descendants(page).OfType<WidgetCompositeView>().Single();
+        Assert.Null(picker.Content);
+        ((IButtonController)Button(page, "ClockToolFont")).SendClicked();
+        ((IButtonController)Button(page, "ClockToolFont")).SendClicked();
         var button = Button(page, "ClockFont" + (int)font);
         // A stale/native callback while the Font panel is closed must not edit the draft.
         ((IButtonController)button).SendClicked(); Assert.Equal(clock, composition.Design!.Layers[0]);

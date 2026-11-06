@@ -314,6 +314,20 @@ public sealed class WidgetSlotsRedesignTests : IDisposable
         Assert.Throws<IOException>(() => new WidgetSlotSelection(WidgetSize.Small, 21));
         Assert.Equal(1, WidgetSlotSelection.Columns(WidgetSize.Small, 200)); Assert.Equal(1, WidgetSlotSelection.Columns(WidgetSize.ExtraLargePortrait, 800));
     }
+    [Fact]
+    public async Task ReadOnlyLoadingAllowsBackButDoesNotAllowDuplicateCloseRequests()
+    {
+        var pendingRead = new TaskCompletionSource<WidgetLibraryCatalog>(); var pendingClose = new TaskCompletionSource(); var closes = 0;
+        var store = new Store([Design(WidgetSize.Small)]) { Read = _ => pendingRead.Task };
+        var page = Assignment(store, WidgetSize.Small, close: () => { closes++; return pendingClose.Task; }); Open(page);
+        var back = Button(page, "BackFromAssignWidget"); Assert.True(back.IsEnabled);
+        Assert.False(Button(page, "ConfirmWidgetAssignment").IsEnabled);
+        ((IButtonController)back).SendClicked(); ((IButtonController)back).SendClicked(); Assert.Equal(1, closes);
+        ((IPageController)page).SendDisappearing();
+        Assert.False(Descendants(page).OfType<PageLoadIndicator>().Single().IsVisible);
+        pendingClose.SetResult(); pendingRead.SetResult(store.Library); await Task.Yield(); await Task.Yield();
+        Assert.Empty(Descendants(page).OfType<WidgetDesignChoiceCard>()); Assert.Empty(store.Writes);
+    }
     private sealed class Store(IReadOnlyList<WidgetDesign> designs, IReadOnlyList<WidgetSlotAssignment>? slots = null) : IWidgetSlotStore
     {
         public WidgetLibraryCatalog Library = new(2, designs, slots ?? []);

@@ -1,5 +1,4 @@
 using ControlStudio.Core.Widgets;
-using ControlStudio.App.Platforms.iOS;
 using Microsoft.Extensions.Logging;
 
 namespace ControlStudio.App.Views;
@@ -7,8 +6,8 @@ namespace ControlStudio.App.Views;
 internal sealed class WidgetsPage : WidgetStudioPage
 {
     private static readonly WidgetSize[] MainSizes = WidgetDesignRules.SupportedSizes.ToArray();
-    private readonly WidgetStudioService studio;
-    private readonly AppleColorPicker colourPicker;
+    private readonly IWidgetGalleryStore studio;
+    private readonly IColourPicker colourPicker;
     private readonly VerticalStackLayout designs = new() { Spacing = 16 };
     private readonly ScrollView scroll = new();
     private readonly VerticalStackLayout body;
@@ -19,22 +18,28 @@ internal sealed class WidgetsPage : WidgetStudioPage
     private readonly WidgetRefreshButton refresh = new();
     private readonly ClipboardEditorActionButton widgetSlots = new("Widget slots", ClipboardEditorControls.Icon(StudioSymbol.Widgets), "OpenWidgetSlots", primary: true);
     private readonly Label status = SettingsControls.Text("", 13, secondary: true);
+    private readonly PageLoadIndicator loading = new("Loading widgets…", "WidgetsLoading");
     private readonly WidgetSegments sizes;
     private readonly Label xlHint = SettingsControls.Text("Extra Large requires iOS 27 or later on iPhone.", 12, secondary: true);
     private IReadOnlyList<WidgetDesign> saved = [];
+    private (WidgetDesign Design, string? Path, DateTimeOffset? Updated)[]? displayed;
+    private WidgetSize displayedSize;
+    private bool libraryReady;
+    private CancellationTokenSource? passivePublication;
+    private int publicationVersion;
     private WidgetSize SelectedSize => MainSizes[sizes.SelectedIndex];
 
-    public WidgetsPage(WidgetStudioService studio, AppleColorPicker colourPicker, ILogger logger, WidgetSize initialSize = WidgetSize.Small) : base(logger)
+    public WidgetsPage(IWidgetGalleryStore studio, IColourPicker colourPicker, ILogger logger, WidgetSize initialSize = WidgetSize.Small) : base(logger)
     {
         this.studio = studio; this.colourPicker = colourPicker;
         Title = "My Widgets"; AutomationId = "WidgetsPage";
         sizes = new(["Small", "Medium", "Large", "XL"], "WidgetSizeFilter", _ => FilterChanged());
         sizes.Update(Math.Max(0, Array.IndexOf(MainSizes, initialSize)));
         xlHint.IsVisible = SelectedSize == WidgetSize.ExtraLargePortrait;
-        add.Clicked += async (_, _) => await RunAsync((_, _) => Navigation.PushAsync(new WidgetEditorPage(studio, colourPicker, Logger, initialSize: SelectedSize)));
-        back.Clicked += async (_, _) => await RunAsync((_, _) => Navigation.PopAsync());
+        add.Clicked += async (_, _) => await RunAsync((token, _) => PageNavigation.PushAsync(this, () => new WidgetEditorPage(studio, colourPicker, Logger, initialSize: SelectedSize), Logger, token));
+        back.Clicked += async (_, _) => await NavigateBackAsync();
         refresh.Clicked += async (_, _) => await RefreshWidgetsAsync();
-        widgetSlots.Clicked += async (_, _) => await RunAsync((_, _) => Navigation.PushAsync(new WidgetSlotsPage(new AppleWidgetSlotStore(studio), Logger, SelectedSize)));
+        widgetSlots.Clicked += async (_, _) => await RunAsync((token, _) => PageNavigation.PushAsync(this, () => new WidgetSlotsPage(studio.Slots, Logger, SelectedSize), Logger, token));
         var heading = SettingsControls.Text("Your widget designs", 22, bold: true);
         SemanticProperties.SetHeadingLevel(heading, SemanticHeadingLevel.Level2);
         var headingBlock = new VerticalStackLayout { Spacing = 10, Children =
@@ -43,7 +48,7 @@ internal sealed class WidgetsPage : WidgetStudioPage
         } };
         status.IsVisible = false;
         body = new VerticalStackLayout { Padding = new Thickness(20, 14, 28, 24), Spacing = 16, MaximumWidthRequest = 800,
-            HorizontalOptions = LayoutOptions.Fill, Children = { headingBlock, designs, status } };
+            HorizontalOptions = LayoutOptions.Fill, Children = { headingBlock, loading, designs, status } };
         scroll.Content = body;
         scroll.Scrolled += (_, _) => UpdateVisiblePreviews();
         scroll.SizeChanged += (_, _) => UpdateVisiblePreviews();
@@ -60,7 +65,7 @@ internal sealed class WidgetsPage : WidgetStudioPage
         try
         {
             await LoadLibraryAsync(token, version, force: true);
-            if (IsForeground(version)) Announce(status.IsVisible ? status.Text : studio.Repository.HasSavedLibrary
+            if (IsForeground(version)) Announce(status.IsVisible ? status.Text : studio.HasSavedLibrary
                 ? "Widget refresh requested. iOS decides when it appears." : "No saved widgets to refresh yet.");
         }
         catch (Exception ex)
@@ -75,21 +80,53 @@ internal sealed class WidgetsPage : WidgetStudioPage
     protected override Task LoadAsync(CancellationToken token, int version) => LoadLibraryAsync(token, version, force: false);
     private async Task LoadLibraryAsync(CancellationToken token, int version, bool force)
     {
-        var loaded = await studio.Repository.ReadAsync(token); if (!IsCurrent(version)) return;
-        saved = loaded; ShowDesigns();
-        if (studio.Repository.HasSavedLibrary)
+        var loaded = await studio.ReadAsync(token); if (!IsCurrent(version)) return;
+        saved = loaded; libraryReady = true; ShowDesigns();
+        previewsActive = IsForeground(version); UpdateVisiblePreviews();
+        CancelPassivePublication();
+        var publication = ++publicationVersion;
+        if (force) await PublishLibraryAsync(token, version, true, publication);
+        else
         {
-            var published = await studio.PublishAsync(force, token); if (!IsCurrent(version)) return;
-            if (published) { status.Text = ""; status.IsVisible = false; }
-            else ShowFailure("Saved on this device. Tap Refresh to retry the Home Screen update; check App Group access in Settings.");
+            var pending = CancellationTokenSource.CreateLinkedTokenSource(token); passivePublication = pending;
+            _ = PublishPassivelyAsync(pending, version, publication);
         }
-        else { status.Text = ""; status.IsVisible = false; }
+    }
+    private void CancelPassivePublication() { publicationVersion++; passivePublication?.Cancel(); }
+    private async Task PublishPassivelyAsync(CancellationTokenSource pending, int version, int publication)
+    {
+        try { await PublishLibraryAsync(pending.Token, version, false, publication); }
+        finally { if (ReferenceEquals(passivePublication, pending)) passivePublication = null; pending.Dispose(); }
+    }
+    private async Task PublishLibraryAsync(CancellationToken token, int version, bool force, int publication)
+    {
+        try
+        {
+            if (studio.HasSavedLibrary)
+            {
+                var published = await studio.PublishAsync(force, token); if (!IsCurrent(version) || publication != publicationVersion) return;
+                if (published) { status.Text = ""; status.IsVisible = false; }
+                else ShowFailure("Saved on this device. Tap Refresh to retry the Home Screen update; check App Group access in Settings.");
+            }
+            else { status.Text = ""; status.IsVisible = false; }
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { }
+        catch (Exception ex)
+        {
+            Logger.LogWarning("Gallery publication failed. ErrorType={ErrorType}", ex.GetType().Name);
+            if (IsCurrent(version) && publication == publicationVersion) ShowFailure("Saved on this device. Tap Refresh to retry the Home Screen update; check App Group access in Settings.");
+        }
     }
     private void ShowDesigns()
     {
+        var matching = saved.Where(x => WidgetDesignRules.ForEditing(x).Size == SelectedSize)
+            .Select(x => (Design: x, Path: studio.RenderPath(x.RenderKey), Updated: studio.RenderUpdatedAt(x.RenderKey))).ToArray();
+        if (displayed is not null && displayedSize == SelectedSize && displayed.Length == matching.Length
+            && displayed.Zip(matching).All(x => x.First.Path == x.Second.Path && x.First.Updated == x.Second.Updated
+                && SameDesign(x.First.Design, x.Second.Design))) return;
         foreach (var preview in previews) preview.Image.Dispose();
         previews.Clear();
-        designs.Children.Clear(); var matching = saved.Where(x => WidgetDesignRules.ForEditing(x).Size == SelectedSize).ToArray();
+        designs.Children.Clear(); displayed = matching; displayedSize = SelectedSize;
         if (matching.Length == 0)
         {
             designs.Children.Add(WidgetStudioStyle.Card(new VerticalStackLayout { Spacing = 8, Padding = 10, Children =
@@ -99,17 +136,19 @@ internal sealed class WidgetsPage : WidgetStudioPage
             } }));
             return;
         }
-        foreach (var design in matching)
+        foreach (var item in matching)
         {
+            var design = item.Design;
             var edit = new ClipboardIconButton(StudioSymbol.Edit, "Edit"); edit.Describe("Edit widget", design.Name);
             var delete = new ClipboardIconButton(StudioSymbol.Delete, "Delete", destructive: true); delete.Describe("Delete widget", design.Name);
-            Task Edit() => RunAsync((_, _) => Navigation.PushAsync(new WidgetEditorPage(studio, colourPicker, Logger, design)));
+            Task Edit() => RunAsync((token, _) => PageNavigation.PushAsync(this, () => new WidgetEditorPage(studio, colourPicker, Logger, design), Logger, token));
             edit.Clicked += async (_, _) => await Edit();
             delete.Clicked += async (_, _) => await RunAsync(async (token, version) =>
             {
                 if (!await DisplayAlertAsync("Delete widget design?", "Remove this saved design? Its assigned slots will become empty. Your original photos are kept.", "Delete", "Cancel") || !IsForeground(version)) return;
+                CancelPassivePublication();
                 var published = await studio.DeleteAsync(design.Id); if (!IsCurrent(version)) return;
-                saved = await studio.Repository.ReadAsync(token); if (!IsCurrent(version)) return;
+                saved = await studio.ReadAsync(token); if (!IsCurrent(version)) return;
                 ShowDesigns(); ShowFailure(published ? "Widget design deleted." : "Deleted on this device. Tap Refresh to update Home Screen widgets.");
                 Announce("Widget design deleted.");
             });
@@ -120,7 +159,7 @@ internal sealed class WidgetsPage : WidgetStudioPage
             badge.BindForeground(badgeLabel, Label.TextColorProperty);
             var labels = new VerticalStackLayout { Spacing = 5, VerticalOptions = LayoutOptions.Center, Children = { title, badge } };
             if (!WidgetDesignRules.IsSupported(design.Size)) labels.Children.Add(SettingsControls.Text("Open Edit to resize and save. Photos are kept.", 12, secondary: true));
-            var stamp = studio.Repository.RenderUpdatedAt(design.RenderKey);
+            var stamp = item.Updated;
             if (stamp is { } updated) labels.Children.Add(SettingsControls.Text("Updated\n" + updated.ToLocalTime().ToString("dd MMM yyyy, h:mm tt"), 11, secondary: true));
             var open = SettingsControls.TapTarget("Open " + design.Name + " widget editor", "OpenWidgetDetails" + design.Id.ToString("N"));
             open.Clicked += async (_, _) => await Edit();
@@ -131,7 +170,7 @@ internal sealed class WidgetsPage : WidgetStudioPage
             var actions = new ActionButtonRow(edit, delete, next);
             var header = new CardActionHeader(labels, actions);
             // Full-size cards need the full saved composite, not the 256px slot thumbnail.
-            var image = new WidgetRenderPreview(studio.Repository.RenderPath(design.RenderKey), Color.FromArgb(design.BackgroundHex));
+            var image = new WidgetRenderPreview(item.Path, Color.FromArgb(design.BackgroundHex));
             var tap = SettingsControls.TapTarget("Open " + design.Name + " widget", "OpenWidget" + design.Id.ToString("N"));
             tap.Clicked += async (_, _) => await Edit();
             SemanticProperties.SetHint(tap, "Opens the widget editor.");
@@ -167,15 +206,30 @@ internal sealed class WidgetsPage : WidgetStudioPage
         }
         finally { updatingPreviews = false; }
     }
-    protected override void PreviewActivityChanged(bool visible) { previewsActive = visible; UpdateVisiblePreviews(); }
+    private static bool SameDesign(WidgetDesign first, WidgetDesign second)
+        // Layer records compare by value; battery options include structural stop equality.
+        => first == (second with { Layers = first.Layers }) && first.Layers.SequenceEqual(second.Layers);
+    protected override void PreviewActivityChanged(bool visible)
+    {
+        if (!visible) libraryReady = false;
+        previewsActive = visible && libraryReady; UpdateVisiblePreviews();
+    }
     protected override void OnDisappearing()
     {
         refresh.IsRefreshing = false;
-        previewsActive = false;
-        // The next appearance reloads the library and builds fresh controls.
-        // A render replaced/deleted in the editor must never be requested again.
-        foreach (var preview in previews) preview.Image.Dispose();
+        CancelPassivePublication();
+        libraryReady = previewsActive = false;
+        // Retain lightweight cards, never image sources. Revalidate the library
+        // before restoring any preview after an edit/delete in a child page.
+        foreach (var preview in previews) preview.Image.SetVisible(false);
         base.OnDisappearing();
+    }
+    protected override void OnNavigatedFrom(NavigatedFromEventArgs args)
+    {
+        base.OnNavigatedFrom(args);
+        if (Navigation.NavigationStack.Contains(this)) return;
+        foreach (var preview in previews) preview.Image.Dispose();
+        previews.Clear(); displayed = null; designs.Children.Clear();
     }
     private static string WidgetSizeLabel(WidgetSize size) => size switch
     {
@@ -183,5 +237,6 @@ internal sealed class WidgetsPage : WidgetStudioPage
     };
     protected override void SetActionsEnabled(bool enabled) => add.IsEnabled = back.IsEnabled = refresh.IsEnabled = widgetSlots.IsEnabled
         = sizes.IsEnabled = designs.IsEnabled = enabled;
+    protected override void ReadingChanged(bool value) { loading.SetActive(value && Window?.IsActivated == true); back.IsEnabled = CanGoBack; }
     protected override void ShowFailure(string message) { status.Text = message; status.IsVisible = !string.IsNullOrEmpty(message); }
 }

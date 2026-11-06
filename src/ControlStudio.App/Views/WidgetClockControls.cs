@@ -61,7 +61,7 @@ internal sealed class WidgetClockControls : ContentView
         AutomationId = "WidgetClockControls"; IsVisible = false;
         format = new(["12-hour", "24-hour"], "ClockFormat", index => Edit(WidgetClockTool.Time, x => x with { TwentyFourHour = index == 1 }));
         fonts = new(font => Edit(WidgetClockTool.Font, x => WidgetClockWeights.ChangeFont(x, font)),
-            weight => { if (TextStyle is { } clock && WidgetClockWeights.Available(clock.Font).Contains(weight)) Edit(WidgetClockTool.Font, x => x with { Weight = weight }); });
+            weight => { if (TextStyle is { } clock && WidgetClockWeights.Available(clock.Font).Contains(weight)) Edit(WidgetClockTool.Font, x => x with { Weight = weight }); }, defer: true);
         fonts.PositionChanging += view => PositionChanging?.Invoke(view);
         dates = new(value => EditDate(date => WidgetDates.ChangeFormat(date, value)));
         dates.PositionChanging += view => PositionChanging?.Invoke(view);
@@ -165,6 +165,7 @@ internal sealed class WidgetClockControls : ContentView
         if (tool != WidgetClockTool.Time || !IsCustomText) content.Unfocus();
         var changed = ActiveTool != tool; ActiveTool = tool;
         if (changed) LayoutChanging?.Invoke(this, EventArgs.Empty);
+        if (tool == WidgetClockTool.Font) fonts.EnsureLoaded();
         if (tool is { } next) tools[next].Panel.IsVisible = true;
         foreach (var (key, item) in tools) { if (key != tool) item.Panel.IsVisible = false; item.Button.IsSelected = key == tool; }
         IsVisible = layer is not null && tool is not null;

@@ -11,12 +11,13 @@ internal sealed class CounterWidgetsPage : WidgetStudioPage
     private readonly ClipboardEditorActionButton refresh = new("Refresh preview", ClipboardEditorControls.Icon(StudioSymbol.Refresh), "RefreshCounterPreview", primary: true);
     private readonly WidgetSegments sizes;
     private readonly Label status = SettingsControls.Text("", 14, secondary: true);
+    private readonly PageLoadIndicator loading = new("Loading counter…", "CounterPreviewLoading");
     private readonly Border[] dots = [new(), new()];
     public CounterWidgetsPage(ICounterRepository repository, ILogger logger) : base(logger)
     {
         this.repository = repository; Title = "Counter Widgets"; AutomationId = "CounterWidgetsPage";
         sizes = new(["Small", "Medium"], "CounterSize", SelectSize);
-        back.Clicked += async (_, _) => await RunAsync((_, _) => Navigation.PopAsync());
+        back.Clicked += async (_, _) => await NavigateBackAsync();
         refresh.Clicked += async (_, _) => await RunAsync(async (token, version) =>
         {
             await LoadAsync(token, version);
@@ -32,7 +33,7 @@ internal sealed class CounterWidgetsPage : WidgetStudioPage
         status.IsVisible = false; SelectSize(0);
         var body = new VerticalStackLayout { Padding = new Thickness(20, 14, 28, 28), Spacing = 18, MaximumWidthRequest = 800, Children =
         {
-            SettingsControls.Text("Preview your counter in the available sizes.", 15, secondary: true),
+            loading, SettingsControls.Text("Preview your counter in the available sizes.", 15, secondary: true),
             SettingsControls.Text("Widget size", 15, bold: true), sizes,
             new Grid { Margin = new Thickness(0, 12, 0, 0), Children = { small, medium } }, indicators, refresh, status,
             SettingsControls.Text("Preview of your shared counter. iOS schedules Home Screen updates.", 13, secondary: true)
@@ -61,4 +62,5 @@ internal sealed class CounterWidgetsPage : WidgetStudioPage
     }
     protected override void ShowFailure(string message) { status.Text = message; status.IsVisible = true; }
     protected override void SetActionsEnabled(bool enabled) => back.IsEnabled = refresh.IsEnabled = sizes.IsEnabled = enabled;
+    protected override void ReadingChanged(bool value) { loading.SetActive(value && Window?.IsActivated == true); back.IsEnabled = CanGoBack; }
 }

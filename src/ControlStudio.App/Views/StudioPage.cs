@@ -58,7 +58,8 @@ public sealed class StudioPage : ContentPage
         {
             if (opening) return;
             opening = true; tap.IsEnabled = false;
-            try { await Navigation.PushAsync(destination()); }
+            row.Opacity = .8;
+            try { await PageNavigation.PushAsync(this, destination, logger); }
             catch (Exception ex)
             {
                 logger.LogWarning("Studio navigation failed. ErrorType={ErrorType}", ex.GetType().Name);
