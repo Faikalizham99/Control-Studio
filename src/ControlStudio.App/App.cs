@@ -92,10 +92,11 @@ public sealed class App : Application
             size => new WidgetsPage(widgets, colourPicker, logger, size),
             design => new WidgetEditorPage(widgets, colourPicker, logger, design),
             size => new WidgetSlotsPage(slots, logger, size),
-            (title, message) => studioNavigation.CurrentPage.DisplayAlertAsync(title, message, "OK"),
+            (title, message) => ((tabs.CurrentPage as NavigationPage)?.CurrentPage ?? tabs.CurrentPage).DisplayAlertAsync(title, message, "OK"),
             () => window.Handler?.PlatformView is UIKit.UIWindow native && native.Handle != IntPtr.Zero
-                && native.RootViewController?.PresentedViewController is null);
-        return new(() => navigation.Ready, navigation.OpenAsync, async ex =>
+                && native.RootViewController?.PresentedViewController is null,
+            uri => Microsoft.Maui.ApplicationModel.Launcher.Default.OpenAsync(uri));
+        return new(() => navigation.Ready, (link, token, acknowledge) => navigation.OpenWithHandoffAsync(link, token, acknowledge), async ex =>
         {
             AppleWidgetTapLinks.Report(ex);
             if (window.IsActivated && window.Handler?.PlatformView is UIKit.UIWindow native

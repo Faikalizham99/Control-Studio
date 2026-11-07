@@ -5,12 +5,14 @@ namespace ControlStudio.App.Views;
 /// <summary>Reuses the normal editor/slots pages without removing any existing draft.</summary>
 internal sealed class WidgetTapNavigation(TabbedPage tabs, NavigationPage home, NavigationPage studio,
     IWidgetSlotStore store, Func<WidgetSize, Page> gallery, Func<WidgetDesign, WidgetEditorPage> editor,
-    Func<WidgetSize, Page> slots, Func<string, string, Task> notify, Func<bool>? canPresent = null)
+    Func<WidgetSize, Page> slots, Func<string, string, Task> notify, Func<bool>? canPresent = null,
+    Func<Uri, Task<bool>>? openShortcut = null)
 {
     public bool Ready => tabs.Window?.IsActivated == true && tabs.Navigation.ModalStack.Count == 0
         && (canPresent?.Invoke() ?? true) && !studio.Navigation.NavigationStack.OfType<WidgetEditorPage>().Any(x => !x.CanAcceptWidgetTap);
 
-    public async Task<bool> OpenAsync(WidgetTapLink link, CancellationToken token)
+    public Task<bool> OpenAsync(WidgetTapLink link, CancellationToken token) => OpenWithHandoffAsync(link, token, () => { });
+    public async Task<bool> OpenWithHandoffAsync(WidgetTapLink link, CancellationToken token, Action acknowledge)
     {
         token.ThrowIfCancellationRequested(); if (!Ready) return false;
         if (link.IsCounter)
@@ -21,6 +23,7 @@ internal sealed class WidgetTapNavigation(TabbedPage tabs, NavigationPage home, 
         var library = await store.ReadAsync(token);
         token.ThrowIfCancellationRequested(); if (!Ready) return false;
         var design = link.Resolve(library);
+        if (design?.TapAction == WidgetTapAction.RunShortcut) return await RunShortcutAsync(design, token, acknowledge);
         tabs.CurrentPage = studio;
         if (await ResumeExistingEditorAsync(design)) return true;
         var size = link.Size!.Value;
@@ -36,6 +39,7 @@ internal sealed class WidgetTapNavigation(TabbedPage tabs, NavigationPage home, 
             library = await store.ReadAsync(token);
             token.ThrowIfCancellationRequested(); if (!Ready) return false;
             design = link.Resolve(library);
+            if (design?.TapAction == WidgetTapAction.RunShortcut) return await RunShortcutAsync(design, token, acknowledge);
             if (await ResumeExistingEditorAsync(design)) return true;
         }
         token.ThrowIfCancellationRequested(); if (!Ready) return false;
@@ -46,6 +50,19 @@ internal sealed class WidgetTapNavigation(TabbedPage tabs, NavigationPage home, 
         }
         else await studio.PushAsync(editor(design), false);
         return true;
+    }
+
+    private async Task<bool> RunShortcutAsync(WidgetDesign design, CancellationToken token, Action acknowledge)
+    {
+        var uri = WidgetTapActions.ShortcutUri(design.ShortcutName);
+        token.ThrowIfCancellationRequested(); if (!Ready) return false;
+        acknowledge(); // Before calling the OS, which may synchronously deactivate the window.
+        var opened = false;
+        try { if (openShortcut is not null) opened = await openShortcut(uri); }
+        catch (Exception) { /* Report a retryable, content-free error below. */ }
+        if (!opened && !token.IsCancellationRequested && Ready)
+            await notify("Could not open Shortcuts", "Check that the Shortcuts app is installed and the saved Shortcut name is correct. You can edit it in Studio → My Widgets.");
+        return true; // Dispatch is consumed even on failure; only a new tap should retry it.
     }
 
     private async Task<bool> ResumeExistingEditorAsync(WidgetDesign? design)

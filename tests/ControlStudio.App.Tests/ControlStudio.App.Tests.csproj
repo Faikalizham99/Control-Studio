@@ -55,6 +55,8 @@
     <Compile Include="../../src/ControlStudio.App/Views/EditorPageActivity.cs" Link="Views/EditorPageActivity.cs" />
     <Compile Include="../../src/ControlStudio.App/Views/WidgetEditorPage.cs" Link="Views/WidgetEditorPage.cs" />
     <Compile Include="../../src/ControlStudio.App/Views/WidgetEditorHistory.cs" Link="Views/WidgetEditorHistory.cs" />
+    <Compile Include="../../src/ControlStudio.App/Views/WidgetTapActionControls.cs" Link="Views/WidgetTapActionControls.cs" />
+    <Compile Include="../../src/ControlStudio.App/Views/WidgetEditorTapAction.cs" Link="Views/WidgetEditorTapAction.cs" />
     <Compile Include="../../src/ControlStudio.App/Views/WidgetEditorScrollView.cs" Link="Views/WidgetEditorScrollView.cs" />
     <Compile Include="../../src/ControlStudio.App/Views/WidgetEditorForm.cs" Link="Views/WidgetEditorForm.cs" />
     <Compile Include="../../src/ControlStudio.App/Views/WidgetEditorSurface.cs" Link="Views/WidgetEditorSurface.cs" />

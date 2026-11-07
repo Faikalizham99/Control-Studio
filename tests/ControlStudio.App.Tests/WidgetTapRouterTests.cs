@@ -5,6 +5,50 @@ namespace ControlStudio.App.Tests;
 public sealed class WidgetTapRouterTests
 {
     [Fact]
+    public async Task DuplicateDeliveryDuringAcknowledgedLaunchDoesNotIssueASecondShortcut()
+    {
+        var launch = new TaskCompletionSource<bool>(); var calls = 0; CancellationToken observed = default;
+        using var router = new WidgetTapRouter(() => true, (_, token, acknowledge) =>
+        {
+            calls++; observed = token; acknowledge(); return launch.Task;
+        }, _ => throw new IOException("Unexpected routing failure"));
+        router.SetActive(true); router.Submit("controlstudio://widget/small/1"); var operation = router.ProcessAsync();
+        Assert.False(router.HasPending); router.Submit("controlstudio://widget/small/1");
+        Assert.False(observed.IsCancellationRequested); Assert.False(router.HasPending);
+        launch.SetResult(true); await operation; Assert.Equal(1, calls);
+        router.Submit("controlstudio://widget/small/1"); await router.ProcessAsync(); Assert.Equal(2, calls);
+    }
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public async Task AcknowledgedExternalLaunchIsNotReplayedWhenReturningFromShortcuts(bool fail)
+    {
+        var calls = 0; WidgetTapRouter? router = null;
+        router = new(() => true, (_, token, acknowledge) =>
+        {
+            calls++; acknowledge(); router!.SetActive(false); Assert.True(token.IsCancellationRequested);
+            return fail ? Task.FromException<bool>(new OperationCanceledException(token)) : Task.FromResult(true);
+        }, _ => throw new IOException("Unexpected handoff error"));
+        using (router)
+        {
+            router.SetActive(true); router.Submit("controlstudio://widget/small/1"); await router.ProcessAsync();
+            Assert.False(router.HasPending); router.SetActive(true); await router.ProcessAsync(); Assert.Equal(1, calls);
+            router.Submit("controlstudio://widget/small/1"); await router.ProcessAsync(); Assert.Equal(2, calls);
+        }
+    }
+    [Fact]
+    public async Task CancelledOlderHandoffCannotConsumeTheNewerWidgetTap()
+    {
+        var reading = new TaskCompletionSource(); var opened = new List<int>();
+        using var router = new WidgetTapRouter(() => true, async (link, token, acknowledge) =>
+        {
+            if (link.Number == 1) await reading.Task;
+            acknowledge(); opened.Add(link.Number); return true;
+        }, _ => throw new IOException("Unexpected routing error"));
+        router.SetActive(true); router.Submit("controlstudio://widget/small/1"); var operation = router.ProcessAsync();
+        router.Submit("controlstudio://widget/small/20"); reading.SetResult(); await operation;
+        Assert.Equal([20], opened); Assert.False(router.HasPending);
+    }
+    [Fact]
     public async Task ColdLaunchWaitsForAnActiveReadyWindow()
     {
         var ready = false; var opened = new List<int>();

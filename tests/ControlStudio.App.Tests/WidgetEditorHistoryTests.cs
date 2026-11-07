@@ -167,7 +167,7 @@ public sealed class WidgetEditorHistoryTests : IDisposable
         var content = All(page).OfType<Editor>().Single(x => x.AutomationId == "WidgetTextContent"); var original = content.Text;
         content.Text = "H"; content.Text = "He"; content.Text = "Hello";
         Assert.Contains("1 step", SemanticProperties.GetHint(Button(page, "WidgetUndo")));
-        var name = All(page).OfType<ProfileNameEntry>().Single(); var originalName = name.Text; name.Text = "N"; name.Text = "New name";
+        var name = All(page).OfType<ProfileNameEntry>().Single(x => x.AutomationId == "WidgetDesignName"); var originalName = name.Text; name.Text = "N"; name.Text = "New name";
         Assert.Contains("2 steps", SemanticProperties.GetHint(Button(page, "WidgetUndo")));
         Click(page, "WidgetUndo"); Assert.Equal(originalName, name.Text); Assert.Equal("Hello", content.Text);
         Click(page, "ClockToolColour"); var hex = All(page).OfType<HexColorEntry>().Single(x => x.AutomationId == "ClockTextHex"); hex.Text = "#BAD";
@@ -290,7 +290,7 @@ public sealed class WidgetEditorHistoryTests : IDisposable
     public void InvalidWidgetNameSaveKeepsAValidPreviewAndCanUndoTheUncommittedName()
     {
         var page = Editor(new(), WidgetDesignRules.New() with { Layers = [Photo()] }); Open(page); var initial = Draft(page);
-        var name = All(page).OfType<ProfileNameEntry>().Single(); var previous = name.Text; name.Text = "";
+        var name = All(page).OfType<ProfileNameEntry>().Single(x => x.AutomationId == "WidgetDesignName"); var previous = name.Text; name.Text = "";
         Click(page, "SaveWidgetDesign"); EqualDesign(initial, Draft(page)); Assert.True(Button(page, "WidgetUndo").IsEnabled);
         Click(page, "WidgetUndo"); Assert.Equal(previous, name.Text); EqualDesign(initial, Draft(page));
     }
@@ -330,7 +330,7 @@ public sealed class WidgetEditorHistoryTests : IDisposable
         await page.AddPhotoAsync(); Click(page, "WidgetLayerOptions" + imported.Id.ToString("N"));
         for (var i = 0; i < WidgetEditHistory.MaximumSteps - 1; i++) Lock(page, original.Id);
         Assert.Contains("100 steps", SemanticProperties.GetHint(Button(page, "WidgetUndo")));
-        var name = All(page).OfType<ProfileNameEntry>().Single(); var previous = name.Text;
+        var name = All(page).OfType<ProfileNameEntry>().Single(x => x.AutomationId == "WidgetDesignName"); var previous = name.Text;
         name.Text = "Temporary"; Assert.DoesNotContain(imported.AssetKey, store.Removed);
         name.Text = previous; Assert.Contains("100 steps", SemanticProperties.GetHint(Button(page, "WidgetUndo")));
         for (var i = 0; i < WidgetEditHistory.MaximumSteps; i++) Click(page, "WidgetUndo");

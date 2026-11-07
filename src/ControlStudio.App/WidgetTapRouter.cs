@@ -3,9 +3,12 @@ using ControlStudio.Core.Widgets;
 namespace ControlStudio.App;
 
 /// <summary>Single-window, latest-request routing. Navigation runs on the UI dispatcher.</summary>
-internal sealed class WidgetTapRouter(Func<bool> ready, Func<WidgetTapLink, CancellationToken, Task<bool>> open, Func<Exception, Task> failed) : IDisposable
+internal sealed class WidgetTapRouter(Func<bool> ready, Func<WidgetTapLink, CancellationToken, Action, Task<bool>> open, Func<Exception, Task> failed) : IDisposable
 {
+    public WidgetTapRouter(Func<bool> ready, Func<WidgetTapLink, CancellationToken, Task<bool>> open, Func<Exception, Task> failed)
+        : this(ready, (link, token, _) => open(link, token), failed) { }
     private WidgetTapLink? pending;
+    private WidgetTapLink? executing;
     private CancellationTokenSource? operation;
     private long revision;
     private bool active, running, disposed;
@@ -13,7 +16,7 @@ internal sealed class WidgetTapRouter(Func<bool> ready, Func<WidgetTapLink, Canc
     public bool Submit(string? url)
     {
         if (disposed || !WidgetTapLink.TryParse(url, out var link)) return false;
-        if (pending == link) return true;
+        if (pending == link || (running && executing == link && pending is null)) return true;
         pending = link; revision++; operation?.Cancel(); return true;
     }
     public void SetActive(bool value)
@@ -30,10 +33,18 @@ internal sealed class WidgetTapRouter(Func<bool> ready, Func<WidgetTapLink, Canc
             while (!disposed && active && pending is { } request && ready())
             {
                 var current = revision;
+                executing = request;
                 using var cancel = new CancellationTokenSource(); operation = cancel;
                 try
                 {
-                    if (!await open(request, cancel.Token)) break;
+                    // External launches deactivate this app. Consume at the dispatch
+                    // boundary so cancellation/resume cannot replay a side effect.
+                    void Acknowledge()
+                    {
+                        cancel.Token.ThrowIfCancellationRequested();
+                        if (current == revision) pending = null;
+                    }
+                    if (!await open(request, cancel.Token, Acknowledge)) break;
                     if (!cancel.IsCancellationRequested && current == revision) pending = null;
                 }
                 catch (OperationCanceledException) when (cancel.IsCancellationRequested) { }
@@ -45,7 +56,7 @@ internal sealed class WidgetTapRouter(Func<bool> ready, Func<WidgetTapLink, Canc
                         try { await failed(ex); } catch { /* Native UI callbacks must not throw. */ }
                     }
                 }
-                finally { operation = null; }
+                finally { operation = null; executing = null; }
             }
         }
         finally { running = false; }

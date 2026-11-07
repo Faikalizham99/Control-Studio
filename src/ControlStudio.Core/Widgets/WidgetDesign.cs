@@ -18,7 +18,9 @@ public sealed record WidgetLayer(Guid Id, string Name, string AssetKey, int Pixe
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] WidgetBatteryOptions? Battery = null);
 public sealed record WidgetDesign(Guid Id, string Name, WidgetSize Size, string BackgroundHex,
     IReadOnlyList<WidgetLayer> Layers, string RenderKey, int Revision = 0, bool TransparentBackground = false, bool PreserveCanvas = false,
-    WidgetCanvasSize? CanvasDimensions = null);
+    WidgetCanvasSize? CanvasDimensions = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] WidgetTapAction TapAction = WidgetTapAction.EditWidget,
+    string ShortcutName = "");
 public sealed record WidgetCatalog(int SchemaVersion, IReadOnlyList<WidgetDesign> Designs);
 
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
@@ -50,6 +52,7 @@ public static class WidgetDesignRules
     {
         var json = new JsonSerializerOptions(JsonSerializerDefaults.Web) { UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow, MaxDepth = 16 };
         json.Converters.Add(new JsonStringEnumConverter<WidgetSize>(JsonNamingPolicy.CamelCase, false));
+        json.Converters.Add(new JsonStringEnumConverter<WidgetTapAction>(JsonNamingPolicy.CamelCase, false));
         json.Converters.Add(new JsonStringEnumConverter<WidgetLayerKind>(JsonNamingPolicy.CamelCase, false));
         json.Converters.Add(new JsonStringEnumConverter<WidgetBlendMode>(JsonNamingPolicy.CamelCase, false));
         json.Converters.Add(new JsonStringEnumConverter<WidgetClockFont>(JsonNamingPolicy.CamelCase, false));
@@ -82,6 +85,7 @@ public static class WidgetDesignRules
         ? (value.Width, value.Height) : Canvas(design.Size);
     public static void Validate(WidgetDesign design)
     {
+        WidgetTapActions.Validate(design.TapAction, design.ShortcutName);
         if (design.Id == Guid.Empty || !Enum.IsDefined(design.Size) || design.Revision < 0 || !ValidKey(design.RenderKey))
             throw new IOException("This widget design is invalid. Its data was not changed.");
         if (string.IsNullOrWhiteSpace(design.Name) || design.Name.Length > 60 || design.Name.Any(char.IsControl))

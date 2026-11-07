@@ -11,6 +11,23 @@ public sealed class WidgetDesignRepositoryTests : IDisposable
     private string Shared => Path.Combine(root, "shared");
     private WidgetDesignRepository Repository() => new(Private);
     private static byte[] Png => Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aZXsAAAAASUVORK5CYII=");
+    [Theory]
+    [InlineData(WidgetSize.Small)] [InlineData(WidgetSize.Medium)] [InlineData(WidgetSize.Large)] [InlineData(WidgetSize.ExtraLargePortrait)]
+    public async Task ShortcutActionsPersistPublishAndCanReturnToEditWithoutChangingAssignments(WidgetSize size)
+    {
+        var repo = Repository(); var draft = WidgetDesignRules.New() with { Size = size, TapAction = WidgetTapAction.RunShortcut, ShortcutName = "My Shortcut & 日本語" };
+        var saved = await repo.SaveAsync(draft, Png); await repo.AssignSlotAsync(size, 1, saved.Id); await repo.AssignSlotAsync(size, 20, saved.Id);
+        var reopened = Assert.Single(await Repository().ReadAsync()); Assert.Equal(draft.ShortcutName, reopened.ShortcutName); Assert.Equal(draft.TapAction, reopened.TapAction);
+        var before = await File.ReadAllBytesAsync(Path.Combine(Private, "catalog.json"));
+        await Assert.ThrowsAsync<IOException>(() => repo.SaveAsync(saved with { ShortcutName = "" }, Png));
+        Assert.Equal(before, await File.ReadAllBytesAsync(Path.Combine(Private, "catalog.json")));
+        var publisher = new WidgetDesignPublisher(repo, () => Shared); await publisher.PublishAsync();
+        var catalog = JsonSerializer.Deserialize(await File.ReadAllBytesAsync(Path.Combine(Shared, "catalog.json")), WidgetDesignRules.JsonContext.WidgetCatalog)!;
+        Assert.Equal(saved.ShortcutName, Assert.Single(catalog.Designs).ShortcutName);
+        var editing = await repo.SaveAsync(saved with { TapAction = WidgetTapAction.EditWidget, ShortcutName = "" }, Png); await publisher.PublishIfChangedAsync();
+        var library = await Repository().ReadLibraryAsync(); Assert.Equal(2, library.Slots.Count); Assert.All(library.Slots, slot => Assert.Equal(editing.Id, slot.DesignId));
+        Assert.Equal(WidgetTapAction.EditWidget, Assert.Single(library.Designs).TapAction);
+    }
     [Fact]
     public async Task DuplicatePhotosShareOneSourceAndDeletingEitherLayerKeepsItUntilTheLastReferenceIsGone()
     {

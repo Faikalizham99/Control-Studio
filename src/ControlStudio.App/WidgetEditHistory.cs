@@ -2,7 +2,8 @@ using ControlStudio.Core.Widgets;
 
 namespace ControlStudio.App;
 
-internal sealed record WidgetEditorState(WidgetDesign Design, Guid? Selection, string NameText);
+internal sealed record WidgetEditorState(WidgetDesign Design, Guid? Selection, string NameText,
+    WidgetTapAction TapAction = WidgetTapAction.EditWidget, string ShortcutName = "");
 
 /// <summary>Bounded, session-only draft snapshots. Images remain immutable file references.</summary>
 internal sealed class WidgetEditHistory
@@ -100,7 +101,8 @@ internal sealed class WidgetEditHistory
     };
     private static bool SameEdit(WidgetEditorState a, WidgetEditorState b)
     {
-        if (a.NameText != b.NameText || a.Design != (b.Design with { Layers = a.Design.Layers }) || a.Design.Layers.Count != b.Design.Layers.Count) return false;
+        if (a.NameText != b.NameText || a.TapAction != b.TapAction || a.ShortcutName != b.ShortcutName
+            || a.Design != (b.Design with { Layers = a.Design.Layers }) || a.Design.Layers.Count != b.Design.Layers.Count) return false;
         return a.Design.Layers.Zip(b.Design.Layers).All(pair => SameLayer(pair.First, pair.Second));
     }
     private static bool SameLayer(WidgetLayer a, WidgetLayer b)

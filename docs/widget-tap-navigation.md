@@ -1,5 +1,7 @@
 # Open the widget editor from the Home Screen
 
+Version 0.2.54 adds [Run Shortcut as a saved design's tap action](widget-shortcut-actions.md). Edit widget remains the default. Shortcut actions use this same slot route, preserve existing drafts and acknowledge external dispatch before backgrounding to prevent replay.
+
 Version **0.2.48 (50)** opens the normal Edit widget page for the current design at that size/slot when an assigned Studio widget is tapped. Empty slots open Widget slots with the matching size selected. Counter opens Home. The editor, layer controls, Undo/Redo, Save and preview are reused; no separate editing implementation is introduced.
 
 ## Routing and draft protection

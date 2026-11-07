@@ -12,13 +12,15 @@ internal sealed partial class WidgetEditorPage : ContentPage
     private readonly Func<string, string[], Task<string?>>? chooseLayerAction;
     private readonly Func<WidgetLayer, Task<bool>>? confirmLayerDeletion;
     private readonly ILogger logger;
+    private readonly Func<Uri, Task<bool>> openShortcut;
+    private readonly WidgetTapActionControls tapAction = new();
     private WidgetDesign draft;
     private Guid? selected;
     private readonly HashSet<string> ownedPhotos = [];
     private readonly string dragScope = Guid.NewGuid().ToString("N");
     private readonly Dictionary<Guid, WidgetLayerRow> rows = [];
     private readonly WidgetCanvasView canvas;
-    private readonly ProfileNameEntry name = new() { MaxLength = 60, Placeholder = "My widget", BackgroundColor = Colors.Transparent, FontSize = 17, HeightRequest = 44 };
+    private readonly ProfileNameEntry name = new() { MaxLength = 60, Placeholder = "My widget", BackgroundColor = Colors.Transparent, FontSize = 17, HeightRequest = 44, AutomationId = "WidgetDesignName" };
     private readonly WidgetSegments sizes;
     private readonly WidgetEditorForm form = new() { Padding = new Thickness(16, 8, 16, 28), Spacing = 14 };
     private readonly WidgetLayerList layerList = new();
@@ -64,9 +66,10 @@ internal sealed partial class WidgetEditorPage : ContentPage
     internal bool CanAcceptWidgetTap => !busy && !saved && !departed && !closing && !background.IsBusy && !clockControls.IsBusy
         && !batteryControls.IsBusy && !canvas.IsInteracting && !layerList.IsReordering && !history.IsInteracting;
 
-    public WidgetEditorPage(IWidgetEditorStore studio, IColourPicker colourPicker, ILogger logger, WidgetDesign? original = null, WidgetSize initialSize = WidgetSize.Small, Func<Task<string?>>? choosePhotoSource = null, Func<Task<string?>>? chooseLayerType = null, Func<string, string[], Task<string?>>? chooseLayerAction = null, Func<WidgetLayer, Task<bool>>? confirmLayerDeletion = null)
+    public WidgetEditorPage(IWidgetEditorStore studio, IColourPicker colourPicker, ILogger logger, WidgetDesign? original = null, WidgetSize initialSize = WidgetSize.Small, Func<Task<string?>>? choosePhotoSource = null, Func<Task<string?>>? chooseLayerType = null, Func<string, string[], Task<string?>>? chooseLayerAction = null, Func<WidgetLayer, Task<bool>>? confirmLayerDeletion = null, Func<Uri, Task<bool>>? openShortcut = null)
     {
         this.studio = studio; this.logger = logger;
+        this.openShortcut = openShortcut ?? (uri => Microsoft.Maui.ApplicationModel.Launcher.Default.OpenAsync(uri));
         this.choosePhotoSource = choosePhotoSource ?? (() => DisplayActionSheetAsync("Add photo layer", "Cancel", null, "Photo Library", "Files"));
         this.chooseLayerType = chooseLayerType ?? (() => DisplayActionSheetAsync("Add layer", "Cancel", null, "Photo", "Clock", "Date", "Text", "Battery"));
         this.chooseLayerAction = chooseLayerAction;
@@ -74,7 +77,12 @@ internal sealed partial class WidgetEditorPage : ContentPage
         draft = WidgetDesignRules.ForEditing(original ?? (WidgetDesignRules.New() with { Size = initialSize, TransparentBackground = OperatingSystem.IsIOSVersionAtLeast(26) }));
         ApplyCanvasSizing();
         selected = draft.Layers.LastOrDefault()?.Id;
-        history = new(new(draft, selected, draft.Name));
+        tapAction.SetSelection(draft.TapAction, draft.ShortcutName);
+        history = new(new(draft, selected, draft.Name, draft.TapAction, draft.ShortcutName));
+        tapAction.CanInteract = () => CanEdit && !history.IsInteracting;
+        tapAction.PositionChanging += view => scroll.PreserveAnchor(view);
+        tapAction.Changed += typing => { if (!restoringHistory && !updating) RecordHistory(typing ? "widget-shortcut-name" : null); };
+        tapAction.TestRequested += async (_, _) => await RunAsync(TestShortcutAsync);
         Title = original is null ? "New widget" : "Edit widget"; AutomationId = "WidgetEditorPage"; WidgetStudioStyle.Page(this);
         name.Text = draft.Name; name.SetAppThemeColor(Entry.TextColorProperty, Color.FromArgb("#16171C"), Colors.White);
         SemanticProperties.SetDescription(name, "Widget name");
@@ -241,16 +249,22 @@ internal sealed partial class WidgetEditorPage : ContentPage
         chooseBackground.VerticalOptions = LayoutOptions.Center;
         backgroundHeading.Add(backgroundLabel); backgroundHeading.Add(chooseBackground, 1);
         form.Children.Add(Card(new VerticalStackLayout { Spacing = 10, Children = { backgroundHeading, backgroundMode, backgroundHelp, solid, background } }));
+        form.Children.Add(Card(tapAction));
         status.IsVisible = false; form.Children.Add(status); form.Children.Add(save);
         form.Children.Add(SettingsControls.Text($"Save, then open Widget slots in My Widgets and assign this design to a matching slot. Add Control Studio → Studio 1–{WidgetSlotRules.SlotsPerSize} on your Home Screen. iOS schedules updates.", 12, secondary: true));
-        save.Clicked += async (_, _) => await RunAsync(SaveAsync);
+        save.Clicked += async (_, _) =>
+        {
+            // Finish native text composition while the field is still editable.
+            if (CanEdit && !history.IsInteracting) tapAction.EndEditing();
+            await RunAsync(SaveAsync);
+        };
         cancel.Clicked += async (_, _) => await ExitAsync(); back.Clicked += async (_, _) => await ExitAsync();
         var layout = new Grid { RowDefinitions = { new(GridLength.Auto), new(GridLength.Star) } };
         scroll.Content = form; scroll.AutomationId = "WidgetEditorSettingsScroll";
         form.Arranged += (_, _) => scroll.CompleteReflow();
         layout.Add(ClipboardEditorControls.Header(Title, back, cancel)); layout.Add(scroll, 0, 1);
         Content = new WidgetEditorSurface(layout, () => CanEdit && selected is not null, ClearLayerSelection,
-            canvas, historyControls, tools, clockControls.Toolbar, batteryControls.Toolbar, rotateMenu, flipMenu, opacityMenu, blendMenu, layerList, precise, background, clockControls, batteryControls);
+            canvas, historyControls, tools, clockControls.Toolbar, batteryControls.Toolbar, rotateMenu, flipMenu, opacityMenu, blendMenu, layerList, precise, background, clockControls, batteryControls, tapAction);
         BindHistoryInputs(); RefreshBackground(); RefreshLayers();
     }
     private static Border Card(View content) => ClipboardEditorControls.Surface(content, 22, 14);
@@ -612,8 +626,10 @@ internal sealed partial class WidgetEditorPage : ContentPage
     private async Task SaveAsync()
     {
         if (!CommitLayerSettings()) return;
+        if (!tapAction.TryValidate()) { ShowStatus("Check the Shortcut name in Tap action before saving."); return; }
         if (!draft.TransparentBackground && !background.CommitPendingHex()) { ShowStatus("Enter a valid background colour before saving."); return; }
-        name.Unfocus(); var toSave = draft with { Name = name.Text?.Trim() ?? "", PreserveCanvas = true };
+        name.Unfocus(); var toSave = draft with { Name = name.Text?.Trim() ?? "", PreserveCanvas = true,
+            TapAction = tapAction.Action, ShortcutName = tapAction.Action == WidgetTapAction.RunShortcut ? tapAction.ShortcutName.Trim() : "" };
         ShowStatus("Saving widget…");
         // Export owns its own compositor on a worker thread. Release the preview's
         // buffers first rather than retaining two full compositions at once.
@@ -637,6 +653,7 @@ internal sealed partial class WidgetEditorPage : ContentPage
         // The list must stay enabled until its native drag recognizer finishes.
         layerList.IsEnabled = canInteract && !saved;
         save.IsEnabled = sizes.IsEnabled = name.IsEnabled = background.IsEnabled = canNavigate && !saved;
+        tapAction.SetAvailable(canNavigate && !saved);
         // Keep operation guards explicit without disabling an active gesture.
         canvas.IsEnabled = !busy && !saved && !departed && !background.IsBusy && !clockControls.IsBusy && !batteryControls.IsBusy && !layerList.IsReordering;
         back.IsEnabled = cancel.IsEnabled = canNavigate;

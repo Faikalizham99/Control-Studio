@@ -17,6 +17,7 @@ public sealed class WidgetTapNavigationTests : IDisposable
     private NavigationPage home = null!, studio = null!;
     private bool nativeReady = true;
     private Action? creatingGallery;
+    private Func<Uri, Task<bool>> launchShortcut = _ => Task.FromResult(true);
     private WidgetTapNavigation Open()
     {
         home = Navigation(new ContentPage { AutomationId = "Home" });
@@ -27,7 +28,67 @@ public sealed class WidgetTapNavigationTests : IDisposable
             size => { creatingGallery?.Invoke(); return new ContentPage { AutomationId = "WidgetsPage", BindingContext = size }; },
             design => new WidgetEditorPage(store, new Picker(), NullLogger.Instance, design, choosePhotoSource: () => Task.FromResult<string?>("Photo Library")),
             size => new WidgetSlotsPage(store, NullLogger.Instance, size),
-            (title, text) => { messages.Add((title, text)); return Task.CompletedTask; }, () => nativeReady);
+            (title, text) => { messages.Add((title, text)); return Task.CompletedTask; }, () => nativeReady, uri => launchShortcut(uri));
+    }
+    [Theory]
+    [InlineData(WidgetSize.Small)] [InlineData(WidgetSize.Medium)] [InlineData(WidgetSize.Large)] [InlineData(WidgetSize.ExtraLargePortrait)]
+    public async Task ShortcutTapUsesTheSavedAssignmentInAllSizesWithoutOpeningAnEditor(WidgetSize size)
+    {
+        var design = WidgetDesignRules.New() with { Size = size, TapAction = WidgetTapAction.RunShortcut, ShortcutName = "Pay & Go" };
+        store.Library = new(2, [design], [new(size, 20, design.Id)]);
+        var navigation = Open(); var opened = new List<Uri>(); var acknowledgements = 0;
+        launchShortcut = uri => { Assert.Equal(1, acknowledgements); opened.Add(uri); return Task.FromResult(true); };
+        Assert.True(await navigation.OpenWithHandoffAsync(new(size, 20), default, () => acknowledgements++));
+        Assert.Equal("shortcuts://run-shortcut?name=Pay%20%26%20Go", Assert.Single(opened).OriginalString);
+        Assert.Single(studio.Navigation.NavigationStack); Assert.Empty(messages); Assert.Equal(0, store.Writes);
+    }
+    [Fact]
+    public async Task ShortcutTapKeepsAnExistingUnsavedEditorAndItsHistory()
+    {
+        var editing = WidgetDesignRules.New(); var shortcut = WidgetDesignRules.New() with { TapAction = WidgetTapAction.RunShortcut, ShortcutName = "Evening" };
+        store.Library = new(2, [editing, shortcut], [new(WidgetSize.Small, 1, editing.Id), new(WidgetSize.Small, 20, shortcut.Id)]);
+        var navigation = Open(); await navigation.OpenAsync(new(WidgetSize.Small, 1), default);
+        var page = studio.CurrentPage; Descendants(page).OfType<ProfileNameEntry>().Single(x => x.AutomationId == "WidgetDesignName").Text = "Unsaved";
+        var launches = 0; launchShortcut = _ => { launches++; return Task.FromResult(true); };
+        await navigation.OpenAsync(new(WidgetSize.Small, 20), default);
+        Assert.Equal(1, launches); Assert.Same(page, studio.CurrentPage);
+        Assert.True(Descendants(page).OfType<Button>().Single(x => x.AutomationId == "WidgetUndo").IsEnabled);
+        Assert.Equal(0, store.Writes); Assert.Equal(0, store.Removals); Assert.Empty(messages);
+    }
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public async Task FailedShortcutLaunchIsConsumedAndReportsAnErrorWithoutNavigating(bool throws)
+    {
+        var design = WidgetDesignRules.New() with { TapAction = WidgetTapAction.RunShortcut, ShortcutName = "Missing" };
+        store.Library = new(2, [design], [new(WidgetSize.Small, 1, design.Id)]);
+        var navigation = Open(); var acknowledged = false;
+        launchShortcut = _ => throws ? Task.FromException<bool>(new IOException("private exception")) : Task.FromResult(false);
+        Assert.True(await navigation.OpenWithHandoffAsync(new(WidgetSize.Small, 1), default, () => acknowledged = true));
+        Assert.True(acknowledged); Assert.Equal("Could not open Shortcuts", Assert.Single(messages).Title);
+        Assert.DoesNotContain("private", messages[0].Text); Assert.Single(studio.Navigation.NavigationStack);
+    }
+    [Fact]
+    public async Task CancelledReadCannotAcknowledgeOrLaunchAShortcut()
+    {
+        var design = WidgetDesignRules.New() with { TapAction = WidgetTapAction.RunShortcut, ShortcutName = "Test" };
+        store.Library = new(2, [design], [new(WidgetSize.Small, 1, design.Id)]);
+        var navigation = Open(); var read = new TaskCompletionSource<WidgetLibraryCatalog>(); store.Read = _ => read.Task;
+        var launches = 0; var acknowledgements = 0; launchShortcut = _ => { launches++; return Task.FromResult(true); };
+        using var cancelled = new CancellationTokenSource();
+        var operation = navigation.OpenWithHandoffAsync(new(WidgetSize.Small, 1), cancelled.Token, () => acknowledgements++);
+        cancelled.Cancel(); read.SetResult(store.Library); await Assert.ThrowsAnyAsync<OperationCanceledException>(() => operation);
+        Assert.Equal(0, launches); Assert.Equal(0, acknowledgements);
+    }
+    [Fact]
+    public async Task CancelledExternalLaunchCannotShowAStaleFailureOverANewerRequest()
+    {
+        var design = WidgetDesignRules.New() with { TapAction = WidgetTapAction.RunShortcut, ShortcutName = "Test" };
+        store.Library = new(2, [design], [new(WidgetSize.Small, 1, design.Id)]);
+        var navigation = Open(); var launching = new TaskCompletionSource<bool>(); launchShortcut = _ => launching.Task;
+        using var cancelled = new CancellationTokenSource(); var acknowledged = false;
+        var operation = navigation.OpenWithHandoffAsync(new(WidgetSize.Small, 1), cancelled.Token, () => acknowledged = true);
+        Assert.True(acknowledged); cancelled.Cancel(); launching.SetResult(false);
+        Assert.True(await operation); Assert.Empty(messages); Assert.Single(studio.Navigation.NavigationStack);
     }
     [Theory]
     [InlineData(WidgetSize.Small)] [InlineData(WidgetSize.Medium)] [InlineData(WidgetSize.Large)] [InlineData(WidgetSize.ExtraLargePortrait)]
@@ -61,7 +122,7 @@ public sealed class WidgetTapNavigationTests : IDisposable
         store.Library = new(2, [first, other], [new(WidgetSize.Small, 1, first.Id), new(WidgetSize.Small, 20, other.Id)]);
         var navigation = Open(); await navigation.OpenAsync(new(WidgetSize.Small, 1), default);
         var original = studio.CurrentPage;
-        var name = Descendants(original).OfType<ProfileNameEntry>().Single(); name.Text = "Unsaved name";
+        var name = Descendants(original).OfType<ProfileNameEntry>().Single(x => x.AutomationId == "WidgetDesignName"); name.Text = "Unsaved name";
         await navigation.OpenAsync(new(WidgetSize.Small, 20), default);
         Assert.Same(original, studio.CurrentPage); Assert.Equal("Unsaved name", name.Text);
         Assert.Contains("edits are kept", Assert.Single(messages).Text);

@@ -10,7 +10,7 @@ internal sealed partial class WidgetEditorPage
     private readonly List<WidgetHistorySliderBinding> historySliders = [];
     private readonly SemaphoreSlim photoCleanupGate = new(1, 1);
     private bool restoringHistory;
-    private WidgetEditorState CaptureHistory() => new(draft, selected, name.Text ?? "");
+    private WidgetEditorState CaptureHistory() => new(draft, selected, name.Text ?? "", tapAction.Action, tapAction.ShortcutName);
     private void RecordHistory(string? typingKey = null)
     {
         if (restoringHistory || saved || departed) return;
@@ -82,6 +82,7 @@ internal sealed partial class WidgetEditorPage
             var state = redo ? history.Redo()! : history.Undo()!;
             if (selected != state.Selection) { CloseTools(); precise.IsVisible = false; photoEditStatus.IsVisible = false; }
             draft = state.Design; selected = state.Selection; name.Text = state.NameText;
+            tapAction.SetSelection(state.TapAction, state.ShortcutName);
             if (!draft.Layers.Any(x => x.Id == selected)) selected = null;
             ApplyCanvasSizing(); history.Rebase(CaptureHistory());
             sizes.Update(Array.IndexOf(WidgetDesignRules.SupportedSizes.ToArray(), draft.Size));
