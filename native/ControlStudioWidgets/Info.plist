@@ -6,6 +6,8 @@
 	<string>Control Studio</string>
 	<key>ControlStudioAppGroup</key>
 	<string>group.23b5a5355f697168.1</string>
+	<key>ControlStudioDirectShortcutTrials</key>
+	<true/>
 	<key>NSExtension</key>
 	<dict>
 		<key>NSExtensionPointIdentifier</key>

@@ -114,5 +114,8 @@ struct ControlStudioWidgets: WidgetBundle {
         StudioSlotsElevenToFifteen().body
         StudioSlotsSixteenToTwenty().body
 // END GENERATED SLOTS bundle
+        if #available(iOS 27.0, *) {
+            DirectShortcutTrialWidgets().body
+        }
     }
 }

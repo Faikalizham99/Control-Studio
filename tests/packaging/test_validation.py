@@ -57,6 +57,34 @@ class PackagingTests(unittest.TestCase):
         info[key] = value
         path.write_bytes(plistlib.dumps(info))
 
+    def test_direct_shortcut_trial_metadata_is_required_only_when_advertised(self):
+        # Older IPAs remain inspectable; trial builds must retain their picker metadata.
+        self.assertEqual(3, len(validate_metadata(self.app)))
+        self.mutate("PlugIns/ControlStudioWidgets.appex", "ControlStudioDirectShortcutTrials", True)
+        with self.assertRaisesRegex(ValueError, "Direct Shortcut trial metadata missing"):
+            validate_metadata(self.app)
+        metadata = self.app / "PlugIns/ControlStudioWidgets.appex/Metadata.appintents/extract.actionsdata"
+        metadata.parent.mkdir()
+        metadata.write_text('{"id":"ControlStudioWidgets.DirectShortcutPickerConfiguration"}')
+        self.assertEqual(3, len(validate_metadata(self.app)))
+        metadata.write_text('{"id":"IncrementControlStudioCounter"}')
+        with self.assertRaisesRegex(ValueError, "picker configuration missing"):
+            validate_metadata(self.app)
+        metadata.write_text("not json")
+        with self.assertRaises(ValueError):
+            validate_metadata(self.app)
+
+    def test_invalid_trial_flag_and_oversized_picker_metadata_fail_validation(self):
+        self.mutate("PlugIns/ControlStudioWidgets.appex", "ControlStudioDirectShortcutTrials", "true")
+        with self.assertRaisesRegex(ValueError, "Invalid Direct Shortcut trial flag"):
+            validate_metadata(self.app)
+        self.mutate("PlugIns/ControlStudioWidgets.appex", "ControlStudioDirectShortcutTrials", True)
+        metadata = self.app / "PlugIns/ControlStudioWidgets.appex/Metadata.appintents/extract.actionsdata"
+        metadata.parent.mkdir()
+        metadata.write_bytes(b" " * 2_000_001)
+        with self.assertRaisesRegex(ValueError, "Direct Shortcut trial metadata missing or oversized"):
+            validate_metadata(self.app)
+
     def profile(self):
         return {
             "ExpirationDate": dt.datetime.now(dt.timezone.utc) + dt.timedelta(days=1),

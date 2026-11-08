@@ -47,6 +47,10 @@ def generate(*, check=False):
                               path="ControlStudioWidgets/StudioSlotWidget.swift", sourceTree="<group>")
             children.append(design_view)
             build_files.append(add("widget-slots-view-build", "PBXBuildFile", fileRef=design_view))
+            shortcut_trials = add("widget-direct-shortcut-trials", "PBXFileReference", lastKnownFileType="sourcecode.swift",
+                                  path="ControlStudioWidgets/DirectShortcutTrialWidgets.swift", sourceTree="<group>")
+            children.append(shortcut_trials)
+            build_files.append(add("widget-direct-shortcut-trials-build", "PBXBuildFile", fileRef=shortcut_trials))
             runtime = add("widget-background-adapter", "PBXFileReference", lastKnownFileType="sourcecode.c.objc",
                           path="WidgetRuntime/CSWidgetBackgroundAdapter.m", sourceTree="<group>")
             children.append(runtime)
@@ -75,7 +79,7 @@ def generate(*, check=False):
             "APPLICATION_EXTENSION_API_ONLY": "YES", "IPHONEOS_DEPLOYMENT_TARGET": "17.0",
             "SWIFT_VERSION": "5.0", "SWIFT_OPTIMIZATION_LEVEL": "-O",
             "SWIFT_EMIT_LOC_STRINGS": "YES", "TARGETED_DEVICE_FAMILY": "1,2",
-            "CURRENT_PROJECT_VERSION": "56", "MARKETING_VERSION": "0.2.54",
+            "CURRENT_PROJECT_VERSION": "57", "MARKETING_VERSION": "0.2.55",
             "LD_RUNPATH_SEARCH_PATHS": ["$(inherited)", "@executable_path/Frameworks", "@executable_path/../../Frameworks"],
             "OTHER_LDFLAGS": ["$(inherited)", "-lsqlite3"],
         }
