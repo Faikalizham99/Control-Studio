@@ -62,35 +62,6 @@ def validate_widget_link_scheme(info):
     require(schemes.count("controlstudio") == 1, "Widget tap URL registration missing or duplicated")
 
 
-def validate_direct_shortcut_metadata(bundle):
-    metadata = Path(bundle) / "Metadata.appintents/extract.actionsdata"
-    require(metadata.is_file(), "Direct Shortcut trial metadata missing or oversized")
-    # Bound the read itself: stat can become stale while an archive is copied.
-    with metadata.open("rb") as stream:
-        raw = stream.read(2_000_001)
-    require(0 < len(raw) <= 2_000_000, "Direct Shortcut trial metadata missing or oversized")
-    try:
-        data = json.loads(raw)
-    except (ValueError, UnicodeError, RecursionError) as error:
-        raise ValueError("Direct Shortcut trial metadata is invalid") from error
-    require(isinstance(data, (dict, list)), "Direct Shortcut trial metadata must be a metadata collection")
-    # Inspect bounded collections without depending on Apple's private keys or
-    # making another large JSON string. This is a name-presence check only.
-    pending, found = [(data, 0)], False
-    while pending:
-        value, depth = pending.pop()
-        require(depth <= 128, "Direct Shortcut trial metadata is invalid: nesting is too deep")
-        if isinstance(value, dict):
-            found |= any("DirectShortcutPickerConfiguration" in key for key in value)
-            pending.extend((item, depth + 1) for item in value.values())
-        elif isinstance(value, list):
-            pending.extend((item, depth + 1) for item in value)
-        elif isinstance(value, str):
-            found |= "DirectShortcutPickerConfiguration" in value
-    require(found,
-            "Direct Shortcut picker configuration missing from widget metadata")
-
-
 def validate_metadata(app):
     app = Path(app)
     host = read_plist(app / "Info.plist")
@@ -134,9 +105,6 @@ def validate_metadata(app):
                       if relative.startswith("Extensions/") else
                       info.get("NSExtension", {}).get("NSExtensionPointIdentifier"))
             require(actual == point, f"Wrong extension point: {identifier}")
-        if relative == "PlugIns/ControlStudioWidgets.appex" and "ControlStudioDirectShortcutTrials" in info:
-            require(info["ControlStudioDirectShortcutTrials"] is True, "Invalid Direct Shortcut trial flag")
-            validate_direct_shortcut_metadata(bundle)
         bundles.append((bundle, info))
     actual_extensions = {p.relative_to(app).as_posix() for p in app.rglob("*.appex")}
     require(actual_extensions == set(BUNDLES) - {""}, "Unexpected, missing or misplaced extensions")

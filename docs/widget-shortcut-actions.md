@@ -1,7 +1,5 @@
 # Shortcut actions for Studio widgets
 
-Version 0.2.55 adds [isolated iOS 27 direct-execution trials](direct-shortcut-trials.md) to investigate removing the app/URL handoff. The v0.2.54 behavior below remains active for existing Studio widgets until the trials are verified.
-
 Version **0.2.54 (56)**. Add/Edit widget now includes a **Tap action** card:
 
 - **Edit widget** is the default for new and existing designs. It keeps the current editor/empty-slot navigation.
