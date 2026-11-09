@@ -1,0 +1,12 @@
+{
+  "id": "aotgan-512-v1",
+  "file": "aotgan.mlmodel",
+  "bytes": 60818996,
+  "sha256": "6090945f20e4971113457fa0bb90bca42e4569dcaf9ab7c183d2749ee4718b68",
+  "url": "https://raw.githubusercontent.com/john-rocky/Inpainting-CoreML/4720394f359ab50e7a98c73707c170466db0e4ee/AOT-GAN-for-Inpainting-CoreML/aotgan.mlmodel",
+  "input": "x_1",
+  "output": "var_915",
+  "edge": 512,
+  "license": "LICENSE-AOT-GAN.txt",
+  "licenseSha256": "3a08baf12a7cda0724fbcc8747b3bf428581a0644fb70f08378ffc86ec1d9129"
+}

@@ -2,6 +2,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 mkdir -p artifacts/native
+python3 scripts/object_removal_model.py --fetch
 python3 scripts/app_group_config.py --check
 python3 scripts/generate-xcode-project.py
 sdk="$(xcrun --sdk iphoneos --show-sdk-path)"

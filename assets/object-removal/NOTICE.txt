@@ -1,0 +1,9 @@
+Object removal uses AOT-GAN, "Aggregated Contextual Transformations for High-Resolution Image Inpainting".
+Research implementation: https://github.com/researchmm/AOT-GAN-for-Inpainting
+Upstream revision: 2cd1afd8fdfabb101c678f6062d14bc7d302509e
+Copyright @2023-2024 researchmm. All rights reserved.
+Licensed under Apache License 2.0; see LICENSE-AOT-GAN.txt.
+Core ML conversion distributed by Daisuke Majima (john-rocky):
+https://github.com/john-rocky/Inpainting-CoreML/tree/4720394f359ab50e7a98c73707c170466db0e4ee
+The downloaded model is unchanged. Control Studio implements its own preprocessing,
+selection, compositing and editor. No sample app source is bundled.

@@ -17,6 +17,7 @@ import sys
 import tempfile
 import zipfile
 from app_group_config import load_identifier
+from object_removal_model import validate_bundled_model
 
 APP_ID = "com.faikalizham.controlstudio"
 GROUP = load_identifier()
@@ -170,6 +171,10 @@ def validate_macho(path):
 
 def validate_bundle(app, mode, device=None):
     bundles = validate_metadata(app)
+    model = read_plist(Path(app) / "Info.plist").get("ControlStudioObjectRemovalModel")
+    if model is not None:
+        require(model == "aotgan-512-v1", "Unsupported object removal model")
+        validate_bundled_model(app)
     native_checked = sys.platform == "darwin"
     require(mode != "signed" or native_checked, "Signed validation requires macOS codesign and security")
     team = None

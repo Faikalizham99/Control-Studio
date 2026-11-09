@@ -5,8 +5,9 @@ The full-screen editor supports:
 
 - On-device **Remove background**, using Apple's public Vision foreground instance mask request (iOS 17+). All detected foreground subjects are retained. Unavailable processing or no detected subject leaves the existing mask unchanged and offers manual editing.
 - **Erase / Restore**, brush diameter 2–160 image pixels and adjustable soft edges.
+- [**Remove object**](photo-object-removal.md), a separate selection-and-fill tool. It reconstructs selected colour pixels and preserves alpha; Erase still creates transparency.
 - Pinch zoom up to 8×, two-finger panning, and an adjustable Zoom slider. One finger paints, including single taps. The controls outside the canvas remain scrollable.
-- **Show original / Show cut-out**, **Restore all**, and session-local Undo/Redo. A stroke, automatic removal, or Restore all is one step. The history retains up to 30 steps within a combined 16 MiB compressed snapshot budget.
+- **Show original / Show edited**, **Reset photo**, and session-local Undo/Redo. A stroke, automatic removal, repair or Reset photo is one step. The unified history retains up to 30 steps within a 32 MiB budget, sharing immutable colour buffers across snapshots.
 - **Apply / Cancel**. Apply writes the new immutable asset before dismissing; a write failure keeps the editor and mask open for retry. Cancel discards the cut-out draft. Cancel during processing waits for that operation to release its source, then removes any unaccepted imported asset.
 
 Painting is in the original imported image's coordinate space, independently of the widget layer's frame, crop, rotation, flips and opacity. The existing normalized photo limit (1024 px maximum edge) still applies. Masking multiplies all premultiplied RGBA components, preserving original transparency rather than restoring previously transparent source pixels to opaque colours. The output keeps the source dimensions, so the widget layer does not move or change size.
@@ -18,10 +19,12 @@ The widget layer schema and extension renderer are unchanged. Each applied cut-o
 - `<key>.png`: transparent PNG used by the existing renderer.
 - `<key>.original.png`: a copy of the unchanged normalized source photo.
 - `<key>.mask`: one alpha byte per source pixel, row-major, with dimensions from the validated original PNG.
+- `<key>.working.png`: optional repaired colours, kept privately when Remove object has changed the source pixels.
+- `<key>.working.sha256`: paired integrity proof for repaired colours; a missing pair member or checksum mismatch prevents reopening for editing.
 
 Original/mask sidecars are private app files; they are not published to the widget App Group. Both must exist together. Reads and writes are bounded, and partial imports are removed on failure. Reopening a saved cut-out loads its original and mask; applying another revision copies the same original, without progressively degrading the image or depending on an older asset key.
 
-Widget Undo/Redo records a cut-out as one asset replacement, retaining the previous asset and new asset while either is restorable. Duplicated layers can share a cut-out until edited independently. The repository protects all three files while a saved design references the key and removes the sidecars with an explicitly retired source. Layer thumbnails refresh only when the asset key changes, including widget Undo/Redo; ordinary position changes do not reload them.
+Widget Undo/Redo records a cut-out as one asset replacement, retaining the previous asset and new asset while either is restorable. Duplicated layers can share a cut-out until edited independently. The repository protects the display image and its private sidecars while a saved design references the key and removes the sidecars with an explicitly retired source. Layer thumbnails refresh only when the asset key changes, including widget Undo/Redo; ordinary position changes do not reload them.
 
 ## Lifecycle and accessibility review
 

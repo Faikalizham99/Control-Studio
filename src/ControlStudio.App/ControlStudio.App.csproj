@@ -8,8 +8,8 @@
     <SingleProject>true</SingleProject>
     <ApplicationTitle>Control Studio</ApplicationTitle>
     <ApplicationId>com.faikalizham.controlstudio</ApplicationId>
-    <ApplicationDisplayVersion>0.2.56</ApplicationDisplayVersion>
-    <ApplicationVersion>58</ApplicationVersion>
+    <ApplicationDisplayVersion>0.2.57</ApplicationDisplayVersion>
+    <ApplicationVersion>59</ApplicationVersion>
     <SupportedOSPlatformVersion>17.0</SupportedOSPlatformVersion>
     <RuntimeIdentifier>ios-arm64</RuntimeIdentifier>
     <CodesignEntitlements>Platforms/iOS/Entitlements.plist</CodesignEntitlements>
@@ -27,6 +27,9 @@
     <MauiImage Include="Resources/Images/*.svg" BaseSize="24,24" />
     <MauiImage Update="Resources/Images/theme_*.svg" BaseSize="52,52" />
     <BundleResource Include="Platforms/iOS/PrivacyInfo.xcprivacy" Link="PrivacyInfo.xcprivacy" />
+    <BundleResource Include="$(NativeBuildRoot)/models/aotgan.mlmodel" LogicalName="aotgan.mlmodel" />
+    <BundleResource Include="../../assets/object-removal/LICENSE-AOT-GAN.txt" LogicalName="LICENSE-AOT-GAN.txt" />
+    <BundleResource Include="../../assets/object-removal/NOTICE.txt" LogicalName="NOTICE-AOT-GAN.txt" />
     <!-- Registered at launch so UIKit export and MAUI labels share the same faces. -->
     <BundleResource Include="../../assets/clock-fonts/*.ttf" LogicalName="%(Filename)%(Extension)" />
     <BundleResource Include="../../assets/clock-fonts/OFL-*.txt" LogicalName="%(Filename)%(Extension)" />
@@ -41,6 +44,7 @@
     <!-- ExtensionKit uses Extensions/, not the SDK's AdditionalAppExtensions PlugIns/ path. -->
   </ItemGroup>
   <Target Name="RequireNativeProducts" BeforeTargets="PrepareForBuild" Condition="'$(DesignTimeBuild)' != 'true'">
+    <Error Condition="!Exists('$(NativeBuildRoot)/models/aotgan.mlmodel')" Text="Run scripts/object_removal_model.py --fetch before building the app." />
     <Error Condition="!Exists('$(NativeBuildRoot)/libControlStudioBridge.a')" Text="Run scripts/build-native.sh on macOS before building the iOS app. See docs/milestone-0.md." />
     <Error Condition="!Exists('$(NativeBuildRoot)/Release-iphoneos/ControlStudioWidgets.appex/Info.plist')" Text="The WidgetKit extension has not been built." />
     <Error Condition="!Exists('$(NativeBuildRoot)/Release-iphoneos/ControlStudioIntents.appex/Info.plist')" Text="The App Intents extension has not been built." />

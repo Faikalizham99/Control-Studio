@@ -4,3 +4,4 @@
 *.yml text eol=lf
 *.py text eol=lf
 *.pbxproj text eol=lf
+assets/object-removal/*.txt text eol=lf

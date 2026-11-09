@@ -1,5 +1,7 @@
 # Control Studio
 
+Version **0.2.57 (59)** adds [Remove object](docs/photo-object-removal.md) inside Edit photo, with on-device filling, brush selection, preview, Undo/Redo and original-preserving saves. All 1,111 automated tests, source checks and managed iOS compilation pass. The bundled model adds about 61 MB before IPA compression. Native IPA packaging and iPhone 14 Pro Max speed, memory use and fill quality still require verification. The owner authorized committing, pushing main and pushing the new version tag, and will monitor the build.
+
 Version **0.2.56 (58)** restores the widget gallery to Counter and Studio 1–20. The [Run Shortcut tap action](docs/widget-shortcut-actions.md) still opens Control Studio and then Shortcuts to launch the saved Shortcut by name. Saved designs and assignments are unchanged. All 1,093 automated tests and source/project checks pass; native Xcode compilation and iPhone verification remain pending.
 
 Version **0.2.54 (56)** adds [Edit widget or Run Shortcut](docs/widget-shortcut-actions.md) tap actions in Add/Edit widget, across all four sizes, with exact-name entry, Test without saving and Undo/Redo. The deep review fixes duplicate delivery during launch, malformed Unicode names and input-dismissal ordering. All 1,091 automated checks, source checks and managed iOS compilation pass; native iPhone launch and UX verification remain pending. The owner authorized committing, pushing main and pushing the new version tag, and will monitor the IPA build.

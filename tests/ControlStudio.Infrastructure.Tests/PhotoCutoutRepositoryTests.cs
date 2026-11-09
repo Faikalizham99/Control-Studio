@@ -47,6 +47,42 @@ public sealed class PhotoCutoutRepositoryTests : IDisposable
         await Assert.ThrowsAsync<IOException>(() => repo.ReadCutoutAsync("../invalid"));
     }
     [Fact]
+    public async Task Repaired_colours_reopen_independently_of_original_and_cleanup_with_last_reference()
+    {
+        var repo = Repository; var original = Png(); var working = Png(); working[10] = 9;
+        var key = await repo.ImportCutoutAsync(original, new byte[4], Png(), working: working);
+        var loaded = await Repository.ReadCutoutAsync(key);
+        Assert.Equal(original, loaded.Original); Assert.Equal(working, loaded.Working);
+        var layer = new WidgetLayer(Guid.NewGuid(), "Repaired", key, 2, 2, new());
+        var saved = await repo.SaveAsync(WidgetDesignRules.New() with { Layers = [layer, layer with { Id = Guid.NewGuid() }] }, Png());
+        await repo.RemoveDraftPhotosAsync([key]); Assert.Equal(working, (await repo.ReadCutoutAsync(key)).Working);
+        await repo.DeleteAsync(saved.Id); Assert.Empty(Directory.GetFiles(Path.Combine(directory, "photos")));
+    }
+    [Fact]
+    public async Task Missing_or_modified_repaired_colours_cannot_silently_reopen_original_object()
+    {
+        var repo = Repository; var working = Png(); working[10] = 9;
+        var key = await repo.ImportCutoutAsync(Png(), new byte[4], Png(), working: working);
+        var path = Path.Combine(directory, "photos", key + ".working.png");
+        File.Delete(path);
+        await Assert.ThrowsAsync<IOException>(() => repo.ReadCutoutAsync(key));
+        await File.WriteAllBytesAsync(path, working);
+        Assert.Equal(working, (await repo.ReadCutoutAsync(key)).Working);
+        var corrupted = working.ToArray(); corrupted[10] = 12;
+        await File.WriteAllBytesAsync(path, corrupted);
+        await Assert.ThrowsAsync<IOException>(() => repo.ReadCutoutAsync(key));
+    }
+    [Fact]
+    public async Task Invalid_repair_dimensions_or_incomplete_sidecars_are_rejected()
+    {
+        var repo = Repository;
+        await Assert.ThrowsAsync<IOException>(() => repo.ImportCutoutAsync(Png(), new byte[4], Png(), working: Png(3, 2)));
+        var key = await repo.ImportPhotoAsync(Png());
+        await File.WriteAllBytesAsync(Path.Combine(directory, "photos", key + ".working.png"), Png());
+        await Assert.ThrowsAsync<IOException>(() => repo.ReadCutoutAsync(key));
+        await repo.RemoveDraftPhotosAsync([key]); Assert.Empty(Directory.GetFiles(Path.Combine(directory, "photos")));
+    }
+    [Fact]
     public async Task Cancelled_import_leaves_no_partial_asset()
     {
         using var cancel = new CancellationTokenSource(); cancel.Cancel();

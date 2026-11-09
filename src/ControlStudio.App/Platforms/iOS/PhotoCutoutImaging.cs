@@ -14,6 +14,7 @@ internal sealed class PhotoCutoutImaging : IDisposable
     public int Width { get; }
     public int Height { get; }
     private readonly byte[] rgba;
+    public byte[] Pixels => rgba;
     public PhotoCutoutImaging(byte[] png)
     {
         using var data = NSData.FromArray(png);
@@ -32,23 +33,29 @@ internal sealed class PhotoCutoutImaging : IDisposable
         }
         catch { Original.Dispose(); throw; }
     }
-    public UIImage Render(byte[] mask)
+    public UIImage Render(byte[] mask) => Render(rgba, mask);
+    public UIImage Render(byte[] pixels, byte[] mask)
     {
         if (mask.Length != Width * Height) throw new IOException("The photo mask is invalid.");
+        return Image(PhotoCutoutPixels.Apply(pixels, mask));
+    }
+    public UIImage Image(byte[] pixels)
+    {
+        if (pixels.Length != Width * Height * 4) throw new IOException("The photo pixels are invalid.");
         using var colour = CGColorSpace.CreateSrgb();
         using var context = new CGBitmapContext(IntPtr.Zero, Width, Height, 8, Width * 4, colour,
             CGBitmapFlags.ByteOrder32Big | CGBitmapFlags.PremultipliedLast);
-        var output = PhotoCutoutPixels.Apply(rgba, mask);
-        Marshal.Copy(output, 0, context.Data, output.Length);
+        Marshal.Copy(pixels, 0, context.Data, pixels.Length);
         using var image = context.ToImage() ?? throw new IOException("The cut-out could not be rendered.");
         return new UIImage(image);
     }
-    public byte[] AutomaticMask()
+    public byte[] AutomaticMask(byte[]? working = null)
     {
         if (!OperatingSystem.IsIOSVersionAtLeast(17)) throw new IOException("Automatic removal requires iOS 17 or later. You can still erase manually.");
         using var pool = new NSAutoreleasePool();
+        using var repaired = working is null ? null : Render(working, Enumerable.Repeat((byte)255, Width * Height).ToArray());
         using var request = new VNGenerateForegroundInstanceMaskRequest(null);
-        using var handler = new VNImageRequestHandler(Original.CGImage!, new VNImageOptions());
+        using var handler = new VNImageRequestHandler((repaired ?? Original).CGImage!, new VNImageOptions());
         var performed = handler.Perform([request], out var error);
         using (error)
             if (!performed) throw new IOException("Background removal is unavailable for this photo. Try manual Erase and Restore.");

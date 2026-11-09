@@ -10,17 +10,19 @@ public sealed class PhotoCutoutMask
     private readonly List<byte[]> undo = [], redo = [];
     private byte[]? stroke;
     private double? lastX, lastY;
+    private readonly bool recordHistory;
     public int Width { get; }
     public int Height { get; }
     public byte[] Pixels { get; private set; }
     public bool IsPainting => stroke is not null;
     public bool CanUndo => !IsPainting && undo.Count > 0;
     public bool CanRedo => !IsPainting && redo.Count > 0;
-    public PhotoCutoutMask(int width, int height, byte[]? pixels = null)
+    public PhotoCutoutMask(int width, int height, byte[]? pixels = null, bool recordHistory = true)
     {
         if (width is < 1 or > WidgetDesignRules.MaximumImageEdge || height is < 1 or > WidgetDesignRules.MaximumImageEdge
             || pixels is not null && pixels.Length != width * height) throw new IOException("The photo mask is invalid.");
-        Width = width; Height = height; Pixels = pixels?.ToArray() ?? Enumerable.Repeat((byte)255, width * height).ToArray();
+        Width = width; Height = height; this.recordHistory = recordHistory;
+        Pixels = pixels?.ToArray() ?? Enumerable.Repeat((byte)255, width * height).ToArray();
     }
     public void BeginStroke() { if (IsPainting) return; stroke = Pack(Pixels); lastX = lastY = null; }
     public void Paint(double x, double y, double radius, double softness, bool restore)
@@ -57,13 +59,13 @@ public sealed class PhotoCutoutMask
         stroke = null; lastX = lastY = null;
         if (cancel) { Pixels = Unpack(before); return; }
         if (Pixels.AsSpan().SequenceEqual(Unpack(before))) return;
-        redo.Clear(); Push(undo, before);
+        redo.Clear(); if (recordHistory) Push(undo, before);
     }
     public void Replace(byte[] pixels)
     {
         if (IsPainting || pixels.Length != Pixels.Length) throw new IOException("The photo mask is invalid.");
         if (pixels.AsSpan().SequenceEqual(Pixels)) return;
-        var before = Pack(Pixels); Pixels = pixels.ToArray(); redo.Clear(); Push(undo, before);
+        var before = recordHistory ? Pack(Pixels) : null; Pixels = pixels.ToArray(); redo.Clear(); if (before is not null) Push(undo, before);
     }
     public void Undo() { if (!CanUndo) return; var next = Pop(undo); Push(redo, Pack(Pixels)); Pixels = next; }
     public void Redo() { if (!CanRedo) return; var next = Pop(redo); Push(undo, Pack(Pixels)); Pixels = next; }

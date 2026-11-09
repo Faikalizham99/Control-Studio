@@ -15,6 +15,7 @@ from check_widget_metadata import validate_widget_metadata
 from widget_slot_config import synchronize as synchronize_slots
 from check_gesture_ownership import validate_builtin_gesture_ownership
 from check_native_layout import validate_native_dimension_constraints
+from object_removal_model import check as check_object_removal_model
 
 
 def source_files(root, suffixes):
@@ -29,6 +30,7 @@ def source_files(root, suffixes):
 
 
 def main():
+    check_object_removal_model()
     for path in source_files(ROOT / "src/ControlStudio.App/Platforms/iOS", {".cs"}):
         source = path.read_text(encoding="utf-8")
         validate_builtin_gesture_ownership(source, path.name)
