@@ -7,6 +7,24 @@ namespace ControlStudio.App.Tests;
 [Collection("MAUI controls")]
 public sealed class WidgetCanvasTests : IDisposable
 {
+    [Theory]
+    [InlineData(WidgetLayerKind.Clock)] [InlineData(WidgetLayerKind.Date)] [InlineData(WidgetLayerKind.Text)]
+    public void ReusedTextFitStillTracksStyleAndSizeWhileMovementKeepsItsFontSize(WidgetLayerKind kind)
+    {
+        var layer = kind switch { WidgetLayerKind.Clock => WidgetClocks.New(), WidgetLayerKind.Date => WidgetDates.New(), _ => WidgetTexts.New() };
+        var design = WidgetDesignRules.New() with { Layers = new[] { layer } }; WidgetCanvasView? view = null;
+        view = new(_ => null, _ => { }, changed => { design = design with { Layers = new[] { changed } }; view!.Update(design, changed.Id); });
+        host.Attach(view); view.Update(design, layer.Id); ((IView)view.PhotoSurface).Arrange(new Rect(0, 0, 170, 170));
+        var label = Assert.IsType<AbsoluteLayout>(view.PhotoSurface.Children[0]).Children.OfType<WidgetClockFontLabel>().Single();
+        var originalSize = label.FontSize;
+        var smaller = WidgetTextLayers.WithStyle(layer, WidgetTextLayers.Style(layer) with { FontScale = .1 });
+        design = design with { Layers = new[] { smaller } }; view.Update(design, layer.Id); Assert.True(label.FontSize < originalSize);
+        var resized = smaller with { Frame = smaller.Frame with { Width = smaller.Frame.Width * 1.5, Height = smaller.Frame.Height * 1.5 } };
+        var smallSize = label.FontSize; design = design with { Layers = new[] { resized } }; view.Update(design, layer.Id); Assert.True(label.FontSize > smallSize);
+        var fitted = label.FontSize;
+        Assert.True(view.BeginInteraction((resized.Frame.X + resized.Frame.Width / 2) * 170, (resized.Frame.Y + resized.Frame.Height / 2) * 170, false));
+        view.Pan(10, 12); view.EndInteraction(false); Assert.Equal(fitted, label.FontSize);
+    }
     [Fact]
     public void MixedLiveCanvasSeparatesBatteryReadingsFromTextTicksAndDescribesUnknownAndCharging()
     {

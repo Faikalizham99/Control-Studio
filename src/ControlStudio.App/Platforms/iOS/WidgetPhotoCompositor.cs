@@ -19,23 +19,28 @@ internal sealed class WidgetPhotoCompositor : IDisposable
     private readonly Func<string, string?> path;
     private readonly CGColorSpace colorSpace = CGColorSpace.CreateSrgb() ?? throw new IOException("Widget colour rendering is unavailable.");
     private readonly CIContext context;
-    private readonly Dictionary<Guid, Raster> rasters = [];
+    private readonly PreviewImageCache<Guid, Raster> rasters;
     private readonly Dictionary<string, UIImage> sources = [];
-    private const int MaximumCachedRasters = 4, MaximumCachedSources = 2, MaximumGraphLayers = 4;
-    private readonly LinkedList<Guid> rasterOrder = new();
+    private const int MaximumGraphLayers = 4;
+    private readonly int maximumCachedSources;
     private readonly LinkedList<string> sourceOrder = new();
     private sealed record Raster(WidgetLayer Layer, CGSize Size, UIImage Image, CIImage Input, string ClockText = "") : IDisposable
     {
         public void Dispose() { Input.Dispose(); Image.Dispose(); }
     }
-    public WidgetPhotoCompositor(Func<string, string?> path)
+    public WidgetPhotoCompositor(Func<string, string?> path, bool editorPreview = false, bool conserveMemory = false)
     {
         this.path = path;
+        // Export keeps its small working set. The editor reuses unchanged rasters
+        // across gesture frames, with a hard byte limit and scan-resistant admission.
+        rasters = new(editorPreview && !conserveMemory ? 64L * 1024 * 1024 : 16L * 1024 * 1024, editorPreview ? WidgetDesignRules.MaximumLayers : 4);
+        maximumCachedSources = editorPreview && !conserveMemory ? 4 : 2; // At most 16 MiB decoded source pixels.
         try { context = CIContext.FromOptions(new CIContextOptions { WorkingColorSpace = colorSpace, OutputColorSpace = colorSpace, CacheIntermediates = false }); }
         catch { colorSpace.Dispose(); throw; }
     }
-    public UIImage Render(WidgetDesign design, DateTimeOffset? time = null, int maximumEdge = WidgetDesignRules.MaximumImageEdge, WidgetBatteryReading battery = default)
+    public UIImage Render(WidgetDesign design, DateTimeOffset? time = null, int maximumEdge = WidgetDesignRules.MaximumImageEdge, WidgetBatteryReading battery = default, CancellationToken token = default)
     {
+        token.ThrowIfCancellationRequested();
         Stage = WidgetRenderStage.Validation; WidgetDesignRules.Validate(design);
         using var pool = new NSAutoreleasePool();
         var canvas = WidgetDesignRules.Canvas(design);
@@ -44,6 +49,7 @@ internal sealed class WidgetPhotoCompositor : IDisposable
         var bounds = new CGRect(CGPoint.Empty, size);
         foreach (var id in rasters.Keys.Where(id => !design.Layers.Any(x => x.Id == id && x.Visible && x.Opacity > 0)).ToArray()) RemoveRaster(id);
         foreach (var key in sources.Keys.Where(key => !design.Layers.Any(x => x.Kind == WidgetLayerKind.Photo && x.AssetKey == key && x.Visible && x.Opacity > 0)).ToArray()) RemoveSource(key);
+        using var transient = new ImageRenderBatch<Raster>();
         using var images = new ImageRenderBatch<CIImage>();
         Stage = WidgetRenderStage.Background;
         var result = images.Own(Solid(bounds, design.TransparentBackground, design.BackgroundHex));
@@ -52,19 +58,20 @@ internal sealed class WidgetPhotoCompositor : IDisposable
         var pendingText = 0;
         for (var index = 0; index < steps.Count; index++)
         {
+            token.ThrowIfCancellationRequested();
             var step = steps[index];
             if (step.TextLayer is { } live)
             {
-                var input = images.Borrow(Rasterize(live, size, timestamp, battery));
+                var input = images.Borrow(Rasterize(live, size, timestamp, transient, battery));
                 Stage = WidgetRenderStage.Blend;
                 var blended = images.Own(Kernel(WidgetBlendMode.Normal).Apply(input, result) ?? throw new IOException("This live layer could not be rendered."));
                 Stage = WidgetRenderStage.Crop; result = images.Own(blended.ImageByCroppingToRect(bounds));
-                if (++pendingText >= MaximumGraphLayers) { result = images.Checkpoint(Flatten(result, bounds)); pendingText = 0; }
+                if (++pendingText >= MaximumGraphLayers) { result = images.Checkpoint(Flatten(result, bounds)); transient.Clear(); pendingText = 0; }
             }
             else
             {
-                if (pendingText > 0) { result = images.Checkpoint(Flatten(result, bounds)); pendingText = 0; }
-                var group = images.Own(RenderGroup(step.Photos, size, timestamp, index != 0 || design.TransparentBackground, design.BackgroundHex));
+                if (pendingText > 0) { result = images.Checkpoint(Flatten(result, bounds)); transient.Clear(); pendingText = 0; }
+                var group = images.Own(RenderGroup(step.Photos, size, timestamp, index != 0 || design.TransparentBackground, design.BackgroundHex, transient, token));
                 // The first group includes the background and is already a bitmap.
                 if (index == 0) result = images.Checkpoint(group);
                 else
@@ -76,6 +83,7 @@ internal sealed class WidgetPhotoCompositor : IDisposable
             }
         }
         Stage = WidgetRenderStage.Snapshot;
+        token.ThrowIfCancellationRequested();
         using var bitmap = Materialize(result, bounds);
         return new UIImage(bitmap);
     }
@@ -105,21 +113,22 @@ internal sealed class WidgetPhotoCompositor : IDisposable
         using var bitmap = Materialize(input, bounds);
         return CIImage.FromCGImage(bitmap);
     }
-    private CIImage RenderGroup(IReadOnlyList<WidgetLayer> layers, CGSize size, DateTimeOffset time, bool transparent, string hex)
+    private CIImage RenderGroup(IReadOnlyList<WidgetLayer> layers, CGSize size, DateTimeOffset time, bool transparent, string hex, ImageRenderBatch<Raster> transient, CancellationToken token)
     {
         var bounds = new CGRect(CGPoint.Empty, size);
         using var images = new ImageRenderBatch<CIImage>();
         Stage = WidgetRenderStage.Background; var group = images.Own(Solid(bounds, transparent, hex));
         for (var index = 0; index < layers.Count; index++)
         {
+            token.ThrowIfCancellationRequested();
             using var pool = new NSAutoreleasePool(); var layer = layers[index];
-            var input = images.Borrow(Rasterize(layer, size, time));
+            var input = images.Borrow(Rasterize(layer, size, time, transient));
             Stage = WidgetRenderStage.Blend;
             var blended = images.Own(Kernel(layer.BlendMode).Apply(input, group) ?? throw new IOException("This photo blend could not be rendered."));
             Stage = WidgetRenderStage.Crop; group = images.Own(blended.ImageByCroppingToRect(bounds));
-            if ((index + 1) % MaximumGraphLayers == 0) group = images.Checkpoint(Flatten(group, bounds));
+            if ((index + 1) % MaximumGraphLayers == 0) { group = images.Checkpoint(Flatten(group, bounds)); transient.Clear(); }
         }
-        if (layers.Count == 0 || layers.Count % MaximumGraphLayers != 0) group = images.Checkpoint(Flatten(group, bounds));
+        if (layers.Count == 0 || layers.Count % MaximumGraphLayers != 0) { group = images.Checkpoint(Flatten(group, bounds)); transient.Clear(); }
         return images.Detach(group);
     }
     public WidgetSceneExport Scene(WidgetDesign design)
@@ -148,20 +157,20 @@ internal sealed class WidgetPhotoCompositor : IDisposable
     }
     private static CIColor Background(string hex) => new(Convert.ToInt32(hex.Substring(1, 2), 16) / 255f,
         Convert.ToInt32(hex.Substring(3, 2), 16) / 255f, Convert.ToInt32(hex.Substring(5, 2), 16) / 255f, 1);
-    private CIImage Rasterize(WidgetLayer layer, CGSize size, DateTimeOffset time, WidgetBatteryReading battery = default)
+    private CIImage Rasterize(WidgetLayer layer, CGSize size, DateTimeOffset time, ImageRenderBatch<Raster> transient, WidgetBatteryReading battery = default)
     {
         Stage = layer.Kind == WidgetLayerKind.Photo ? WidgetRenderStage.Photo : layer.Kind == WidgetLayerKind.Battery ? WidgetRenderStage.Battery : WidgetRenderStage.Text;
         var geometry = layer with { Name = "", BlendMode = WidgetBlendMode.Normal, Locked = false };
         var clockText = WidgetTextLayers.IsText(layer) ? WidgetTextLayers.Text(layer, time) : layer.Kind == WidgetLayerKind.Battery ? $"{battery.Percent}:{battery.Charging}:{battery.Full}" : "";
         using var pool = new NSAutoreleasePool();
-        if (rasters.TryGetValue(layer.Id, out var cached) && cached.Layer == geometry && cached.Size == size && cached.ClockText == clockText)
-        { Touch(rasterOrder, layer.Id); return cached.Input; }
+        if (rasters.TryGet(layer.Id, out var cached) && cached!.Layer == geometry && cached.Size == size && cached.ClockText == clockText)
+            return cached.Input;
         // Evict before allocating a replacement; a gesture never accumulates old full-canvas buffers.
         if (cached is not null) RemoveRaster(layer.Id);
-        while (rasters.Count >= MaximumCachedRasters) RemoveRaster(rasterOrder.First!.Value);
         if (WidgetTextLayers.IsText(layer) || layer.Kind == WidgetLayerKind.Battery)
         {
             using var clockFormat = UIGraphicsImageRendererFormat.DefaultFormat; clockFormat.Scale = 1; clockFormat.Opaque = false;
+            clockFormat.PreferredRange = UIGraphicsImageRendererFormatRange.Standard;
             using var clockRenderer = new UIGraphicsImageRenderer(size, clockFormat);
             var clockRaster = clockRenderer.CreateImage(context =>
             {
@@ -171,12 +180,12 @@ internal sealed class WidgetPhotoCompositor : IDisposable
                 if (layer.Kind == WidgetLayerKind.Battery) AppleWidgetBatteryDrawing.Draw(layer, battery, frame, context.CGContext);
                 else AppleWidgetClockDrawing.Draw(layer, clockText, frame, context.CGContext);
             });
-            try { var input = CIImage.FromCGImage(clockRaster.CGImage!); rasters.Add(layer.Id, new(geometry, size, clockRaster, input, clockText)); Touch(rasterOrder, layer.Id); return input; }
+            try { var input = CIImage.FromCGImage(clockRaster.CGImage!); KeepRaster(layer.Id, new(geometry, size, clockRaster, input, clockText), transient); return input; }
             catch { clockRaster.Dispose(); throw; }
         }
         if (!sources.TryGetValue(layer.AssetKey, out var source))
         {
-            while (sources.Count >= MaximumCachedSources) RemoveSource(sourceOrder.First!.Value);
+            while (sources.Count >= maximumCachedSources) RemoveSource(sourceOrder.First!.Value);
             var sourcePath = path(layer.AssetKey) ?? throw new IOException("A photo is missing. Remove its layer or choose it again.");
             source = UIImage.FromFile(sourcePath) ?? throw new IOException("A widget photo could not be opened.");
             sources.Add(layer.AssetKey, source);
@@ -203,14 +212,20 @@ internal sealed class WidgetPhotoCompositor : IDisposable
         try
         {
             var input = CIImage.FromCGImage(raster.CGImage!);
-            rasters.Add(layer.Id, new(geometry, size, raster, input)); Touch(rasterOrder, layer.Id); return input;
+            KeepRaster(layer.Id, new(geometry, size, raster, input), transient); return input;
         }
         catch { raster.Dispose(); throw; }
     }
     private static void Touch<T>(LinkedList<T> order, T key)
     { var node = order.Find(key); if (node is not null) order.Remove(node); order.AddLast(key); }
     private void RemoveRaster(Guid key)
-    { rasters[key].Dispose(); rasters.Remove(key); rasterOrder.Remove(key); }
+        => rasters.Remove(key);
+    private void KeepRaster(Guid key, Raster raster, ImageRenderBatch<Raster> transient)
+    {
+        var bitmap = raster.Image.CGImage ?? throw new IOException("The layer bitmap is unavailable.");
+        var bytes = checked((long)bitmap.BytesPerRow * (long)bitmap.Height);
+        if (!rasters.TryStore(key, raster, bytes)) transient.Own(raster);
+    }
     private void RemoveSource(string key)
     { sources[key].Dispose(); sources.Remove(key); sourceOrder.Remove(key); }
     private static void RotateFrame(CGContext graphics, CGRect frame, double degrees)
@@ -233,7 +248,7 @@ internal sealed class WidgetPhotoCompositor : IDisposable
     };
     public void Dispose()
     {
-        foreach (var raster in rasters.Values) raster.Dispose(); rasters.Clear(); rasterOrder.Clear();
+        rasters.Dispose();
         foreach (var source in sources.Values) source.Dispose(); sources.Clear(); sourceOrder.Clear(); context.Dispose(); colorSpace.Dispose();
     }
 }

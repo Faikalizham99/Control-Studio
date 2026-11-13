@@ -93,6 +93,53 @@ public sealed class WidgetEditorHistoryTests : IDisposable
         EqualDesign(initial, Draft(page)); Assert.False(Button(page, "WidgetUndo").IsEnabled); Assert.True(Button(page, "WidgetRedo").IsEnabled);
     }
     [Theory]
+    [InlineData(10)] [InlineData(20)] [InlineData(30)]
+    public void DenseCanvasKeepsSettingsStillDuringMovementThenSynchronizesAndRecordsOnlyTheFinalGesture(int count)
+    {
+        var layers = Enumerable.Range(0, count).Select(index => Layer((WidgetLayerKind)(index % 5))).ToArray();
+        // Explicitly use a photo last so the existing precision fields are observable.
+        layers[^1] = Photo();
+        var page = Editor(new(), WidgetDesignRules.New() with { Layers = layers }); Open(page); var initial = Draft(page);
+        var canvas = All(page).OfType<WidgetCanvasView>().Single(); ((IView)canvas.PhotoSurface).Arrange(new Rect(0, 0, 170, 170));
+        var x = All(page).OfType<Slider>().Single(slider => SemanticProperties.GetDescription(slider) == "Horizontal position for selected photo");
+        var originalX = x.Value;
+        Assert.True(canvas.BeginInteraction(85, 85, false));
+        for (var i = 1; i <= 60; i++) canvas.Pan(i, i / 2d);
+        Assert.Equal(originalX, x.Value); Assert.NotEqual(initial.Layers[^1].Frame, Draft(page).Layers[^1].Frame);
+        Assert.Equal(initial.Layers.Take(count - 1), Draft(page).Layers.Take(count - 1));
+        Assert.False(Button(page, "WidgetUndo").IsEnabled);
+        canvas.EndInteraction(false); var moved = Draft(page);
+        Assert.Equal(moved.Layers[^1].Frame.X, x.Value); Assert.Contains("1 step", SemanticProperties.GetHint(Button(page, "WidgetUndo")));
+        Click(page, "WidgetUndo"); EqualDesign(initial, Draft(page)); Click(page, "WidgetRedo"); EqualDesign(moved, Draft(page));
+        Assert.True(canvas.BeginInteraction(85, 85, true)); canvas.Pinch(1.25); canvas.EndInteraction(true);
+        EqualDesign(moved, Draft(page)); Click(page, "WidgetUndo"); EqualDesign(initial, Draft(page));
+    }
+    [Fact]
+    public void BeginningAGestureKeepsTheColourCommittedByThatGestureAndItsUndoBoundary()
+    {
+        var clock = WidgetClocks.New(); var page = Editor(new(), WidgetDesignRules.New() with { Layers = [clock] }); Open(page);
+        Click(page, "ClockToolColour");
+        var hex = All(page).OfType<HexColorEntry>().Single(x => x.AutomationId == "ClockTextHex"); hex.Text = "#ABCDEF";
+        var canvas = All(page).OfType<WidgetCanvasView>().Single(); ((IView)canvas.PhotoSurface).Arrange(new Rect(0, 0, 170, 170));
+        Assert.True(canvas.BeginInteraction(85, 85, false)); Assert.Equal("#ABCDEF", Draft(page).Layers[0].Clock!.ColourHex);
+        canvas.Pan(10, 12); canvas.EndInteraction(false);
+        Assert.Equal("#ABCDEF", Draft(page).Layers[0].Clock!.ColourHex);
+        Click(page, "WidgetUndo"); Assert.Equal("#ABCDEF", Draft(page).Layers[0].Clock!.ColourHex); Assert.Equal(clock.Frame, Draft(page).Layers[0].Frame);
+        Click(page, "WidgetUndo"); Assert.Equal(clock.Clock!.ColourHex, Draft(page).Layers[0].Clock!.ColourHex);
+    }
+    [Fact]
+    public void InvalidPendingSettingsPreventAGestureInsteadOfDiscardingTheInput()
+    {
+        var clock = WidgetClocks.New(); var page = Editor(new(), WidgetDesignRules.New() with { Layers = [clock] }); Open(page);
+        Click(page, "ClockToolColour");
+        var hex = All(page).OfType<HexColorEntry>().Single(x => x.AutomationId == "ClockTextHex"); hex.Text = "#BAD";
+        var canvas = All(page).OfType<WidgetCanvasView>().Single(); ((IView)canvas.PhotoSurface).Arrange(new Rect(0, 0, 170, 170));
+        Assert.False(canvas.BeginInteraction(85, 85, false)); Assert.False(canvas.IsInteracting);
+        Assert.Equal("#BAD", hex.Text); Assert.False(Button(page, "WidgetUndo").IsEnabled);
+        hex.Text = "#ABCDEF"; Assert.True(canvas.BeginInteraction(85, 85, false)); canvas.Pan(10, 10); canvas.EndInteraction(false);
+        Assert.Equal("#ABCDEF", Draft(page).Layers[0].Clock!.ColourHex);
+    }
+    [Theory]
     [InlineData(WidgetLayerKind.Photo)] [InlineData(WidgetLayerKind.Clock)] [InlineData(WidgetLayerKind.Date)] [InlineData(WidgetLayerKind.Text)] [InlineData(WidgetLayerKind.Battery)]
     public void SliderDragIsOneStepAndASecondDragIsAnother(WidgetLayerKind kind)
     {

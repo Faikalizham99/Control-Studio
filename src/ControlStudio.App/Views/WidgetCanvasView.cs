@@ -25,6 +25,7 @@ internal sealed class WidgetCanvasView : ContentView
     private readonly Action<Guid> select;
     private readonly Action? deselect;
     private readonly Action<WidgetLayer>? change;
+    private readonly Func<bool>? prepareInteraction;
     private WidgetBatteryReading battery;
     private WidgetDesign? design;
     private Guid? selected;
@@ -64,9 +65,9 @@ internal sealed class WidgetCanvasView : ContentView
     public event EventHandler? InteractionChanged;
     public event EventHandler<string>? RenderFailed;
 
-    public WidgetCanvasView(Func<string, string?> path, Action<Guid> select, Action<WidgetLayer>? change = null, Action? deselect = null)
+    public WidgetCanvasView(Func<string, string?> path, Action<Guid> select, Action<WidgetLayer>? change = null, Action? deselect = null, Func<bool>? prepareInteraction = null)
     {
-        this.path = path; this.select = select; this.change = change; this.deselect = deselect;
+        this.path = path; this.select = select; this.change = change; this.deselect = deselect; this.prepareInteraction = prepareInteraction;
         HeightRequest = WidthRequest = 170; HorizontalOptions = LayoutOptions.Center; AutomationId = "WidgetCanvas";
         composite = new WidgetCompositeView(path) { InputTransparent = true };
         composite.ClockTicked += (_, time) =>
@@ -140,9 +141,20 @@ internal sealed class WidgetCanvasView : ContentView
     public void Update(WidgetDesign value, Guid? selectedId)
     {
         if (gestureStart is not null && (design?.Size != value.Size || selected != selectedId || !value.Layers.Any(x => x.Id == gestureStart.Id && x.Visible && !x.Locked))) EndInteraction(false);
+        var placementOnly = IsInteracting && design is { } previous && selectedId == selected
+            && previous == (value with { Layers = previous.Layers }) && previous.Layers.Count == value.Layers.Count
+            && previous.Layers.Zip(value.Layers).All(pair => pair.First.Id == selectedId
+                ? pair.Second.Id == selectedId : pair.First == pair.Second);
         design = value; selected = selectedId;
         if (!Equals(composite.Design, value)) renderError.IsVisible = false;
         composite.Design = value;
+        if (placementOnly && value.Layers.FirstOrDefault(x => x.Id == selectedId) is { } moving)
+        {
+            // No fitting, child reordering, inactive-layer layout or accessibility
+            // description churn on every pan/pinch/rotation sample.
+            var view = photos[moving.Id]; Configure(view, moving); Place(view, moving, 0, 0);
+            ArrangeSelection(); return;
+        }
         if (!value.Layers.Any(x => x.Id == selectedId && x.Visible)) { ghost.Image.Source = null; ghost.Frame.IsVisible = false; }
         checker.IsVisible = value.TransparentBackground;
         canvas.BackgroundColor = value.TransparentBackground ? Colors.Transparent : Color.FromArgb(value.BackgroundHex);
@@ -184,6 +196,11 @@ internal sealed class WidgetCanvasView : ContentView
         {
             Place(photos[layer.Id], layer, 0, 0);
         }
+        ArrangeSelection();
+    }
+    private void ArrangeSelection()
+    {
+        if (design is null || canvas.Width <= 0 || canvas.Height <= 0) return;
         var active = design.Layers.FirstOrDefault(x => x.Id == selected && x.Visible);
         var origin = Origin(canvas, workspace);
         ghost.Frame.IsVisible = active is not null;
@@ -244,12 +261,19 @@ internal sealed class WidgetCanvasView : ContentView
         if (WidgetTextLayers.IsText(layer))
         {
             var clock = WidgetTextLayers.Style(layer);
-            photo.Clock.FontSize = layer.Kind == WidgetLayerKind.Text ? Math.Max(.5, height * clock.FontScale)
-                : Math.Max(.5, Math.Min(height * clock.FontScale, width / Math.Max(1, photo.Clock.Text.Length * .65)));
+            var layout = (width, height, layer.Kind, clock, photo.Clock.Text);
+            if (photo.TextLayout != layout)
+            {
+                // Moving/rotating text does not change its font fit. Native
+                // multiline fitting can measure a paragraph seventeen times.
+                photo.Clock.FontSize = layer.Kind == WidgetLayerKind.Text ? Math.Max(.5, height * clock.FontScale)
+                    : Math.Max(.5, Math.Min(height * clock.FontScale, width / Math.Max(1, photo.Clock.Text.Length * .65)));
 #if IOS
-            if (layer.Kind == WidgetLayerKind.Text)
-                photo.Clock.FontSize = Platforms.iOS.AppleWidgetClockDrawing.MultilineSize(layer, width, height);
+                if (layer.Kind == WidgetLayerKind.Text)
+                    photo.Clock.FontSize = Platforms.iOS.AppleWidgetClockDrawing.MultilineSize(layer, width, height);
 #endif
+                photo.TextLayout = layout;
+            }
             AbsoluteLayout.SetLayoutBounds(photo.Clock, new Rect(0, 0, width, height)); return;
         }
         var placement = WidgetPhotoGeometry.Image(layer, width, height); var odd = layer.QuarterTurns % 2 != 0;
@@ -283,7 +307,9 @@ internal sealed class WidgetCanvasView : ContentView
                 || localPointer.X < layer.Frame.X * canvas.Width || localPointer.X > (layer.Frame.X + layer.Frame.Width) * canvas.Width
                 || localPointer.Y < layer.Frame.Y * canvas.Height || localPointer.Y > (layer.Frame.Y + layer.Frame.Height) * canvas.Height))
         {
-            select(layer.Id); gestureStart = layer; rotating = true; rotationDelta = 0;
+            layer = PrepareInteraction(layer);
+            if (layer is null) return false;
+            gestureStart = layer; rotating = true; rotationDelta = 0;
             pointerAngle = PointerAngle(layer, point); ArrangePhotos(); InteractionChanged?.Invoke(this, EventArgs.Empty); return true;
         }
         if (layer is not null && !layer.Locked && !pinch)
@@ -300,10 +326,20 @@ internal sealed class WidgetCanvasView : ContentView
         if (corner < 0) layer = design.Layers.LastOrDefault(layer => WidgetLayerEdits.Contains(layer, point.X, point.Y, canvas.Width, canvas.Height))
             ?? (pinch ? design.Layers.FirstOrDefault(x => x.Id == selected && x.Visible && x.Opacity > 0 && !x.Locked) : null);
         if (layer is null || layer.Locked) return false;
-        select(layer.Id); gestureStart = layer;
+        layer = PrepareInteraction(layer);
+        if (layer is null) return false;
+        gestureStart = layer;
         var anchorPoint = WidgetLayerRotation.LocalPoint(layer, point.X * canvas.Width, point.Y * canvas.Height, canvas.Width, canvas.Height);
         anchor = new(Math.Clamp((anchorPoint.X / canvas.Width - layer.Frame.X) / layer.Frame.Width, 0, 1), Math.Clamp((anchorPoint.Y / canvas.Height - layer.Frame.Y) / layer.Frame.Height, 0, 1));
         InteractionChanged?.Invoke(this, EventArgs.Empty); return true;
+    }
+    private WidgetLayer? PrepareInteraction(WidgetLayer candidate)
+    {
+        if (prepareInteraction?.Invoke() == false) return null;
+        select(candidate.Id);
+        // Selection may commit pending colours/thresholds. Use that committed
+        // layer as the gesture origin, never the pre-selection snapshot.
+        return design?.Layers.FirstOrDefault(x => x.Id == candidate.Id && x.Visible && x.Opacity > 0 && !x.Locked);
     }
     public void Pan(double x, double y)
     {
@@ -354,6 +390,7 @@ internal sealed class WidgetCanvasView : ContentView
         public AbsoluteLayout Frame { get; } = new() { IsClippedToBounds = true, InputTransparent = true };
         public Image Image { get; } = new() { Aspect = Aspect.Fill, InputTransparent = true };
         public WidgetBatteryGlyph Battery { get; } = new();
+        public (double Width, double Height, WidgetLayerKind Kind, WidgetClockOptions Style, string Text)? TextLayout { get; set; }
         public WidgetClockFontLabel Clock { get; } = new() { IsVisible = false, InputTransparent = true, MaxLines = 1, FontAutoScalingEnabled = false,
             VerticalTextAlignment = TextAlignment.Center };
         public PhotoView(string? path)

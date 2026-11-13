@@ -15,6 +15,8 @@
     <Compile Include="../../src/ControlStudio.App/Rendering/ImageRenderBatch.cs" Link="Rendering/ImageRenderBatch.cs" />
     <Compile Include="../../src/ControlStudio.App/Rendering/WidgetRenderIdentity.cs" Link="Rendering/WidgetRenderIdentity.cs" />
     <Compile Include="../../src/ControlStudio.App/Rendering/WidgetRenderQueue.cs" Link="Rendering/WidgetRenderQueue.cs" />
+    <Compile Include="../../src/ControlStudio.App/Rendering/PreviewImageCache.cs" Link="Rendering/PreviewImageCache.cs" />
+    <Compile Include="../../src/ControlStudio.App/Rendering/LatestPreviewWorker.cs" Link="Rendering/LatestPreviewWorker.cs" />
     <Compile Include="../../src/ControlStudio.App/Rendering/WidgetRenderFailure.cs" Link="Rendering/WidgetRenderFailure.cs" />
     <Compile Include="../../src/ControlStudio.App/AppearanceColors.cs" Link="AppearanceColors.cs" />
     <Compile Include="../../src/ControlStudio.App/AppearancePreferences.cs" Link="AppearancePreferences.cs" />

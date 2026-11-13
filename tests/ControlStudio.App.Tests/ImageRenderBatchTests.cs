@@ -5,6 +5,16 @@ namespace ControlStudio.App.Tests;
 
 public sealed class ImageRenderBatchTests
 {
+    [Fact]
+    public void TransientRastersCanBeReleasedAtEachCheckpointWithoutKeepingTheWholeFrameAlive()
+    {
+        using var batch = new ImageRenderBatch<Image>(); using var cached = new Image();
+        for (var chunk = 0; chunk < 8; chunk++)
+        {
+            var raster = batch.Own(new Image()); batch.Borrow(cached); batch.Clear();
+            Assert.Equal(1, raster.Disposals); cached.Use();
+        }
+    }
     [Theory]
     [InlineData(false, false)] [InlineData(false, true)] [InlineData(true, false)] [InlineData(true, true)]
     public void IdentityBlendAndCropStayAliveUntilSnapshotAndNeverDisposeCachedInputs(bool blendReturnsInput, bool cropReturnsInput)

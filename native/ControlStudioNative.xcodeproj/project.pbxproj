@@ -217,8 +217,8 @@
 				"SWIFT_OPTIMIZATION_LEVEL" = "-O";
 				"SWIFT_EMIT_LOC_STRINGS" = "YES";
 				"TARGETED_DEVICE_FAMILY" = "1,2";
-				"CURRENT_PROJECT_VERSION" = "59";
-				"MARKETING_VERSION" = "0.2.57";
+				"CURRENT_PROJECT_VERSION" = "60";
+				"MARKETING_VERSION" = "0.2.58";
 				"LD_RUNPATH_SEARCH_PATHS" = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -340,8 +340,8 @@
 				"SWIFT_OPTIMIZATION_LEVEL" = "-O";
 				"SWIFT_EMIT_LOC_STRINGS" = "YES";
 				"TARGETED_DEVICE_FAMILY" = "1,2";
-				"CURRENT_PROJECT_VERSION" = "59";
-				"MARKETING_VERSION" = "0.2.57";
+				"CURRENT_PROJECT_VERSION" = "60";
+				"MARKETING_VERSION" = "0.2.58";
 				"LD_RUNPATH_SEARCH_PATHS" = (
 					"$(inherited)",
 					"@executable_path/Frameworks",

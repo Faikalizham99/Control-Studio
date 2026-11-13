@@ -34,10 +34,11 @@ internal sealed class ImageRenderBatch<T> : IDisposable where T : class, IDispos
         if (!owned.Remove(image)) throw new InvalidOperationException("Only an owned image can leave its render batch.");
         return image;
     }
-    public void Dispose()
+    public void Clear()
     {
-        if (disposed) return; disposed = true;
+        ObjectDisposedException.ThrowIf(disposed, this);
         foreach (var image in owned) image.Dispose();
         owned.Clear(); borrowed.Clear();
     }
+    public void Dispose() { if (disposed) return; Clear(); disposed = true; }
 }

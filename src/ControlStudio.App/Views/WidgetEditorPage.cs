@@ -86,11 +86,8 @@ internal sealed partial class WidgetEditorPage : ContentPage
         Title = original is null ? "New widget" : "Edit widget"; AutomationId = "WidgetEditorPage"; WidgetStudioStyle.Page(this);
         name.Text = draft.Name; name.SetAppThemeColor(Entry.TextColorProperty, Color.FromArgb("#16171C"), Colors.White);
         SemanticProperties.SetDescription(name, "Widget name");
-        canvas = new WidgetCanvasView(studio.AssetPath, SelectLayer, layer =>
-        {
-            if (saved || departed || busy) return;
-            ReplaceLayer(layer); RefreshControls(); UpdateCanvas();
-        }, ClearLayerSelection);
+        canvas = new WidgetCanvasView(studio.AssetPath, SelectLayer, ChangeCanvasLayer, ClearLayerSelection,
+            () => CanEdit && CommitLayerSettings());
         canvas.RenderFailed += (_, message) => ShowStatus(message);
         blendMenu = new WidgetBlendPanel(mode =>
         {
@@ -102,7 +99,11 @@ internal sealed partial class WidgetEditorPage : ContentPage
         canvas.InteractionChanged += (_, _) =>
         {
             if (canvas.IsInteracting) { history.Begin(canvas); ClosePhotoTools(); }
-            else FinishHistoryInteraction(canvas);
+            else
+            {
+                RecordHistory(); FinishHistoryInteraction(canvas);
+                RefreshControls(); UpdateCanvas();
+            }
             RefreshActions();
         };
         sizes = new WidgetSegments(["Small", "Medium", "Large", "XL"], "EditorWidgetSize", index =>
@@ -331,6 +332,13 @@ internal sealed partial class WidgetEditorPage : ContentPage
         catch (Exception ex) { logger.LogDebug("Widget lock announcement unavailable. ErrorType={ErrorType}", ex.GetType().Name); }
     }
     private void ReplaceLayer(WidgetLayer layer) => draft = draft with { Layers = draft.Layers.Select(x => x.Id == layer.Id ? layer : x).ToArray() };
+    private void ChangeCanvasLayer(WidgetLayer layer)
+    {
+        if (saved || departed || busy) return;
+        ReplaceLayer(layer);
+        if (!canvas.IsInteracting) RefreshControls();
+        UpdateCanvas();
+    }
     private void NudgeLayer(WidgetMoveDirection direction)
     {
         if (CanEdit && CommitLayerSettings())
@@ -383,7 +391,9 @@ internal sealed partial class WidgetEditorPage : ContentPage
     }
     private void UpdateCanvas()
     {
-        RecordHistory();
+        // Keep the in-progress draft current, but freeze history and settings
+        // only when the gesture ends (including cancellation).
+        if (!canvas.IsInteracting) RecordHistory();
         if (saved || departed || (observedWindow is not null && !Foreground)) canvas.SuspendComposition();
         else canvas.Update(draft, selected);
     }
