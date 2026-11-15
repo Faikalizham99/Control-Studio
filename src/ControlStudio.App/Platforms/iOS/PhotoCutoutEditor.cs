@@ -10,16 +10,17 @@ namespace ControlStudio.App.Platforms.iOS;
 internal static class PhotoCutoutEditor
 {
     internal sealed record Result(byte[] Mask, byte[] Png, byte[]? Working, bool Changed);
-    public static async Task<string?> EditAsync(UIWindow owner, Func<bool> canPresent, Action didPresent, PhotoCutoutImaging imaging, byte[]? pixels, byte[]? working, Color accent, Func<Result, Task<string>> saveResult)
+    public static async Task<string?> EditAsync(UIWindow owner, Func<bool> canPresent, Action didPresent, PhotoCutoutImaging imaging, byte[]? pixels, byte[]? working, Color accent, Func<Result, Task<string>> saveResult, PhotoCropRect? crop = null)
     {
         try
         {
             var presenter = await WaitForPresenterAsync(owner, canPresent);
             if (presenter is null) return null;
-            using var editor = new CutoutController(imaging, pixels, working, accent, saveResult);
+            using var editor = new CutoutController(imaging, pixels, working, accent, saveResult, crop);
             try
             {
                 await presenter.PresentViewControllerAsync(editor, true);
+                if (!canPresent()) return null;
                 editor.VerifyInitialLayout();
                 // Retain the widget image through the opening animation, then
                 // release its composition before background removal can run.
@@ -30,7 +31,7 @@ internal static class PhotoCutoutEditor
             {
                 // Vision/rendering must release the source before the caller disposes it.
                 await editor.Work;
-                if (editor.PresentingViewController is not null) await editor.DismissViewControllerAsync(true);
+                if (editor.PresentingViewController is not null) await editor.DismissViewControllerAsync(UIApplication.SharedApplication.ApplicationState == UIApplicationState.Active);
             }
         }
         catch (Exception ex) when (ex is not IOException)
@@ -38,7 +39,7 @@ internal static class PhotoCutoutEditor
             throw new IOException("The cut-out screen could not open. Your photo is unchanged. Tap Edit photo to try again.", ex);
         }
     }
-    private static async Task<UIViewController?> WaitForPresenterAsync(UIWindow owner, Func<bool> canPresent)
+    internal static async Task<UIViewController?> WaitForPresenterAsync(UIWindow owner, Func<bool> canPresent, string action = "Edit photo")
     {
         // Use the initiating MAUI window rather than the global topmost controller,
         // which can be an alert that is still dismissing. Yield only while UIKit
@@ -50,7 +51,7 @@ internal static class PhotoCutoutEditor
             if (owner.Handle == IntPtr.Zero || owner.RootViewController is not { } candidate
                 || UIApplication.SharedApplication.ApplicationState != UIApplicationState.Active
                 || owner.WindowScene?.ActivationState != UISceneActivationState.ForegroundActive)
-                throw new IOException("Return to Control Studio, then tap Edit photo again.");
+                throw new IOException($"Return to Control Studio, then tap {action} again.");
             var transitioning = false;
             while (true)
             {
@@ -62,17 +63,17 @@ internal static class PhotoCutoutEditor
                 return candidate;
             await Task.Delay(16);
         }
-        throw new IOException("Close the open panel, then tap Edit photo again. Your photo is unchanged.");
+        throw new IOException($"Close the open panel, then tap {action} again. Your photo is unchanged.");
     }
 
-    private sealed class CutoutPageScrollView : UIScrollView
+    internal sealed class CutoutPageScrollView : UIScrollView
     {
         public UIView? Canvas { get; set; }
         public override bool GestureRecognizerShouldBegin(UIGestureRecognizer recognizer)
         {
             // The scroll view remains the delegate of its built-in recognizer.
             // Filtering through the view override avoids replacing that delegate.
-            if (recognizer.Handle == PanGestureRecognizer.Handle && Canvas is { } canvas
+            if (recognizer.Handle == PanGestureRecognizer.Handle && Canvas is { UserInteractionEnabled: true } canvas
                 && canvas.Bounds.Contains(recognizer.LocationInView(canvas))) return false;
             return base.GestureRecognizerShouldBegin(recognizer);
         }
@@ -84,6 +85,7 @@ internal static class PhotoCutoutEditor
         private readonly PhotoEditSession session;
         private readonly Color accent;
         private readonly Func<Result, Task<string>> saveResult;
+        private readonly PhotoCropRect? savedCrop;
         private readonly CutoutPageScrollView page = new() { AlwaysBounceVertical = true };
         private readonly UIStackView stack = new() { Axis = UILayoutConstraintAxis.Vertical, Spacing = 12 };
         private readonly UIScrollView zoom = new()
@@ -120,10 +122,10 @@ internal static class PhotoCutoutEditor
         private CGSize lastViewport;
         public Task Work { get; private set; } = Task.CompletedTask;
         public TaskCompletionSource<string?> Completion { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        public CutoutController(PhotoCutoutImaging imaging, byte[]? pixels, byte[]? working, Color accent, Func<Result, Task<string>> saveResult)
+        public CutoutController(PhotoCutoutImaging imaging, byte[]? pixels, byte[]? working, Color accent, Func<Result, Task<string>> saveResult, PhotoCropRect? crop)
         {
-            this.imaging = imaging; this.accent = accent; this.saveResult = saveResult; session = new(imaging.Width, imaging.Height, imaging.Pixels, pixels, working);
-            preview = new(imaging, session, accent) { ContentMode = UIViewContentMode.Redraw,
+            this.imaging = imaging; this.accent = accent; this.saveResult = saveResult; savedCrop = crop; session = new(imaging.Width, imaging.Height, imaging.Pixels, pixels, working);
+            preview = new(imaging, session, accent, crop) { ContentMode = UIViewContentMode.Redraw,
                 IsAccessibilityElement = true, AccessibilityLabel = "Photo editing canvas",
                 AccessibilityHint = "Use actions to paint at the visible centre or move the canvas. Brush size, softness and zoom are adjustable below." };
             preview.RenderFailed = () => Message("The preview could not be updated. Your edits are kept; try Undo or Apply again.");
@@ -145,6 +147,7 @@ internal static class PhotoCutoutEditor
             var title = Label("Edit photo"); title.Font = UIFont.GetPreferredFontForTextStyle(UIFontTextStyle.Headline)!; title.TextAlignment = UITextAlignment.Center;
             stack.AddArrangedSubview(Row(cancel, title, apply));
             stack.AddArrangedSubview(Label("Erase makes pixels transparent. Remove object fills your selection from the surrounding photo. Pinch to zoom; move with two fingers."));
+            if (savedCrop is not null) stack.AddArrangedSubview(Label("The outlined area is your saved crop. The full photo stays editable; use Crop in the widget toolbar to change the visible area."));
             zoom.AddSubview(preview); zoom.ViewForZoomingInScrollView = _ => preview;
             zoom.PanGestureRecognizer.MinimumNumberOfTouches = 2;
             zoom.Layer.CornerRadius = 16; zoom.Layer.BorderWidth = 1;
@@ -357,7 +360,7 @@ internal static class PhotoCutoutEditor
                     var colours = session.Pixels;
                     var png = await Task.Run(() =>
                     {
-                        using var pool = new NSAutoreleasePool(); using var image = imaging.Render(colours, pixels);
+                        using var pool = new NSAutoreleasePool(); using var image = imaging.Render(colours, pixels, savedCrop);
                         using var encoded = image.AsPNG() ?? throw new IOException("The edited photo could not be prepared.");
                         if (encoded.Length > WidgetDesignRules.MaximumImageBytes) throw new IOException("This edited photo is too detailed to save.");
                         return encoded.ToArray();
@@ -443,7 +446,7 @@ internal static class PhotoCutoutEditor
         private static UIAccessibilityCustomAction AccessibleAction(string title, Func<bool> action) => new(title, new UIAccessibilityCustomActionHandler(_ => action()));
     }
 
-    private sealed class PaintView(PhotoCutoutImaging imaging, PhotoEditSession session, Color accent) : UIView
+    private sealed class PaintView(PhotoCutoutImaging imaging, PhotoEditSession session, Color accent, PhotoCropRect? savedCrop) : UIView
     {
         private UIImage? rendered;
         private UIImage? selection;
@@ -492,6 +495,12 @@ internal static class PhotoCutoutEditor
             }
             (ShowOriginal ? imaging.Original : rendered)?.Draw(Bounds);
             if (!ShowOriginal) selection?.Draw(Bounds);
+            if (savedCrop is { } crop)
+            {
+                context.SetStrokeColor(accent.ToPlatform().CGColor); context.SetLineWidth(2 / (nfloat)Math.Max(1, (double)Transform.A));
+                context.StrokeRect(new CGRect(crop.X * Bounds.Width / imaging.Width, crop.Y * Bounds.Height / imaging.Height,
+                    crop.Width * Bounds.Width / imaging.Width, crop.Height * Bounds.Height / imaging.Height));
+            }
             if (pointer is { } point)
             {
                 context.SetStrokeColor(accent.ToPlatform().CGColor); context.SetLineWidth((nfloat)(1 / Math.Max(1, (double)Transform.A)));

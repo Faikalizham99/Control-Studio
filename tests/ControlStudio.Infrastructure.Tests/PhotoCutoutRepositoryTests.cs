@@ -89,5 +89,41 @@ public sealed class PhotoCutoutRepositoryTests : IDisposable
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => Repository.ImportCutoutAsync(Png(), new byte[4], Png(), cancel.Token));
         var photos = Path.Combine(directory, "photos"); if (Directory.Exists(photos)) Assert.Empty(Directory.GetFiles(photos));
     }
+    [Fact]
+    public async Task CropReopensFullOriginalMaskAndRepairsAndRemainsEditableAfterRevision()
+    {
+        var repo = Repository; var original = Png(4, 3); var working = Png(4, 3); working[10] = 42; var mask = Enumerable.Range(0, 12).Select(x => (byte)(x * 20)).ToArray();
+        var crop = new PhotoCropRect(1, 1, 2, 2);
+        var key = await repo.ImportCutoutAsync(original, mask, Png(), working: working, crop: crop);
+        var reopened = await Repository.ReadCutoutAsync(key);
+        Assert.Equal(original, reopened.Original); Assert.Equal(mask, reopened.Mask); Assert.Equal(working, reopened.Working); Assert.Equal(crop, reopened.Crop);
+        var revision = await repo.ImportCutoutAsync(reopened.Original, mask, Png(4, 3), working: reopened.Working);
+        Assert.Null((await repo.ReadCutoutAsync(revision)).Crop); Assert.Equal(crop, (await repo.ReadCutoutAsync(key)).Crop);
+        var layer = new WidgetLayer(Guid.NewGuid(), "Cropped", key, 2, 2, new());
+        var saved = await repo.SaveAsync(WidgetDesignRules.New() with { Layers = [layer, layer with { Id = Guid.NewGuid() }] }, Png());
+        await repo.RemoveDraftPhotosAsync([key, revision]); Assert.Equal(crop, (await repo.ReadCutoutAsync(key)).Crop);
+        await repo.DeleteAsync(saved.Id); Assert.Empty(Directory.GetFiles(Path.Combine(directory, "photos")));
+    }
+    [Fact]
+    public async Task LostOrTamperedCropMetadataCannotSilentlyRestoreOrChangeTheVisibleArea()
+    {
+        var repo = Repository; var key = await repo.ImportCutoutAsync(Png(4, 3), new byte[12], Png(), crop: new(1, 1, 2, 2));
+        var path = Path.Combine(directory, "photos", key + ".crop.json"); var proof = Path.Combine(directory, "photos", key + ".crop.sha256");
+        var bytes = await File.ReadAllBytesAsync(path); await File.WriteAllTextAsync(path, "{}");
+        await Assert.ThrowsAsync<IOException>(() => repo.ReadCutoutAsync(key));
+        await File.WriteAllBytesAsync(path, bytes); File.Delete(proof); await Assert.ThrowsAsync<IOException>(() => repo.ReadCutoutAsync(key));
+        File.Delete(path); await Assert.ThrowsAsync<IOException>(() => repo.ReadCutoutAsync(key));
+        await repo.RemoveDraftPhotosAsync([key]); Assert.Empty(Directory.GetFiles(Path.Combine(directory, "photos")));
+    }
+    [Fact]
+    public async Task InvalidCropOrOutputDimensionsAndCancelledCropLeaveNoPartialAssets()
+    {
+        var repo = Repository;
+        await Assert.ThrowsAsync<IOException>(() => repo.ImportCutoutAsync(Png(4, 3), new byte[12], Png(), crop: new(3, 2, 2, 2)));
+        await Assert.ThrowsAsync<IOException>(() => repo.ImportCutoutAsync(Png(4, 3), new byte[12], Png(), crop: new(0, 0, 3, 2)));
+        using var token = new CancellationTokenSource(); token.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => repo.ImportCutoutAsync(Png(4, 3), new byte[12], Png(), token.Token, crop: new(1, 1, 2, 2)));
+        var photos = Path.Combine(directory, "photos"); if (Directory.Exists(photos)) Assert.Empty(Directory.GetFiles(photos));
+    }
     public void Dispose() { if (Directory.Exists(directory)) Directory.Delete(directory, true); }
 }

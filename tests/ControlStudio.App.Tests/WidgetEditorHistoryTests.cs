@@ -462,11 +462,15 @@ public sealed class WidgetEditorHistoryTests : IDisposable
         host.App.UserAppTheme = theme; host.App.Resources["AccentText"] = Colors.Purple;
         var photo = Photo(); var page = Editor(new(), WidgetDesignRules.New() with { Layers = [photo] }); Open(page);
         var tools = All(page).OfType<WidgetHorizontalStrip>().Single(x => x.AutomationId == "WidgetEditorToolbar");
-        var buttons = All(tools).OfType<WidgetToolButton>().ToArray(); Assert.Equal(7, buttons.Length);
+        var buttons = All(tools).OfType<WidgetToolButton>().ToArray(); Assert.Equal(8, buttons.Length);
         Assert.Equal("WidgetEditPhotoTool", buttons[0].AutomationId); Assert.Equal(48, buttons[0].WidthRequest); Assert.Equal(48, buttons[0].HeightRequest);
         var target = Button(page, "WidgetEditPhoto"); Assert.Contains("Remove background", SemanticProperties.GetDescription(target));
         Assert.Contains(All(buttons[0]).OfType<StudioGlyph>(), x => x.Symbol == StudioSymbol.Edit && x.Tint == Colors.Purple);
-        Lock(page, photo.Id); Assert.False(target.IsEnabled); Lock(page, photo.Id); Assert.True(target.IsEnabled);
+        Assert.Equal("WidgetCropPhotoTool", buttons[1].AutomationId); Assert.Equal(48, buttons[1].WidthRequest); Assert.Equal(48, buttons[1].HeightRequest);
+        var crop = Button(page, "WidgetCropPhoto"); Assert.Contains("full photo", SemanticProperties.GetDescription(crop));
+        Assert.Contains(All(buttons[1]).OfType<StudioGlyph>(), x => x.Symbol == StudioSymbol.Crop && x.Tint == Colors.Purple);
+        Lock(page, photo.Id); Assert.False(target.IsEnabled); Assert.False(crop.IsEnabled);
+        Lock(page, photo.Id); Assert.True(target.IsEnabled); Assert.True(crop.IsEnabled);
     }
     [Fact]
     public void Empty_widget_cannot_open_photo_editor()
@@ -474,6 +478,48 @@ public sealed class WidgetEditorHistoryTests : IDisposable
         var calls = 0; var store = new Store { Edit = _ => { calls++; return Task.FromResult<WidgetLayer?>(null); } };
         var page = Editor(store, WidgetDesignRules.New()); Open(page);
         Assert.False(Button(page, "WidgetEditPhoto").IsEnabled); Click(page, "WidgetEditPhoto"); Assert.Equal(0, calls);
+        Assert.False(Button(page, "WidgetCropPhoto").IsEnabled);
+    }
+    [Fact]
+    public void CropChangesImageDimensionsAndFitAsOneUndoStepWhileKeepingPlacementAndOtherPhotoSettings()
+    {
+        var original = Photo() with { Frame = new(-.2, .1, .7, .6), RotationDegrees = 35, QuarterTurns = 1,
+            FlipHorizontal = true, Opacity = .6, BlendMode = WidgetBlendMode.Multiply, Zoom = 2, CropX = .2 };
+        var key = Guid.NewGuid().ToString("N");
+        var store = new Store { Crop = layer => Task.FromResult<WidgetLayer?>(layer with
+            { AssetKey = key, PixelWidth = 320, PixelHeight = 180, FitPhoto = true, Zoom = 1, CropX = .5, CropY = .5, Frame = new() }) };
+        var page = Editor(store, WidgetDesignRules.New() with { Layers = [original] }); Open(page); Click(page, "WidgetCropPhoto");
+        var expected = original with { AssetKey = key, PixelWidth = 320, PixelHeight = 180, FitPhoto = true, Zoom = 1, CropX = .5, CropY = .5 };
+        Assert.Equal(expected, Draft(page).Layers.Single()); Assert.Contains("1 step", SemanticProperties.GetHint(Button(page, "WidgetUndo")));
+        Click(page, "WidgetUndo"); Assert.Equal(original, Draft(page).Layers.Single()); Assert.DoesNotContain(key, store.Removed);
+        Click(page, "WidgetRedo"); Assert.Equal(expected, Draft(page).Layers.Single()); Click(page, "SaveWidgetDesign"); Assert.Equal(expected, store.Saved!.Layers.Single());
+    }
+    [Theory]
+    [InlineData(0)] [InlineData(1)] [InlineData(2)]
+    public void CancelledOrFailedCropKeepsThePhotoAndRestoresAllActions(int failure)
+    {
+        var original = Photo(); var store = new Store { Crop = _ => failure switch
+        { 1 => Task.FromException<WidgetLayer?>(new IOException("Crop save failed")), 2 => Task.FromException<WidgetLayer?>(new InvalidOperationException("Private details")), _ => Task.FromResult<WidgetLayer?>(null) } };
+        var page = Editor(store, WidgetDesignRules.New() with { Layers = [original] }); Open(page); Click(page, "WidgetCropPhoto");
+        Assert.Equal(original, Draft(page).Layers.Single()); Assert.Empty(store.Removed); Assert.False(Button(page, "WidgetUndo").IsEnabled);
+        Assert.True(Button(page, "SaveWidgetDesign").IsEnabled); Assert.True(Button(page, "WidgetEditPhoto").IsEnabled); Assert.True(Button(page, "WidgetCropPhoto").IsEnabled);
+        var message = All(page).OfType<Label>().Single(x => x.AutomationId == "WidgetPhotoEditStatus");
+        Assert.Equal(failure != 0, message.IsVisible); if (failure == 2) { Assert.Contains("crop editor", message.Text); Assert.DoesNotContain("Private details", message.Text); }
+    }
+    [Fact]
+    public async Task PendingCropBlocksReentryAndCleansUnacceptedAssetsAfterDeparture()
+    {
+        var result = new TaskCompletionSource<WidgetLayer?>(); var calls = 0; var original = Photo();
+        var store = new Store { Crop = _ => { calls++; return result.Task; } };
+        var nav = Navigation(new ContentPage()); Open(nav); var page = Editor(store, WidgetDesignRules.New() with { Layers = [original] });
+        await nav.PushAsync(page); ((IPageController)page).SendAppearing(); Click(page, "WidgetCropPhoto");
+        Assert.True(store.CanPresentPhoto!()); Assert.NotNull(All(page).OfType<WidgetCompositeView>().Single().Design);
+        store.DidPresentPhoto!(); Assert.Null(All(page).OfType<WidgetCompositeView>().Single().Design);
+        Click(page, "WidgetCropPhoto"); Assert.Equal(1, calls); Assert.False(Button(page, "SaveWidgetDesign").IsEnabled);
+        await nav.PopAsync(); Assert.False(store.CanPresentPhoto!()); var key = Guid.NewGuid().ToString("N");
+        result.SetResult(original with { AssetKey = key, PixelWidth = 320, PixelHeight = 180 });
+        for (var i = 0; i < 20 && !store.Removed.Contains(key); i++) await Task.Yield();
+        Assert.Contains(key, store.Removed);
     }
     [Fact]
     public async Task Backgrounding_before_presentation_invalidates_owner_and_cancel_recovers_preview()
@@ -499,10 +545,13 @@ public sealed class WidgetEditorHistoryTests : IDisposable
         public WidgetCanvasSizing? CanvasSizing(WidgetSize size) => Sizing(size);
         public Func<bool, Task<WidgetLayer?>> Pick = _ => Task.FromResult<WidgetLayer?>(null);
         public Func<WidgetLayer, Task<WidgetLayer?>> Edit = _ => Task.FromResult<WidgetLayer?>(null);
+        public Func<WidgetLayer, Task<WidgetLayer?>> Crop = _ => Task.FromResult<WidgetLayer?>(null);
         public Func<bool>? CanPresentPhoto;
         public Action? DidPresentPhoto;
         public Task<WidgetLayer?> EditPhotoAsync(WidgetLayer layer, Func<bool> canPresent, Action didPresent)
         { CanPresentPhoto = canPresent; DidPresentPhoto = didPresent; return Edit(layer); }
+        public Task<WidgetLayer?> CropPhotoAsync(WidgetLayer layer, Func<bool> canPresent, Action didPresent)
+        { CanPresentPhoto = canPresent; DidPresentPhoto = didPresent; return Crop(layer); }
         public WidgetDesign? Saved;
         public bool FailSave;
         public int CleanupFailures;

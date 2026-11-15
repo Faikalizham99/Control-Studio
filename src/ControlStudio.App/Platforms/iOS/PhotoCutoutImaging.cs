@@ -34,16 +34,18 @@ internal sealed class PhotoCutoutImaging : IDisposable
         catch { Original.Dispose(); throw; }
     }
     public UIImage Render(byte[] mask) => Render(rgba, mask);
-    public UIImage Render(byte[] pixels, byte[] mask)
+    public UIImage Render(byte[] pixels, byte[] mask, PhotoCropRect? crop = null)
     {
         if (mask.Length != Width * Height) throw new IOException("The photo mask is invalid.");
-        return Image(PhotoCutoutPixels.Apply(pixels, mask));
+        var rendered = PhotoCutoutPixels.Apply(pixels, mask);
+        return crop is null ? Image(rendered) : PixelImage(crop.CopyRgba(rendered, Width, Height), crop.Width, crop.Height);
     }
-    public UIImage Image(byte[] pixels)
+    public UIImage Image(byte[] pixels) => PixelImage(pixels, Width, Height);
+    private static UIImage PixelImage(byte[] pixels, int width, int height)
     {
-        if (pixels.Length != Width * Height * 4) throw new IOException("The photo pixels are invalid.");
+        if (pixels.Length != width * height * 4) throw new IOException("The photo pixels are invalid.");
         using var colour = CGColorSpace.CreateSrgb();
-        using var context = new CGBitmapContext(IntPtr.Zero, Width, Height, 8, Width * 4, colour,
+        using var context = new CGBitmapContext(IntPtr.Zero, width, height, 8, width * 4, colour,
             CGBitmapFlags.ByteOrder32Big | CGBitmapFlags.PremultipliedLast);
         Marshal.Copy(pixels, 0, context.Data, pixels.Length);
         using var image = context.ToImage() ?? throw new IOException("The cut-out could not be rendered.");

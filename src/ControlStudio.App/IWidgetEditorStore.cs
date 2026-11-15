@@ -10,6 +10,7 @@ internal interface IWidgetEditorStore
     string? AssetPath(string key);
     Task<WidgetLayer?> PickPhotoAsync(bool library);
     Task<WidgetLayer?> EditPhotoAsync(WidgetLayer layer, Func<bool> canPresent, Action didPresent) => Task.FromResult<WidgetLayer?>(null);
+    Task<WidgetLayer?> CropPhotoAsync(WidgetLayer layer, Func<bool> canPresent, Action didPresent) => Task.FromResult<WidgetLayer?>(null);
     Task<WidgetSaveResult> SaveAsync(WidgetDesign draft);
     Task RemoveDraftPhotosAsync(IEnumerable<string> keys);
 }

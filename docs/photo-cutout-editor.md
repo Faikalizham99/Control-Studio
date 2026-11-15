@@ -21,6 +21,7 @@ The widget layer schema and extension renderer are unchanged. Each applied cut-o
 - `<key>.mask`: one alpha byte per source pixel, row-major, with dimensions from the validated original PNG.
 - `<key>.working.png`: optional repaired colours, kept privately when Remove object has changed the source pixels.
 - `<key>.working.sha256`: paired integrity proof for repaired colours; a missing pair member or checksum mismatch prevents reopening for editing.
+- `<key>.crop.json` and `<key>.crop.sha256`: optional verified source-pixel bounds from [Crop photo](photo-crop-editor.md). Originals, masks and repaired colours remain uncropped. Edit photo outlines and preserves this crop when saving.
 
 Original/mask sidecars are private app files; they are not published to the widget App Group. Both must exist together. Reads and writes are bounded, and partial imports are removed on failure. Reopening a saved cut-out loads its original and mask; applying another revision copies the same original, without progressively degrading the image or depending on an older asset key.
 

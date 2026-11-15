@@ -19,7 +19,7 @@ public sealed class WidgetDesignRepository
     public bool HasSavedLibrary => File.Exists(CatalogPath);
     public string? AssetPath(string key) => ImagePath("photos", key);
     private string PhotoPart(string key, string suffix) => Path.Combine(directory, "photos", key + suffix);
-    public async Task<(byte[] Original, byte[]? Mask, byte[]? Working)> ReadCutoutAsync(string key, CancellationToken token = default)
+    public async Task<(byte[] Original, byte[]? Mask, byte[]? Working, PhotoCropRect? Crop)> ReadCutoutAsync(string key, CancellationToken token = default)
     {
         var source = AssetPath(key) ?? throw new IOException("This photo is missing. Choose the photo again.");
         var originalPath = PhotoPart(key, ".original.png"); var maskPath = PhotoPart(key, ".mask");
@@ -27,9 +27,12 @@ public sealed class WidgetDesignRepository
         var workingPath = PhotoPart(key, ".working.png");
         var proofPath = PhotoPart(key, ".working.sha256");
         var hasWorking = File.Exists(workingPath); var hasProof = File.Exists(proofPath);
-        var edited = File.Exists(originalPath) || File.Exists(maskPath) || hasWorking || hasProof;
+        var cropPath = PhotoPart(key, ".crop.json"); var cropProofPath = PhotoPart(key, ".crop.sha256");
+        var hasCrop = File.Exists(cropPath); var hasCropProof = File.Exists(cropProofPath);
+        var edited = File.Exists(originalPath) || File.Exists(maskPath) || hasWorking || hasProof || hasCrop || hasCropProof;
         if (edited && (!File.Exists(originalPath) || !File.Exists(maskPath))) throw new IOException("The editable cut-out is incomplete. Choose the photo again.");
         if (hasWorking != hasProof) throw new IOException("The repaired photo is incomplete. Your saved image is unchanged.");
+        if (hasCrop != hasCropProof) throw new IOException("The photo crop is incomplete. Your saved image is unchanged.");
         var original = await ReadBoundedAsync(edited ? originalPath : source, WidgetDesignRules.MaximumImageBytes, token);
         ValidatePng(original);
         byte[]? mask = edited ? await ReadBoundedAsync(maskPath, WidgetDesignRules.MaximumImageEdge * WidgetDesignRules.MaximumImageEdge, token) : null;
@@ -42,12 +45,30 @@ public sealed class WidgetDesignRepository
             if (!CryptographicOperations.FixedTimeEquals(proof, SHA256.HashData(working))) throw new IOException("The repaired photo failed its integrity check. Your saved image is unchanged.");
             if (PngWidth(working) != PngWidth(original) || PngHeight(working) != PngHeight(original)) throw new IOException("The repaired photo dimensions are invalid.");
         }
-        return (original, mask, working);
+        PhotoCropRect? crop = null;
+        if (hasCrop)
+        {
+            var bytes = await ReadBoundedAsync(cropPath, 256, token); var proof = await ReadBoundedAsync(cropProofPath, 32, token);
+            if (!CryptographicOperations.FixedTimeEquals(proof, SHA256.HashData(bytes))) throw new IOException("The saved crop failed its integrity check.");
+            try { crop = JsonSerializer.Deserialize(bytes, PhotoCropJsonContext.Default.PhotoCropRect) ?? throw new IOException("The photo crop is invalid."); }
+            catch (JsonException ex) { throw new IOException("The photo crop is invalid.", ex); }
+            crop.Validate(PngWidth(original), PngHeight(original));
+        }
+        if (edited)
+        {
+            await using var display = File.OpenRead(source);
+            if (display.Length is < 24 or > WidgetDesignRules.MaximumImageBytes) throw new IOException("The saved photo is invalid.");
+            var header = new byte[24]; await display.ReadExactlyAsync(header, token); ValidatePng(header);
+            if (PngWidth(header) != (crop?.Width ?? PngWidth(original)) || PngHeight(header) != (crop?.Height ?? PngHeight(original)))
+                throw new IOException("The photo crop is incomplete. Your saved image is unchanged.");
+        }
+        return (original, mask, working, crop);
     }
-    public async Task<string> ImportCutoutAsync(byte[] original, byte[] mask, byte[] rendered, CancellationToken token = default, byte[]? working = null)
+    public async Task<string> ImportCutoutAsync(byte[] original, byte[] mask, byte[] rendered, CancellationToken token = default, byte[]? working = null, PhotoCropRect? crop = null)
     {
         ValidatePng(original); ValidatePng(rendered);
-        if (mask.Length != PngWidth(original) * PngHeight(original) || PngWidth(original) != PngWidth(rendered) || PngHeight(original) != PngHeight(rendered))
+        crop?.Validate(PngWidth(original), PngHeight(original));
+        if (mask.Length != PngWidth(original) * PngHeight(original) || (crop?.Width ?? PngWidth(original)) != PngWidth(rendered) || (crop?.Height ?? PngHeight(original)) != PngHeight(rendered))
             throw new IOException("The cut-out dimensions are invalid.");
         if (working is not null)
         {
@@ -63,6 +84,12 @@ public sealed class WidgetDesignRepository
             {
                 await AtomicWriteAsync(PhotoPart(key, ".working.png"), working, token);
                 await AtomicWriteAsync(PhotoPart(key, ".working.sha256"), SHA256.HashData(working), token);
+            }
+            if (crop is not null)
+            {
+                var bytes = JsonSerializer.SerializeToUtf8Bytes(crop, PhotoCropJsonContext.Default.PhotoCropRect);
+                await AtomicWriteAsync(PhotoPart(key, ".crop.json"), bytes, token);
+                await AtomicWriteAsync(PhotoPart(key, ".crop.sha256"), SHA256.HashData(bytes), token);
             }
             await WriteImageAsync("photos", key, rendered, token); return key;
         }
@@ -81,6 +108,7 @@ public sealed class WidgetDesignRepository
         if (!WidgetDesignRules.ValidKey(key)) return;
         TryRemove(AssetPath(key)); TryRemove(PhotoPart(key, ".original.png")); TryRemove(PhotoPart(key, ".mask"));
         TryRemove(PhotoPart(key, ".working.png")); TryRemove(PhotoPart(key, ".working.sha256"));
+        TryRemove(PhotoPart(key, ".crop.json")); TryRemove(PhotoPart(key, ".crop.sha256"));
     }
     public string? RenderPath(string key) => ImagePath("renders", key);
     public string? ScenePath(string key) => SceneArtifact(key, ".scene.json");

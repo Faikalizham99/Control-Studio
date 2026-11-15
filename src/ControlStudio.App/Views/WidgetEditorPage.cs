@@ -46,7 +46,7 @@ internal sealed partial class WidgetEditorPage : ContentPage
     private readonly ClipboardEditorActionButton back = new("", new ProfileGlyph(ProfileSymbol.Back), "BackFromWidgetEditor");
     private readonly ClipboardEditorActionButton addPhoto;
     private readonly ClipboardEditorActionButton solid;
-    private readonly WidgetToolButton editPhotoTool, resetTool, rotateTool, flipTool, opacityTool, deleteTool, blendTool;
+    private readonly WidgetToolButton editPhotoTool, cropPhotoTool, resetTool, rotateTool, flipTool, opacityTool, deleteTool, blendTool;
     private readonly Label photoEditStatus = SettingsControls.Text("", 13, secondary: true);
     private readonly WidgetHorizontalStrip tools;
     private readonly WidgetBlendPanel blendMenu;
@@ -172,9 +172,12 @@ internal sealed partial class WidgetEditorPage : ContentPage
         if (original is not null && !WidgetDesignRules.IsSupported(original.Size))
             form.Children.Add(SettingsControls.Text("This design uses a retired layout. Review the new proportions, then save and assign an Extra Large slot. Cancel keeps your saved design unchanged.", 14, secondary: true));
 
-        editPhotoTool = Tool(StudioSymbol.Edit, "Edit photo", () => _ = RunAsync(EditSelectedPhotoAsync), automationId: "WidgetEditPhoto");
+        editPhotoTool = Tool(StudioSymbol.Edit, "Edit photo", () => _ = RunAsync(() => EditSelectedPhotoAsync()), automationId: "WidgetEditPhoto");
         editPhotoTool.AutomationId = "WidgetEditPhotoTool";
-        editPhotoTool.Describe("Edit photo", "Remove background or refine the cut-out with Erase and Restore.");
+        editPhotoTool.Describe("Edit photo", "Remove background or objects, or refine the cut-out with Erase and Restore.");
+        cropPhotoTool = Tool(StudioSymbol.Crop, "Crop photo", () => _ = RunAsync(() => EditSelectedPhotoAsync(crop: true)), automationId: "WidgetCropPhoto");
+        cropPhotoTool.AutomationId = "WidgetCropPhotoTool";
+        cropPhotoTool.Describe("Crop photo", "Choose the visible area. Your full photo and edits are kept.");
         resetTool = Tool(StudioSymbol.Refresh, "Reset selected photo", () => EditLayer(layer => WidgetLayerEdits.Reset(layer, draft.Size, draft.CanvasDimensions)));
         rotateTool = Tool(StudioSymbol.RotateLeft, "Rotate selected photo", () => ToggleTool(rotateMenu));
         flipTool = Tool(StudioSymbol.Flip, "Flip selected photo", () => ToggleTool(flipMenu));
@@ -182,7 +185,7 @@ internal sealed partial class WidgetEditorPage : ContentPage
         blendTool = Tool(StudioSymbol.Blend, "Blend selected photo", () => ToggleTool(blendMenu));
         blendTool.AutomationId = "WidgetBlendTool";
         deleteTool = Tool(StudioSymbol.Delete, "Delete selected photo", () => _ = RunAsync(RemoveLayerAsync), destructive: true);
-        tools = new WidgetHorizontalStrip([editPhotoTool, resetTool, rotateTool, flipTool, blendTool, opacityTool, deleteTool], "WidgetEditorToolbar");
+        tools = new WidgetHorizontalStrip([editPhotoTool, cropPhotoTool, resetTool, rotateTool, flipTool, blendTool, opacityTool, deleteTool], "WidgetEditorToolbar");
         foreach (var panel in new VisualElement[] { rotateMenu, flipMenu, opacityMenu, blendMenu })
             panel.PropertyChanged += (_, args) => { if (args.PropertyName == nameof(IsVisible)) RefreshToolSelection(); };
         rotateMenu.Children.Add(MenuAction("Rotate Left", StudioSymbol.RotateLeft, () => EditLayer(layer => WidgetLayerEdits.Rotate(layer, -1, draft.Size, draft.CanvasDimensions), closeTools: false)));
@@ -275,7 +278,7 @@ internal sealed partial class WidgetEditorPage : ContentPage
     }
     private void RefreshToolSelection()
     {
-        editPhotoTool.IsSelected = resetTool.IsSelected = deleteTool.IsSelected = false;
+        editPhotoTool.IsSelected = cropPhotoTool.IsSelected = resetTool.IsSelected = deleteTool.IsSelected = false;
         rotateTool.IsSelected = rotateMenu.IsVisible; flipTool.IsSelected = flipMenu.IsVisible;
         blendTool.IsSelected = blendMenu.IsVisible; opacityTool.IsSelected = opacityMenu.IsVisible;
         var active = rotateMenu.IsVisible ? rotateTool : flipMenu.IsVisible ? flipTool : blendMenu.IsVisible ? blendTool : opacityMenu.IsVisible ? opacityTool : null;
@@ -538,25 +541,31 @@ internal sealed partial class WidgetEditorPage : ContentPage
     }
     internal Task AddPhotoAsync() => RunAsync(PickPhotoAsync);
     internal Task AddLayerAsync() => RunAsync(ChooseLayerAsync);
-    private async Task EditSelectedPhotoAsync()
+    private async Task EditSelectedPhotoAsync(bool crop = false)
     {
         var layer = draft.Layers.FirstOrDefault(x => x.Id == selected);
         if (layer is not { Kind: WidgetLayerKind.Photo, Locked: false } || !CommitLayerSettings()) return;
-        name.Unfocus(); SetPhotoEditStatus("Opening photo editor…");
+        name.Unfocus(); SetPhotoEditStatus(crop ? "Opening crop editor…" : "Opening photo editor…");
         try
         {
-            var editedPhoto = await studio.EditPhotoAsync(layer, () => Foreground && !departed && !saved && selected == layer.Id
-                && draft.Layers.Any(x => x.Id == layer.Id && x.AssetKey == layer.AssetKey && !x.Locked), canvas.SuspendComposition);
+            bool CanPresent() => Foreground && !departed && !saved && selected == layer.Id
+                && draft.Layers.Any(x => x.Id == layer.Id && x.AssetKey == layer.AssetKey && !x.Locked);
+            var editedPhoto = crop ? await studio.CropPhotoAsync(layer, CanPresent, canvas.SuspendComposition)
+                : await studio.EditPhotoAsync(layer, CanPresent, canvas.SuspendComposition);
             if (editedPhoto is null) { photoEditStatus.IsVisible = false; return; }
             ownedPhotos.Add(editedPhoto.AssetKey);
             if (departed) { await CleanupAsync(); return; }
-            ReplaceLayer(layer with { AssetKey = editedPhoto.AssetKey }); RefreshLayers();
-            SetPhotoEditStatus("Photo updated. You can undo this edit.");
+            ReplaceLayer(crop ? layer with { AssetKey = editedPhoto.AssetKey, PixelWidth = editedPhoto.PixelWidth, PixelHeight = editedPhoto.PixelHeight,
+                FitPhoto = editedPhoto.FitPhoto, Zoom = editedPhoto.Zoom, CropX = editedPhoto.CropX, CropY = editedPhoto.CropY }
+                : layer with { AssetKey = editedPhoto.AssetKey }); RefreshLayers();
+            SetPhotoEditStatus(crop ? "Crop applied. You can undo this edit." : "Photo updated. You can undo this edit.");
         }
         catch (Exception ex)
         {
             logger.LogWarning("Photo editor failed. ErrorType={ErrorType};CauseType={CauseType}", ex.GetType().Name, ex.InnerException?.GetType().Name ?? "none");
-            if (!departed) SetPhotoEditStatus(ex is IOException ? ex.Message : "The photo editor could not open. Your photo is unchanged. Tap Edit photo to try again.");
+            if (!departed) SetPhotoEditStatus(ex is IOException ? ex.Message : crop
+                ? "The crop editor could not open. Your photo is unchanged. Tap Crop to try again."
+                : "The photo editor could not open. Your photo is unchanged. Tap Edit photo to try again.");
         }
     }
     private void SetPhotoEditStatus(string message)
@@ -675,7 +684,7 @@ internal sealed partial class WidgetEditorPage : ContentPage
         batteryControls.SetAvailable(canNavigate && !saved && layer?.Kind == WidgetLayerKind.Battery);
         clockControls.SetAvailable(canNavigate && !saved && layer is not null && WidgetTextLayers.IsText(layer));
         opacityTool.IsEnabled = deleteTool.IsEnabled = blendTool.IsEnabled = blendMenu.IsEnabled = tools.IsEnabled = canNavigate && !saved && layer?.Kind == WidgetLayerKind.Photo;
-        editPhotoTool.IsEnabled = resetTool.IsEnabled = rotateTool.IsEnabled = flipTool.IsEnabled = rotateMenu.IsEnabled = flipMenu.IsEnabled = canNavigate && !saved && layer is { Kind: WidgetLayerKind.Photo, Locked: false };
+        editPhotoTool.IsEnabled = cropPhotoTool.IsEnabled = resetTool.IsEnabled = rotateTool.IsEnabled = flipTool.IsEnabled = rotateMenu.IsEnabled = flipMenu.IsEnabled = canNavigate && !saved && layer is { Kind: WidgetLayerKind.Photo, Locked: false };
         precise.IsEnabled = canNavigate && !saved && layer is { Locked: false };
         RefreshHistory();
     }
@@ -724,7 +733,7 @@ internal sealed partial class WidgetEditorPage : ContentPage
         history.BreakTyping(); historyControls.ResetPressedState();
         blendMenu.SetForeground(false);
         clockControls.ResetPressedState(); batteryControls.ResetPressedState();
-        foreach (var tool in new[] { editPhotoTool, resetTool, rotateTool, flipTool, opacityTool, deleteTool, blendTool }) tool.Scale = 1;
+        foreach (var tool in new[] { editPhotoTool, cropPhotoTool, resetTool, rotateTool, flipTool, opacityTool, deleteTool, blendTool }) tool.Scale = 1;
         RefreshActions();
     }
     private async void WindowActivated(object? sender, EventArgs args) { TimeZoneInfo.ClearCachedData(); RefreshActions(); blendMenu.SetForeground(Foreground); if (Foreground && !saved && !busy) ResumeCanvas(); if (saved && !busy) await TryCloseSavedAsync(); }

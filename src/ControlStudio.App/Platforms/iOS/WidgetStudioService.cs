@@ -106,7 +106,7 @@ public sealed class WidgetStudioService : IWidgetEditorStore, IWidgetGalleryStor
         var data = await Repository.ReadCutoutAsync(layer.AssetKey);
         using var imaging = await Task.Run(() => { using var pool = new NSAutoreleasePool(); return new PhotoCutoutImaging(data.Original); });
         using var working = data.Working is null ? null : await Task.Run(() => { using var pool = new NSAutoreleasePool(); return new PhotoCutoutImaging(data.Working); });
-        if (imaging.Width != layer.PixelWidth || imaging.Height != layer.PixelHeight) throw new IOException("The photo dimensions changed. Choose the photo again.");
+        if ((data.Crop?.Width ?? imaging.Width) != layer.PixelWidth || (data.Crop?.Height ?? imaging.Height) != layer.PixelHeight) throw new IOException("The photo dimensions changed. Choose the photo again.");
         var accent = Application.Current?.Resources.TryGetValue("Accent", out var value) == true && value is Color colour ? colour : Color.FromArgb("#007AFF");
         string? imported = null, accepted = null;
         try
@@ -114,9 +114,9 @@ public sealed class WidgetStudioService : IWidgetEditorStore, IWidgetGalleryStor
             accepted = await MainThread.InvokeOnMainThreadAsync(() => PhotoCutoutEditor.EditAsync(owner, canPresent, didPresent, imaging, data.Mask, working?.Pixels, accent, async result =>
             {
                 if (!result.Changed) return layer.AssetKey;
-                imported = await Repository.ImportCutoutAsync(data.Original, result.Mask, result.Png, working: result.Working);
+                imported = await Repository.ImportCutoutAsync(data.Original, result.Mask, result.Png, working: result.Working, crop: data.Crop);
                 return imported;
-            }));
+            }, crop: data.Crop));
             return accepted is null || accepted == layer.AssetKey ? null : layer with { AssetKey = accepted };
         }
         finally
@@ -125,6 +125,52 @@ public sealed class WidgetStudioService : IWidgetEditorStore, IWidgetGalleryStor
             {
                 try { await Repository.RemoveDraftPhotosAsync([imported]); }
                 catch (Exception ex) { logger.LogWarning("Cancelled cut-out cleanup failed. ErrorType={ErrorType}", ex.GetType().Name); }
+            }
+        }
+    }
+    public async Task<WidgetLayer?> CropPhotoAsync(WidgetLayer layer, Func<bool> canPresent, Action didPresent)
+    {
+        if (layer.Kind != WidgetLayerKind.Photo || layer.Locked) return null;
+        var windows = Application.Current?.Windows.Where(x => x.IsActivated).ToArray();
+        if (windows is not { Length: 1 } || windows[0].Handler?.PlatformView is not UIWindow owner)
+            throw new IOException("Return to Control Studio, then tap Crop again.");
+        var data = await Repository.ReadCutoutAsync(layer.AssetKey);
+        using var imaging = await Task.Run(() => { using var pool = new NSAutoreleasePool(); return new PhotoCutoutImaging(data.Original); });
+        using var working = data.Working is null ? null : await Task.Run(() => { using var pool = new NSAutoreleasePool(); return new PhotoCutoutImaging(data.Working); });
+        var initial = data.Crop ?? PhotoCropRect.Full(imaging.Width, imaging.Height);
+        if (initial.Width != layer.PixelWidth || initial.Height != layer.PixelHeight) throw new IOException("The photo dimensions changed. Choose the photo again.");
+        var mask = data.Mask ?? Enumerable.Repeat((byte)255, imaging.Width * imaging.Height).ToArray();
+        var colours = working?.Pixels ?? imaging.Pixels;
+        using var preview = await Task.Run(() => { using var pool = new NSAutoreleasePool(); return imaging.Render(colours, mask); });
+        var accent = Application.Current?.Resources.TryGetValue("Accent", out var value) == true && value is Color colour ? colour : Color.FromArgb("#007AFF");
+        string? imported = null, accepted = null; var result = initial;
+        try
+        {
+            accepted = await MainThread.InvokeOnMainThreadAsync(() => PhotoCropEditor.EditAsync(owner, canPresent, didPresent, preview,
+                imaging.Width, imaging.Height, data.Crop, accent, async (rect, token) =>
+                {
+                    if (!canPresent()) return layer.AssetKey;
+                    result = rect; if (rect == initial) return layer.AssetKey;
+                    var png = await Task.Run(() =>
+                    {
+                        token.ThrowIfCancellationRequested(); using var pool = new NSAutoreleasePool(); using var image = imaging.Render(colours, mask, rect);
+                        using var encoded = image.AsPNG() ?? throw new IOException("The crop could not be prepared.");
+                        if (encoded.Length > WidgetDesignRules.MaximumImageBytes) throw new IOException("This crop is too detailed to save.");
+                        token.ThrowIfCancellationRequested(); return encoded.ToArray();
+                    }, token);
+                    imported = await Repository.ImportCutoutAsync(data.Original, mask, png, token, data.Working,
+                        rect == PhotoCropRect.Full(imaging.Width, imaging.Height) ? null : rect);
+                    return imported;
+                }));
+            return accepted is null || accepted == layer.AssetKey ? null : layer with
+            { AssetKey = accepted, PixelWidth = result.Width, PixelHeight = result.Height, FitPhoto = true, Zoom = 1, CropX = .5, CropY = .5 };
+        }
+        finally
+        {
+            if (imported is not null && imported != accepted)
+            {
+                try { await Repository.RemoveDraftPhotosAsync([imported]); }
+                catch (Exception ex) { logger.LogWarning("Cancelled crop cleanup failed. ErrorType={ErrorType}", ex.GetType().Name); }
             }
         }
     }
