@@ -56,13 +56,13 @@ public func counterFree(_ pointer: UnsafeMutablePointer<CChar>?) { free(pointer)
 
 @_cdecl("cs_widgets_reload_slots")
 public func reloadWidgetSlots() {
-    for number in 1...WidgetDesignStore.slotsPerSize {
+    for number in 1...WidgetDesignStore.maximumSlotNumber {
         WidgetCenter.shared.reloadTimelines(ofKind: WidgetDesignStore.slotKind(number))
     }
 }
 
 @_cdecl("cs_widgets_reload_slot")
 public func reloadWidgetSlot(_ number: Int32) {
-    guard (1...WidgetDesignStore.slotsPerSize).contains(Int(number)) else { return }
+    guard (1...WidgetDesignStore.maximumSlotNumber).contains(Int(number)) else { return }
     WidgetCenter.shared.reloadTimelines(ofKind: WidgetDesignStore.slotKind(Int(number)))
 }

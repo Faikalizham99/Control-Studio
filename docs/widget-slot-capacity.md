@@ -1,5 +1,7 @@
 # Twenty slots per size
 
+This describes the 0.2.47 expansion. Version 0.2.60 adds [Extra Large slots 21–30](widget-extra-large-slots.md); the other sizes stay at 20.
+
 Version **0.2.47 (49)** adds Studio 11–20 to the Home Screen gallery. Small, Medium, Large and iPhone Extra Large each have independent addresses 1–20: 80 current assignments in total. A slot can reuse a saved design; the separate limit of 50 saved designs is unchanged. Counter remains its own Small/Medium widget.
 
 ## Shared definitions

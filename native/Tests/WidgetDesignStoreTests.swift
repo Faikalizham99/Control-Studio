@@ -140,24 +140,25 @@ final class WidgetDesignStoreTests: XCTestCase {
         XCTAssertNil(try store.assignedDesign(size: .small, number: 1))
         XCTAssertEqual(try store.assignedDesign(size: .small, number: 2)?.name, "Second photo")
     }
-    func testTwentySlotsPerFamilyReadWithinExistingByteBoundIncludingRetiredAddresses() throws {
+    func testThirtyExtraLargeAndTwentyOtherSlotsFitIncludingRetiredAddresses() throws {
         let sizes = ["small", "medium", "large", "extraLarge", "extraLargePortrait"]
         let id = "4f44be38-c517-4a65-9637-23f2e381747a"
         let assignments: [[String: Any]] = sizes.flatMap { size in
-            (1...20).map { number in ["size": size, "number": number, "designId": id] as [String: Any] }
+            (1...WidgetDesignStore.slots(for: WidgetDesignSize(rawValue: size)!)).map { number in ["size": size, "number": number, "designId": id] as [String: Any] }
         }
         let bytes = try JSONSerialization.data(withJSONObject: ["schemaVersion": 1, "slots": assignments])
-        XCTAssertEqual(assignments.count, 100)
+        XCTAssertEqual(assignments.count, 110)
         XCTAssertLessThan(bytes.count, WidgetDesignStore.maximumSlotCatalogBytes)
         let url = directory.appendingPathComponent("slots.json")
         try bytes.write(to: url)
         let read = try store.readSlots()
-        XCTAssertEqual(read.count, 80) // Retired iPad addresses stay on disk, excluded from use.
+        XCTAssertEqual(read.count, 90) // Twenty retired iPad addresses stay on disk, excluded from use.
         for size in [WidgetDesignSize.small, .medium, .large, .extraLargePortrait] {
-            XCTAssertEqual(read.filter { $0.size == size }.map { $0.number }, Array(1...20))
+            XCTAssertEqual(read.filter { $0.size == size }.map { $0.number }, Array(1...WidgetDesignStore.slots(for: size)))
         }
         try fixture.write(to: directory.appendingPathComponent("catalog.json"))
         XCTAssertEqual(try store.assignedDesign(size: .extraLargePortrait, number: 20)?.id, id)
+        XCTAssertEqual(try store.assignedDesign(size: .extraLargePortrait, number: 30)?.id, id)
         XCTAssertEqual(try Data(contentsOf: url), bytes)
     }
     func testBadFutureDuplicateAndOutOfRangeSlotsAreNeverReset() throws {
@@ -170,11 +171,16 @@ final class WidgetDesignStoreTests: XCTestCase {
         let assignment = (catalog["slots"] as! [[String: Any]])[0]
         catalog["slots"] = [assignment, assignment]
         try JSONSerialization.data(withJSONObject: catalog).write(to: url); XCTAssertThrowsError(try store.readSlots())
-        for number in [0, 21] {
-            var invalid = assignment; invalid["number"] = number; catalog["slots"] = [invalid]
-            try JSONSerialization.data(withJSONObject: catalog).write(to: url); XCTAssertThrowsError(try store.readSlots())
+        for size in [WidgetDesignSize.small, .medium, .large, .extraLarge, .extraLargePortrait] {
+            for number in [0, WidgetDesignStore.slots(for: size) + 1] {
+                var invalid = assignment; invalid["size"] = size.rawValue; invalid["number"] = number; catalog["slots"] = [invalid]
+                let bytes = try JSONSerialization.data(withJSONObject: catalog)
+                try bytes.write(to: url); XCTAssertThrowsError(try store.readSlots())
+                XCTAssertEqual(try Data(contentsOf: url), bytes)
+            }
         }
         XCTAssertThrowsError(try store.assignedDesign(size: .small, number: 21))
+        XCTAssertThrowsError(try store.assignedDesign(size: .extraLargePortrait, number: 31))
     }
     func testTraversalDuplicateAndUnknownSizeAreRejected() throws {
         XCTAssertFalse(WidgetDesignStore.validKey("../secret")); XCTAssertFalse(WidgetDesignStore.validKey(String(repeating: "G", count: 32)))

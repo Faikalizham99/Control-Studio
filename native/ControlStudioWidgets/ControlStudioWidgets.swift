@@ -109,10 +109,7 @@ struct ControlStudioWidgets: WidgetBundle {
     var body: some Widget {
         CounterWidget()
 // BEGIN GENERATED SLOTS bundle (scripts/widget_slot_config.py)
-        StudioSlotsOneToFive().body
-        StudioSlotsSixToTen().body
-        StudioSlotsElevenToFifteen().body
-        StudioSlotsSixteenToTwenty().body
+        StudioRegisteredSlots().body
 // END GENERATED SLOTS bundle
     }
 }

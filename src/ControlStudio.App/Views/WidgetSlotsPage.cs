@@ -41,7 +41,7 @@ internal sealed class WidgetSlotsPage : WidgetSlotPageBase
         SemanticProperties.SetHeadingLevel(title, SemanticHeadingLevel.Level2);
         var bannerRow = new Grid { ColumnSpacing = 12, ColumnDefinitions = { new(GridLength.Auto), new(GridLength.Star) } };
         bannerRow.Add(well); bannerRow.Add(new VerticalStackLayout { Spacing = 5, VerticalOptions = LayoutOptions.Center, Children = {
-            title, SettingsControls.Text($"Each size has {WidgetSlotRules.SlotsPerSize} slots. Assign a saved design here, then add Studio 1–{WidgetSlotRules.SlotsPerSize} in the matching size on your Home Screen.", 13, secondary: true)
+            title, SettingsControls.Text($"Small, Medium and Large have {WidgetSlotRules.SlotsPerSize} slots each. Extra Large has {WidgetSlotRules.ExtraLargePortraitSlots}. Assign a saved design here, then add the matching Studio number and size on your Home Screen.", 13, secondary: true)
         } }, 1);
         var banner = WidgetStudioStyle.Card(bannerRow); banner.SetDynamicResource(Border.StrokeProperty, "AccentSelectionStroke");
         var body = new VerticalStackLayout { Padding = new Thickness(16, 8, 24, 24), Spacing = 12, MaximumWidthRequest = 800, Children = {
@@ -64,7 +64,7 @@ internal sealed class WidgetSlotsPage : WidgetSlotPageBase
         var library = await store.ReadAsync(token); if (!Current(version)) return;
         loaded = true;
         previews.Clear(); slots.Children.Clear(); var family = SelectedSize;
-        for (var number = 1; number <= WidgetSlotRules.SlotsPerSize; number++)
+        for (var number = 1; number <= WidgetSlotRules.SlotsFor(family); number++)
         {
             var slot = number;
             var assignment = library.Slots.FirstOrDefault(x => x.Size == family && x.Number == slot);

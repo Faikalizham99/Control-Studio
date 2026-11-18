@@ -1,6 +1,6 @@
 # Widget Studio and static slots
 
-Current implementation expands each supported size to **20 slots**, generated from one configuration. See [capacity, compatibility and verification](widget-slot-capacity.md). The versioned startup investigations below retain their original ten-slot context; current usage is Studio 1–20.
+Current implementation offers **20 slots** for Small, Medium and Large, and **30 slots** for iPhone Extra Large, generated from one configuration. See [Extra Large capacity and verification](widget-extra-large-slots.md). The versioned startup investigations below retain their original ten-slot context.
 
 Version **0.2.19 (21)** addresses the confirmed gallery startup assertion in 0.2.18 (20). The owner authorized implementing the correction, then explicitly authorized committing, pushing main and pushing a new version tag. The owner will monitor the tag-triggered IPA build and test on iPhone; native compilation and device verification of this correction remain pending.
 
@@ -27,12 +27,12 @@ The 0.2.19 fix gives each concrete slot widget a literal gallery name (`"Studio 
 ## App and Home Screen flow
 
 1. Open Studio → My Widgets → +. Name the design, choose a size and optionally add photo layers. Save widget. The UI reorganization is described in [Studio widget library interface](widget-studio-ui.md).
-2. Open Widget slots. Choose Small, Medium, Large or Extra Large. Each size has slots 1–20. Extra Large requires iOS 27 or later on iPhone.
+2. Open Widget slots. Choose Small, Medium, Large or Extra Large. Small, Medium and Large have slots 1–20; Extra Large has slots 1–30 and requires iOS 27 or later on iPhone.
 3. Tap Assign on a slot, then choose a saved design of that size. The slot displays its name and preview. Change replaces the assignment; Clear asks for confirmation and keeps the saved design and original photos.
-4. Add Control Studio → Studio 1–20 on the Home Screen, choosing the matching size. For example, Studio 2 in Small displays Small 2; Studio 2 in Medium displays Medium 2. Those assignments are independent.
+4. Add Control Studio → Studio 1–20 (or 1–30 for Extra Large) on the Home Screen, choosing the matching size. For example, Studio 2 in Small displays Small 2; Studio 2 in Medium displays Medium 2. Those assignments are independent. Studio 21–30 offer Extra Large only.
 5. Remove old custom Home Screen widgets and add the new numbered slots once. Saved designs are retained, with no automatic assignments. The existing Control Studio Counter is kept separately.
 
-Multiple slots may use the same design. Copies of the same slot and size display the same design. Twenty different Small designs can be displayed using Small 1–20. Each of the four supported sizes has twenty addresses (80 assignments total), exposed by twenty widget kinds supporting all available families. A slot never substitutes a different photo when empty or unavailable.
+Multiple slots may use the same design. Copies of the same slot and size display the same design. Twenty different Small designs can be displayed using Small 1–20. There are 90 current assignments: 20 Small, 20 Medium, 20 Large and 30 Extra Large. The first twenty widget kinds support every available family; the last ten support Extra Large only. A slot never substitutes a different photo when empty or unavailable.
 
 Assign/Change choices are filtered by size and use stable IDs. The native choice sheet prefixes names with a number so a design named Cancel cannot collide with cancellation. Repository validation rechecks the ID/size at commit time. Renaming/reordering does not change an assignment. Editing a design updates all slots using it. Changing its size clears its old assignments; changing back does not resurrect them. Deleting a design clears its assignments atomically. Home Screen updates are requests, scheduled by iOS; a failed publication keeps the private assignment and offers Refresh.
 

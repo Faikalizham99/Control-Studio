@@ -12,7 +12,7 @@ public sealed class WidgetTapLinkTests
         using var fixture = JsonDocument.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "widget-tap-links-v1.example.json")));
         Assert.True(WidgetTapLink.TryParse(fixture.RootElement.GetProperty("counter").GetString(), out var counter));
         Assert.True(counter!.IsCounter);
-        var slots = fixture.RootElement.GetProperty("slots").EnumerateArray().ToArray(); Assert.Equal(8, slots.Length);
+        var slots = fixture.RootElement.GetProperty("slots").EnumerateArray().ToArray(); Assert.Equal(10, slots.Length);
         foreach (var slot in slots)
         {
             Assert.True(WidgetTapLink.TryParse(slot.GetProperty("url").GetString(), out var link));
@@ -23,7 +23,7 @@ public sealed class WidgetTapLinkTests
         foreach (var size in WidgetDesignRules.SupportedSizes)
         {
             var token = JsonSerializer.Serialize(size, WidgetDesignRules.JsonContext.WidgetSize).Trim('"');
-            for (var number = 1; number <= 20; number++)
+            for (var number = 1; number <= WidgetSlotRules.SlotsFor(size); number++)
                 Assert.True(WidgetTapLink.TryParse($"controlstudio://widget/{token}/{number}", out _));
         }
     }
@@ -31,6 +31,8 @@ public sealed class WidgetTapLinkTests
     [InlineData(null)] [InlineData("")] [InlineData("https://widget/small/1")]
     [InlineData("controlstudio://widget/extraLarge/1")] [InlineData("controlstudio://widget/Small/1")]
     [InlineData("controlstudio://widget/small/0")] [InlineData("controlstudio://widget/small/21")]
+    [InlineData("controlstudio://widget/medium/21")] [InlineData("controlstudio://widget/large/30")]
+    [InlineData("controlstudio://widget/extraLargePortrait/31")]
     [InlineData("controlstudio://widget/small/-1")] [InlineData("controlstudio://widget/small/+1")]
     [InlineData("controlstudio://widget/small/01")] [InlineData("controlstudio://widget/small/2147483648")]
     [InlineData("controlstudio://widget/small/1/")] [InlineData("controlstudio://widget/small/1?delete=true")]

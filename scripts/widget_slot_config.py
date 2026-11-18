@@ -13,18 +13,19 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def configuration(root=ROOT):
     config = json.loads((root / "contracts/widget-slot-config.json").read_text(encoding="utf-8"))
-    if set(config) != {"slotsPerSize", "storedSizeCount", "maximumCatalogBytes"}:
+    if set(config) != {"slotsPerSize", "extraLargePortraitSlots", "storedSizeCount", "maximumCatalogBytes"}:
         raise ValueError("Unknown or missing widget slot configuration fields")
     if any(type(value) is not int for value in config.values()):
         raise ValueError("Widget slot limits must be integers")
     # Groups of five keep the root bundle below legacy builder overload limits.
-    if not 1 <= config["slotsPerSize"] <= 40 or config["storedSizeCount"] != 5:
+    if not 1 <= config["slotsPerSize"] <= config["extraLargePortraitSlots"] <= 40 or config["storedSizeCount"] != 5:
         raise ValueError("Unsupported slot range or stored size count (includes retired iPad size)")
     if config["maximumCatalogBytes"] != 16384:
         raise ValueError("Review catalog payload tests before changing the byte bound")
     worst_case = {"schemaVersion": 1, "slots": [
         {"size": "extraLargePortrait", "number": number, "designId": "f" * 36}
-        for _ in range(config["storedSizeCount"]) for number in range(1, config["slotsPerSize"] + 1)
+        for count in [config["slotsPerSize"]] * (config["storedSizeCount"] - 1) + [config["extraLargePortraitSlots"]]
+        for number in range(1, count + 1)
     ]}
     if len(json.dumps(worst_case, separators=(",", ":")).encode("utf-8")) > config["maximumCatalogBytes"]:
         raise ValueError("Configured slot capacity exceeds the bounded catalog budget")
@@ -43,28 +44,61 @@ def number_name(number):
 
 def generated_sections(config):
     count = config["slotsPerSize"]
-    capacity = count * config["storedSizeCount"]
+    extra = config["extraLargePortraitSlots"]
+    capacity = count * (config["storedSizeCount"] - 1) + extra
     bound = config["maximumCatalogBytes"]
-    types, groups, registrations = [], [], []
-    for number in range(1, count + 1):
-        types.append(f'''struct StudioSlot{number_name(number)}Widget: Widget {{
+    types, groups = [], []
+    for number in range(1, extra + 1):
+        available = '@available(iOS 27.0, *)\n' if number > count else ''
+        maker = 'makeExtraLarge' if number > count else 'make'
+        types.append(f'''{available}struct StudioSlot{number_name(number)}Widget: Widget {{
     var body: some WidgetConfiguration {{
-        StudioSlotConfiguration.make(slot: {number}).configurationDisplayName("Studio {number}")
+        StudioSlotConfiguration.{maker}(slot: {number}).configurationDisplayName("Studio {number}")
     }}
 }}''')
-    for start in range(1, count + 1, 5):
-        end = min(start + 4, count)
-        name = f"StudioSlots{number_name(start)}To{number_name(end)}"
-        members = "\n".join(f"        StudioSlot{number_name(number)}Widget()" for number in range(start, end + 1))
-        groups.append(f"struct {name}: WidgetBundle {{\n    var body: some Widget {{\n{members}\n    }}\n}}")
-        registrations.append(f"        {name}().body")
-    kinds = ",\n".join(f'            @"ControlStudio.Slot.{number}"' for number in range(1, count + 1))
+    def bundle(name, members, available=False):
+        annotation = '@available(iOS 27.0, *)\n' if available else ''
+        body = "\n".join('        ' + member for member in members)
+        groups.append(f"{annotation}struct {name}: WidgetBundle {{\n    var body: some Widget {{\n{body}\n    }}\n}}")
+        return name + '().body'
+
+    def subtree(name, members, available=False):
+        # Every level, including the root, stays within five builder expressions.
+        # Existing concrete widget types/kinds are never renamed by this tree.
+        level = 0
+        while len(members) > 5:
+            level += 1
+            members = [bundle(f'{name}Level{level}Group{number_name(i // 5 + 1)}', members[i:i+5], available)
+                       for i in range(0, len(members), 5)]
+        return bundle(name, members, available)
+
+    def range_groups(first, last, available=False):
+        result = []
+        for start in range(first, last + 1, 5):
+            end = min(start + 4, last)
+            name = f"StudioSlots{number_name(start)}To{number_name(end)}"
+            result.append(bundle(name, [f'StudioSlot{number_name(number)}Widget()' for number in range(start, end + 1)], available))
+        return result
+
+    standard = subtree('StudioStandardSlots', range_groups(1, count))
+    members = [standard]
+    if extra > count:
+        xl = subtree('StudioExtraLargeSlots', range_groups(count + 1, extra, True), True)
+        members.append(f'if #available(iOS 27.0, *) {{\n            {xl}\n        }}')
+    root = bundle('StudioRegisteredSlots', members)
+    kinds = ",\n".join(f'            @"ControlStudio.Slot.{number}"' for number in range(1, extra + 1))
     return {
-        "src/ControlStudio.Core/Widgets/WidgetSlots.cs": ("limits", f"    public const int SlotsPerSize = {count}, MaximumAssignments = {capacity}, MaximumCatalogBytes = {bound};"),
-        "native/Shared/WidgetDesignStore.swift": ("limits", f"    static let slotsPerSize = {count}\n    static let maximumSlotAssignments = {capacity}\n    static let maximumSlotCatalogBytes = {bound}"),
+        "src/ControlStudio.Core/Widgets/WidgetSlots.cs": ("limits", f"""    public const int SlotsPerSize = {count}, ExtraLargePortraitSlots = {extra}, MaximumSlotNumber = {extra}, MaximumAssignments = {capacity}, MaximumCatalogBytes = {bound};
+    public static int SlotsFor(WidgetSize size) => size switch
+    {{
+        WidgetSize.ExtraLargePortrait => ExtraLargePortraitSlots,
+        WidgetSize.Small or WidgetSize.Medium or WidgetSize.Large or WidgetSize.ExtraLarge => SlotsPerSize,
+        _ => throw new IOException("Choose a supported widget size.")
+    }};"""),
+        "native/Shared/WidgetDesignStore.swift": ("limits", f"    static let slotsPerSize = {count}\n    static let extraLargePortraitSlots = {extra}\n    static let maximumSlotNumber = {extra}\n    static let maximumSlotAssignments = {capacity}\n    static let maximumSlotCatalogBytes = {bound}\n    static func slots(for size: WidgetDesignSize) -> Int {{ size == .extraLargePortrait ? extraLargePortraitSlots : slotsPerSize }}"),
         "native/WidgetRuntime/CSWidgetBackgroundAdapter.m": ("kinds", f"        kinds = [NSSet setWithArray:@[\n{kinds}\n        ]];"),
         "native/ControlStudioWidgets/StudioSlotWidget.swift": ("widgets", "\n\n".join(types + groups)),
-        "native/ControlStudioWidgets/ControlStudioWidgets.swift": ("bundle", "\n".join(registrations)),
+        "native/ControlStudioWidgets/ControlStudioWidgets.swift": ("bundle", "        " + root),
     }
 
 

@@ -1,5 +1,6 @@
 {
   "slotsPerSize": 20,
+  "extraLargePortraitSlots": 30,
   "storedSizeCount": 5,
   "maximumCatalogBytes": 16384
 }

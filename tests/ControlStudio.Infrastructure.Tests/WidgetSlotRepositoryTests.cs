@@ -50,7 +50,7 @@ public sealed class WidgetSlotRepositoryTests : IDisposable
         Assert.Contains(slots, x => x.Size == WidgetSize.Medium && x.Number == 1 && x.DesignId == medium.Id);
     }
     [Fact]
-    public async Task AllEightyAddressesPublishAndReopenWithoutLosingOriginalTenSlots()
+    public async Task AllNinetyAddressesPublishAndReopenWithoutLosingOriginalSlots()
     {
         var repository = Repository;
         var designs = new List<WidgetDesign>();
@@ -62,10 +62,10 @@ public sealed class WidgetSlotRepositoryTests : IDisposable
         }
         var original = (await Repository.ReadLibraryAsync()).Slots.ToArray();
         foreach (var design in designs)
-            for (var number = 11; number <= 20; number++) await Repository.AssignSlotAsync(design.Size, number, design.Id);
+            for (var number = 11; number <= WidgetSlotRules.SlotsFor(design.Size); number++) await Repository.AssignSlotAsync(design.Size, number, design.Id);
         await Publisher.PublishAsync();
         var reopened = await Repository.ReadLibraryAsync();
-        Assert.Equal(80, reopened.Slots.Count);
+        Assert.Equal(90, reopened.Slots.Count);
         foreach (var slot in original) Assert.Contains(slot, reopened.Slots);
         var path = Path.Combine(Shared, "slots.json");
         var bytes = await File.ReadAllBytesAsync(path);
@@ -75,10 +75,19 @@ public sealed class WidgetSlotRepositoryTests : IDisposable
         Assert.Equal(reopened.Slots, shared.Slots);
         await Repository.AssignSlotAsync(WidgetSize.Medium, 20, null);
         await Publisher.PublishAsync();
-        Assert.Equal(79, (await Repository.ReadLibraryAsync()).Slots.Count);
+        Assert.Equal(89, (await Repository.ReadLibraryAsync()).Slots.Count);
         var cleared = JsonSerializer.Deserialize(await File.ReadAllBytesAsync(path), WidgetDesignRules.JsonContext.WidgetSlotCatalog)!;
         Assert.DoesNotContain(cleared.Slots, x => x.Size == WidgetSize.Medium && x.Number == 20);
         Assert.Contains(cleared.Slots, x => x.Size == WidgetSize.Small && x.Number == 20);
+        Assert.Contains(cleared.Slots, x => x.Size == WidgetSize.ExtraLargePortrait && x.Number == 30);
+        var before = await File.ReadAllBytesAsync(Catalog);
+        await Assert.ThrowsAsync<IOException>(() => repository.AssignSlotAsync(WidgetSize.Small, 21, designs[0].Id));
+        await Assert.ThrowsAsync<IOException>(() => repository.AssignSlotAsync(WidgetSize.ExtraLargePortrait, 31, designs[^1].Id));
+        Assert.Equal(before, await File.ReadAllBytesAsync(Catalog));
+        await repository.AssignSlotAsync(WidgetSize.ExtraLargePortrait, 30, null); await Publisher.PublishAsync();
+        var after = await repository.ReadLibraryAsync(); Assert.Equal(88, after.Slots.Count);
+        Assert.DoesNotContain(after.Slots, x => x.Size == WidgetSize.ExtraLargePortrait && x.Number == 30);
+        Assert.Contains(after.Slots, x => x.Size == WidgetSize.ExtraLargePortrait && x.Number == 20);
         Assert.Equal(4, (await Repository.ReadLibraryAsync()).Designs.Count);
     }
     [Fact]

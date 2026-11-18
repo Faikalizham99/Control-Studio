@@ -87,12 +87,13 @@ public sealed class WidgetSlotsRedesignTests : IDisposable
     }
     [Theory]
     [InlineData(WidgetSize.Small)] [InlineData(WidgetSize.Medium)] [InlineData(WidgetSize.Large)] [InlineData(WidgetSize.ExtraLargePortrait)]
-    public void SlotCardsKeepAllTenAddressesAndCorrectPreviewProportions(WidgetSize size)
+    public void SlotCardsKeepEverySizeSpecificAddressAndCorrectPreviewProportions(WidgetSize size)
     {
         var design = Design(size); var store = new Store([design], [new(size, 1, design.Id)]);
         var page = new WidgetSlotsPage(store, NullLogger.Instance, size); Open(page);
-        Assert.Equal(20, Descendants(page).OfType<WidgetSlotCard>().Count());
-        var frames = Descendants(page).OfType<WidgetPreviewFrame>().ToArray(); Assert.Equal(20, frames.Length);
+        var count = size == WidgetSize.ExtraLargePortrait ? 30 : 20;
+        Assert.Equal(count, Descendants(page).OfType<WidgetSlotCard>().Count());
+        var frames = Descendants(page).OfType<WidgetPreviewFrame>().ToArray(); Assert.Equal(count, frames.Length);
         foreach (var frame in frames)
         {
             var border = Assert.IsType<Border>(frame.Content); var canvas = WidgetDesignRules.Canvas(size);
@@ -142,7 +143,7 @@ public sealed class WidgetSlotsRedesignTests : IDisposable
                 confirmClear: _ => Task.FromResult(true),
                 openAssignment: (size, number) => { opened.Add((size, number)); return Task.CompletedTask; });
             Open(page);
-            Assert.Equal(20, Descendants(page).OfType<WidgetSlotCard>().Count());
+            Assert.Equal(WidgetSlotRules.SlotsFor(family), Descendants(page).OfType<WidgetSlotCard>().Count());
             ((IButtonController)Button(page, "Assign" + family + "Slot20")).SendClicked();
             Assert.Equal((family, 20), Assert.Single(opened));
             var assign = Assignment(store, family, 20); Open(assign);
@@ -155,6 +156,34 @@ public sealed class WidgetSlotsRedesignTests : IDisposable
             Assert.Single(store.Library.Designs);
             ((IPageController)page).SendDisappearing();
         }
+    }
+    [Fact]
+    public async Task ExtraLargeNewSlotsAssignAndClearWithoutTouchingExistingAddresses()
+    {
+        var small = Design(WidgetSize.Small); var xl = Design(WidgetSize.ExtraLargePortrait);
+        var originals = new WidgetSlotAssignment[] { new(small.Size, 20, small.Id), new(xl.Size, 20, xl.Id) };
+        var store = new Store([small, xl], originals);
+        var opened = new List<(WidgetSize, int)>();
+        var page = new WidgetSlotsPage(store, NullLogger.Instance, confirmClear: _ => Task.FromResult(true),
+            openAssignment: (size, number) => { opened.Add((size, number)); return Task.CompletedTask; });
+        Open(page); Assert.Equal(20, Descendants(page).OfType<WidgetSlotCard>().Count());
+        await page.SelectSizeAsync(xl.Size);
+        Assert.Equal(30, Descendants(page).OfType<WidgetSlotCard>().Count());
+        foreach (var number in new[] { 21, 30 })
+        {
+            ((IButtonController)Button(page, "Assign" + xl.Size + "Slot" + number)).SendClicked();
+            Assert.Equal((xl.Size, number), opened.Last());
+            var assign = Assignment(store, xl.Size, number); Open(assign);
+            Assert.Single(Descendants(assign).OfType<WidgetDesignChoiceCard>());
+            assign.Choose(xl.Id); await assign.ConfirmAsync();
+            Assert.Contains(store.Library.Slots, x => x.Size == xl.Size && x.Number == number && x.DesignId == xl.Id);
+            Open(page); await page.ClearAsync(xl.Size, number);
+            Assert.Equal(originals, store.Library.Slots);
+        }
+        await page.SelectSizeAsync(WidgetSize.Medium);
+        Assert.Equal(20, Descendants(page).OfType<WidgetSlotCard>().Count());
+        Assert.DoesNotContain(Descendants(page).OfType<Button>(), x => x.AutomationId == "AssignMediumSlot21");
+        Assert.Throws<IOException>(() => new WidgetSlotSelection(xl.Size, 31));
     }
     [Fact]
     public async Task ChangingSizeKeepsAssignmentsSeparateAndOpensTheCorrectLockedAddress()

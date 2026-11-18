@@ -132,25 +132,25 @@ final class WidgetBackgroundAdapterTests: XCTestCase {
         XCTAssertEqual(value.preferredBackgroundStyle, 0)
     }
     func testOnlyExactNumberedStudioKindsAreAllowed() {
-        for number in 1...20 { XCTAssertTrue(CSIsStudioSlotKind("ControlStudio.Slot.\(number)")) }
-        for value in ["ControlStudio.Counter", "ControlStudio.Slot.0", "ControlStudio.Slot.21", "ControlStudio.Slot.01", "ControlStudio.Slot.1.extra", "Other.Slot.1", ""] {
+        for number in 1...30 { XCTAssertTrue(CSIsStudioSlotKind("ControlStudio.Slot.\(number)")) }
+        for value in ["ControlStudio.Counter", "ControlStudio.Slot.0", "ControlStudio.Slot.31", "ControlStudio.Slot.01", "ControlStudio.Slot.1.extra", "Other.Slot.1", ""] {
             XCTAssertFalse(CSIsStudioSlotKind(value))
         }
         XCTAssertFalse(CSIsStudioSlotKind(nil))
     }
-    func testAllTwentySlotsArePatchedWithoutMutatingCounterOriginalOrFutureMetadata() throws {
-        let slots = (1...20).map { descriptor("ControlStudio.Slot.\($0)") }
+    func testAllThirtySlotsArePatchedWithoutMutatingCounterOriginalOrFutureMetadata() throws {
+        let slots = (1...30).map { descriptor("ControlStudio.Slot.\($0)") }
         let counter = descriptor("ControlStudio.Counter")
         let original = BackgroundTestResult(widgets: slots + [counter])
         let rewritten = try XCTUnwrap(CSWidgetBackgroundRewriteResult(original, descriptorClass: BackgroundTestDescriptor.self) as? BackgroundTestResult)
-        XCTAssertFalse(rewritten === original); XCTAssertEqual(rewritten.widgets.count, 21)
-        for index in 0..<20 {
+        XCTAssertFalse(rewritten === original); XCTAssertEqual(rewritten.widgets.count, 31)
+        for index in 0..<30 {
             let slot = try XCTUnwrap(rewritten.widgets[index] as? BackgroundTestDescriptor)
             XCTAssertEqual(slot.kind, slots[index].kind); XCTAssertTrue(slot.backgroundRemovable)
             XCTAssertTrue(slot.transparent); XCTAssertEqual(slot.preferredBackgroundStyle, 1)
             XCTAssertFalse(slots[index].transparent); XCTAssertEqual(slots[index].preferredBackgroundStyle, 0)
         }
-        let untouched = try XCTUnwrap(rewritten.widgets[20] as? BackgroundTestDescriptor)
+        let untouched = try XCTUnwrap(rewritten.widgets[30] as? BackgroundTestDescriptor)
         XCTAssertEqual(untouched.kind, counter.kind); XCTAssertFalse(untouched.transparent)
         XCTAssertFalse(untouched.backgroundRemovable); XCTAssertEqual(untouched.preferredBackgroundStyle, 0)
         XCTAssertEqual(rewritten.controls, original.controls); XCTAssertEqual(rewritten.activities, original.activities)

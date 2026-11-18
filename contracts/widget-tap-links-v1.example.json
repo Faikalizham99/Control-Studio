@@ -8,6 +8,8 @@
     { "size": "large", "number": 1, "url": "controlstudio://widget/large/1" },
     { "size": "large", "number": 20, "url": "controlstudio://widget/large/20" },
     { "size": "extraLargePortrait", "number": 1, "url": "controlstudio://widget/extraLargePortrait/1" },
-    { "size": "extraLargePortrait", "number": 20, "url": "controlstudio://widget/extraLargePortrait/20" }
+    { "size": "extraLargePortrait", "number": 20, "url": "controlstudio://widget/extraLargePortrait/20" },
+    { "size": "extraLargePortrait", "number": 21, "url": "controlstudio://widget/extraLargePortrait/21" },
+    { "size": "extraLargePortrait", "number": 30, "url": "controlstudio://widget/extraLargePortrait/30" }
   ]
 }

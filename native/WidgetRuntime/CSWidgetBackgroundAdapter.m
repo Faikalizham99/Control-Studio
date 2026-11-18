@@ -46,7 +46,17 @@ BOOL CSIsStudioSlotKind(NSString *kind) {
             @"ControlStudio.Slot.17",
             @"ControlStudio.Slot.18",
             @"ControlStudio.Slot.19",
-            @"ControlStudio.Slot.20"
+            @"ControlStudio.Slot.20",
+            @"ControlStudio.Slot.21",
+            @"ControlStudio.Slot.22",
+            @"ControlStudio.Slot.23",
+            @"ControlStudio.Slot.24",
+            @"ControlStudio.Slot.25",
+            @"ControlStudio.Slot.26",
+            @"ControlStudio.Slot.27",
+            @"ControlStudio.Slot.28",
+            @"ControlStudio.Slot.29",
+            @"ControlStudio.Slot.30"
         ]];
 // END GENERATED SLOTS kinds
     });

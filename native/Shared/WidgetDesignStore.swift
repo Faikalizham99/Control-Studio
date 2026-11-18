@@ -4,7 +4,7 @@ import Foundation
 enum WidgetTapLinks {
     static let counter = URL(string: "controlstudio://counter")!
     static func slot(size: WidgetDesignSize, number: Int) -> URL? {
-        guard size.isSupported, (1...WidgetDesignStore.slotsPerSize).contains(number) else { return nil }
+        guard size.isSupported, (1...WidgetDesignStore.slots(for: size)).contains(number) else { return nil }
         return URL(string: "controlstudio://widget/\(size.rawValue)/\(number)")
     }
 }
@@ -122,8 +122,11 @@ struct WidgetDesignStore {
     static let maximumLayers = 30
 // BEGIN GENERATED SLOTS limits (scripts/widget_slot_config.py)
     static let slotsPerSize = 20
-    static let maximumSlotAssignments = 100
+    static let extraLargePortraitSlots = 30
+    static let maximumSlotNumber = 30
+    static let maximumSlotAssignments = 110
     static let maximumSlotCatalogBytes = 16384
+    static func slots(for size: WidgetDesignSize) -> Int { size == .extraLargePortrait ? extraLargePortraitSlots : slotsPerSize }
 // END GENERATED SLOTS limits
     static func slotKind(_ number: Int) -> String { "ControlStudio.Slot.\(number)" }
     let directory: URL
@@ -148,14 +151,14 @@ struct WidgetDesignStore {
         guard catalog.slots.count <= Self.maximumSlotAssignments else { throw WidgetDesignError.invalidCatalog }
         var addresses = Set<String>()
         for slot in catalog.slots {
-            guard (1...Self.slotsPerSize).contains(slot.number), UUID(uuidString: slot.designId) != nil,
+            guard (1...Self.slots(for: slot.size)).contains(slot.number), UUID(uuidString: slot.designId) != nil,
                 slot.designId != "00000000-0000-0000-0000-000000000000",
                 addresses.insert("\(slot.size.rawValue).\(slot.number)").inserted else { throw WidgetDesignError.invalidCatalog }
         }
         return catalog.slots.filter { $0.size.isSupported }
     }
     func assignedDesign(size: WidgetDesignSize, number: Int) throws -> WidgetDesignSummary? {
-        guard size.isSupported, (1...Self.slotsPerSize).contains(number) else { throw WidgetDesignError.invalidCatalog }
+        guard size.isSupported, (1...Self.slots(for: size)).contains(number) else { throw WidgetDesignError.invalidCatalog }
         guard let assignment = try readSlots().first(where: { $0.size == size && $0.number == number }) else { return nil }
         // Missing/changed-size IDs leave this slot empty; never substitute another photo.
         return try read().first { $0.id == assignment.designId && $0.size == size }

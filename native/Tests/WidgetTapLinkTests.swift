@@ -8,18 +8,18 @@ final class WidgetTapLinkTests: XCTestCase {
         let fixture = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
         XCTAssertEqual(WidgetTapLinks.counter.absoluteString, fixture["counter"] as? String)
         let slots = try XCTUnwrap(fixture["slots"] as? [[String: Any]])
-        XCTAssertEqual(slots.count, 8)
+        XCTAssertEqual(slots.count, 10)
         for slot in slots {
             let size = try XCTUnwrap(WidgetDesignSize(rawValue: try XCTUnwrap(slot["size"] as? String)))
             let number = try XCTUnwrap(slot["number"] as? Int)
             XCTAssertEqual(WidgetTapLinks.slot(size: size, number: number)?.absoluteString, slot["url"] as? String)
         }
         for size in [WidgetDesignSize.small, .medium, .large, .extraLargePortrait] {
-            for number in 1...20 {
+            for number in 1...WidgetDesignStore.slots(for: size) {
                 XCTAssertEqual(WidgetTapLinks.slot(size: size, number: number)?.absoluteString,
                     "controlstudio://widget/\(size.rawValue)/\(number)")
             }
-            for number in [-1, 0, 21] { XCTAssertNil(WidgetTapLinks.slot(size: size, number: number)) }
+            for number in [-1, 0, WidgetDesignStore.slots(for: size) + 1] { XCTAssertNil(WidgetTapLinks.slot(size: size, number: number)) }
         }
         XCTAssertNil(WidgetTapLinks.slot(size: .extraLarge, number: 1))
     }

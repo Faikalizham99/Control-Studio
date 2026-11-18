@@ -16,6 +16,7 @@ class WidgetSlotConfigTests(unittest.TestCase):
     def test_checked_in_definitions_are_current(self):
         synchronize(check=True)
         self.assertEqual(20, configuration()["slotsPerSize"])
+        self.assertEqual(30, configuration()["extraLargePortraitSlots"])
 
     def test_each_kind_has_one_literal_name_and_one_bundle_registration(self):
         sections = generated_sections(configuration())
@@ -23,17 +24,36 @@ class WidgetSlotConfigTests(unittest.TestCase):
         bundle = sections["native/ControlStudioWidgets/ControlStudioWidgets.swift"][1]
         background = sections["native/WidgetRuntime/CSWidgetBackgroundAdapter.m"][1]
         self.assertEqual([], metadata_errors(widgets, "slots.swift"))
-        self.assertEqual(20, len(re.findall(r"struct StudioSlot\w+Widget: Widget", widgets)))
-        for number in range(1, 21):
-            self.assertEqual(1, widgets.count(f'make(slot: {number}).configurationDisplayName("Studio {number}")'))
+        self.assertEqual(30, len(re.findall(r"struct StudioSlot\w+Widget: Widget", widgets)))
+        for number in range(1, 31):
+            maker = "make" if number <= 20 else "makeExtraLarge"
+            self.assertEqual(1, widgets.count(f'{maker}(slot: {number}).configurationDisplayName("Studio {number}")'))
             self.assertEqual(1, widgets.count(f"        StudioSlot{number_name(number)}Widget()"))
             self.assertEqual(1, background.count(f'@"ControlStudio.Slot.{number}"'))
+            if number > 20:
+                self.assertIn(f"@available(iOS 27.0, *)\nstruct StudioSlot{number_name(number)}Widget", widgets)
         groups = re.findall(r"struct (StudioSlots\w+To\w+): WidgetBundle", widgets)
-        self.assertEqual(4, len(groups))
+        self.assertEqual(6, len(groups))
         for group in groups:
-            self.assertEqual(1, bundle.count(f"{group}().body"))
+            self.assertEqual(1, widgets.count(f"{group}().body"))
+        self.assertEqual("        StudioRegisteredSlots().body", bundle)
+        self.assertIn("if #available(iOS 27.0, *) {\n            StudioExtraLargeSlots().body", widgets)
+        source = (ROOT / "native/ControlStudioWidgets/StudioSlotWidget.swift").read_text(encoding="utf-8")
+        self.assertIn("configuration(slot: slot, families: [.systemExtraLargePortrait])", source)
         self.assertNotIn("Counter", background)
         self.assertNotIn("AppIntentConfiguration", widgets)
+
+    def test_every_generated_bundle_stays_within_five_builder_expressions(self):
+        for standard, extra in [(20, 30), (20, 21), (20, 20), (21, 30), (30, 30)]:
+            with self.subTest(standard=standard, extra=extra):
+                sections = generated_sections(configuration() | {"slotsPerSize": standard, "extraLargePortraitSlots": extra})
+                widgets = sections["native/ControlStudioWidgets/StudioSlotWidget.swift"][1]
+                bodies = re.findall(r"struct \w+: WidgetBundle \{\n    var body: some Widget \{\n(.*?)\n    \}\n\}", widgets, re.DOTALL)
+                self.assertTrue(bodies)
+                for body in bodies:
+                    expressions = re.findall(r"^        (?:Studio\w+\(\)|if #available)", body, re.MULTILINE)
+                    self.assertGreater(len(expressions), 0)
+                    self.assertLessEqual(len(expressions), 5)
 
     def test_stale_output_in_any_language_fails_without_writing(self):
         for stale in generated_sections(configuration()):
@@ -61,15 +81,17 @@ class WidgetSlotConfigTests(unittest.TestCase):
             path = root / "contracts/widget-slot-config.json"
             path.parent.mkdir()
             for replacement in [{"slotsPerSize": 0}, {"slotsPerSize": True}, {"slotsPerSize": 41}, {"slotsPerSize": 40},
+                                {"extraLargePortraitSlots": True}, {"extraLargePortraitSlots": 19}, {"extraLargePortraitSlots": 41},
+                                {"slotsPerSize": 40, "extraLargePortraitSlots": 40},
                                 {"storedSizeCount": 4}, {"maximumCatalogBytes": 0}, {"unknown": 1}]:
                 path.write_text(json.dumps(configuration() | replacement), encoding="utf-8")
                 with self.assertRaises(ValueError):
                     configuration(root)
             # Repetition is generated even for a final group shorter than five.
-            sections = generated_sections(configuration() | {"slotsPerSize": 21})
+            sections = generated_sections(configuration() | {"extraLargePortraitSlots": 21})
             widgets = sections["native/ControlStudioWidgets/StudioSlotWidget.swift"][1]
             self.assertIn("struct StudioSlotsTwentyOneToTwentyOne", widgets)
-            self.assertIn('make(slot: 21).configurationDisplayName("Studio 21")', widgets)
+            self.assertIn('makeExtraLarge(slot: 21).configurationDisplayName("Studio 21")', widgets)
 
 
 if __name__ == "__main__":

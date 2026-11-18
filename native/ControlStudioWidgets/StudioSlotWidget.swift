@@ -275,12 +275,19 @@ private enum StudioSlotConfiguration {
         return result
     }
     static func make(slot: Int) -> some WidgetConfiguration {
+        configuration(slot: slot, families: families)
+    }
+    @available(iOS 27.0, *)
+    static func makeExtraLarge(slot: Int) -> some WidgetConfiguration {
+        configuration(slot: slot, families: [.systemExtraLargePortrait])
+    }
+    private static func configuration(slot: Int, families: [WidgetFamily]) -> some WidgetConfiguration {
         StaticConfiguration(kind: WidgetDesignStore.slotKind(slot), provider: StudioSlotProvider(slot: slot)) { entry in
             StudioSlotView(entry: entry)
         }
         // WidgetKit processes gallery metadata during extension registration.
         // Interpolated LocalizedStringKey values assert here on iOS 27.
-        .description("Assign a saved design to this slot for each size in Control Studio. Different slots can show different designs.")
+        .description("Assign a saved design to this numbered slot in Control Studio. Different slots can show different designs.")
         .supportedFamilies(families)
         .contentMarginsDisabled()
     }
@@ -409,6 +416,76 @@ struct StudioSlotTwentyWidget: Widget {
     }
 }
 
+@available(iOS 27.0, *)
+struct StudioSlotTwentyOneWidget: Widget {
+    var body: some WidgetConfiguration {
+        StudioSlotConfiguration.makeExtraLarge(slot: 21).configurationDisplayName("Studio 21")
+    }
+}
+
+@available(iOS 27.0, *)
+struct StudioSlotTwentyTwoWidget: Widget {
+    var body: some WidgetConfiguration {
+        StudioSlotConfiguration.makeExtraLarge(slot: 22).configurationDisplayName("Studio 22")
+    }
+}
+
+@available(iOS 27.0, *)
+struct StudioSlotTwentyThreeWidget: Widget {
+    var body: some WidgetConfiguration {
+        StudioSlotConfiguration.makeExtraLarge(slot: 23).configurationDisplayName("Studio 23")
+    }
+}
+
+@available(iOS 27.0, *)
+struct StudioSlotTwentyFourWidget: Widget {
+    var body: some WidgetConfiguration {
+        StudioSlotConfiguration.makeExtraLarge(slot: 24).configurationDisplayName("Studio 24")
+    }
+}
+
+@available(iOS 27.0, *)
+struct StudioSlotTwentyFiveWidget: Widget {
+    var body: some WidgetConfiguration {
+        StudioSlotConfiguration.makeExtraLarge(slot: 25).configurationDisplayName("Studio 25")
+    }
+}
+
+@available(iOS 27.0, *)
+struct StudioSlotTwentySixWidget: Widget {
+    var body: some WidgetConfiguration {
+        StudioSlotConfiguration.makeExtraLarge(slot: 26).configurationDisplayName("Studio 26")
+    }
+}
+
+@available(iOS 27.0, *)
+struct StudioSlotTwentySevenWidget: Widget {
+    var body: some WidgetConfiguration {
+        StudioSlotConfiguration.makeExtraLarge(slot: 27).configurationDisplayName("Studio 27")
+    }
+}
+
+@available(iOS 27.0, *)
+struct StudioSlotTwentyEightWidget: Widget {
+    var body: some WidgetConfiguration {
+        StudioSlotConfiguration.makeExtraLarge(slot: 28).configurationDisplayName("Studio 28")
+    }
+}
+
+@available(iOS 27.0, *)
+struct StudioSlotTwentyNineWidget: Widget {
+    var body: some WidgetConfiguration {
+        StudioSlotConfiguration.makeExtraLarge(slot: 29).configurationDisplayName("Studio 29")
+    }
+}
+
+@available(iOS 27.0, *)
+struct StudioSlotThirtyWidget: Widget {
+    var body: some WidgetConfiguration {
+        StudioSlotConfiguration.makeExtraLarge(slot: 30).configurationDisplayName("Studio 30")
+    }
+}
+
 struct StudioSlotsOneToFive: WidgetBundle {
     var body: some Widget {
         StudioSlotOneWidget()
@@ -446,6 +523,54 @@ struct StudioSlotsSixteenToTwenty: WidgetBundle {
         StudioSlotEighteenWidget()
         StudioSlotNineteenWidget()
         StudioSlotTwentyWidget()
+    }
+}
+
+struct StudioStandardSlots: WidgetBundle {
+    var body: some Widget {
+        StudioSlotsOneToFive().body
+        StudioSlotsSixToTen().body
+        StudioSlotsElevenToFifteen().body
+        StudioSlotsSixteenToTwenty().body
+    }
+}
+
+@available(iOS 27.0, *)
+struct StudioSlotsTwentyOneToTwentyFive: WidgetBundle {
+    var body: some Widget {
+        StudioSlotTwentyOneWidget()
+        StudioSlotTwentyTwoWidget()
+        StudioSlotTwentyThreeWidget()
+        StudioSlotTwentyFourWidget()
+        StudioSlotTwentyFiveWidget()
+    }
+}
+
+@available(iOS 27.0, *)
+struct StudioSlotsTwentySixToThirty: WidgetBundle {
+    var body: some Widget {
+        StudioSlotTwentySixWidget()
+        StudioSlotTwentySevenWidget()
+        StudioSlotTwentyEightWidget()
+        StudioSlotTwentyNineWidget()
+        StudioSlotThirtyWidget()
+    }
+}
+
+@available(iOS 27.0, *)
+struct StudioExtraLargeSlots: WidgetBundle {
+    var body: some Widget {
+        StudioSlotsTwentyOneToTwentyFive().body
+        StudioSlotsTwentySixToThirty().body
+    }
+}
+
+struct StudioRegisteredSlots: WidgetBundle {
+    var body: some Widget {
+        StudioStandardSlots().body
+        if #available(iOS 27.0, *) {
+            StudioExtraLargeSlots().body
+        }
     }
 }
 // END GENERATED SLOTS widgets

@@ -18,13 +18,13 @@ public sealed record WidgetTapLink(WidgetSize? Size = null, int Number = 0)
         if (uri.Host != "widget") return false;
         var parts = uri.AbsolutePath.Split('/');
         if (parts.Length != 3 || !int.TryParse(parts[2], NumberStyles.None, CultureInfo.InvariantCulture, out var number)
-            || parts[2] != number.ToString(CultureInfo.InvariantCulture) || number < 1 || number > WidgetSlotRules.SlotsPerSize) return false;
+            || parts[2] != number.ToString(CultureInfo.InvariantCulture) || number < 1 || number > WidgetSlotRules.MaximumSlotNumber) return false;
         WidgetSize? size = parts[1] switch
         {
             "small" => WidgetSize.Small, "medium" => WidgetSize.Medium,
             "large" => WidgetSize.Large, "extraLargePortrait" => WidgetSize.ExtraLargePortrait, _ => null
         };
-        if (size is null) return false;
+        if (size is null || number > WidgetSlotRules.SlotsFor(size.Value)) return false;
         link = new(size, number); return true;
     }
 

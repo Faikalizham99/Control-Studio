@@ -255,7 +255,7 @@ internal sealed partial class WidgetEditorPage : ContentPage
         form.Children.Add(Card(new VerticalStackLayout { Spacing = 10, Children = { backgroundHeading, backgroundMode, backgroundHelp, solid, background } }));
         form.Children.Add(Card(tapAction));
         status.IsVisible = false; form.Children.Add(status); form.Children.Add(save);
-        form.Children.Add(SettingsControls.Text($"Save, then open Widget slots in My Widgets and assign this design to a matching slot. Add Control Studio → Studio 1–{WidgetSlotRules.SlotsPerSize} on your Home Screen. iOS schedules updates.", 12, secondary: true));
+        form.Children.Add(SettingsControls.Text($"Save, then open Widget slots in My Widgets and assign this design to a matching slot. Add Control Studio → Studio 1–{WidgetSlotRules.SlotsPerSize}, or 1–{WidgetSlotRules.ExtraLargePortraitSlots} for Extra Large, on your Home Screen. iOS schedules updates.", 12, secondary: true));
         save.Clicked += async (_, _) =>
         {
             // Finish native text composition while the field is still editable.

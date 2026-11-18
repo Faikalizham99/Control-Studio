@@ -6,13 +6,13 @@ Version **0.2.48 (50)** opens the normal Edit widget page for the current design
 
 ## Routing and draft protection
 
-The widget uses Apple's public [`widgetURL`](https://developer.apple.com/documentation/widgetkit/linking-to-specific-app-scenes-from-your-widget-or-live-activity) mechanism. Studio links contain only `controlstudio://widget/<size>/<number>`; Counter uses `controlstudio://counter`. The link uses the actual WidgetKit family, independently of whether the widget is showing a photo, live layers or an empty/error state. Supported families are Small, Medium, Large and iPhone XL, at slots 1–20. Gallery metadata and transparency policy are unchanged.
+The widget uses Apple's public [`widgetURL`](https://developer.apple.com/documentation/widgetkit/linking-to-specific-app-scenes-from-your-widget-or-live-activity) mechanism. Studio links contain only `controlstudio://widget/<size>/<number>`; Counter uses `controlstudio://counter`. The link uses the actual WidgetKit family, independently of whether the widget is showing a photo, live layers or an empty/error state. Small, Medium and Large accept slots 1–20; iPhone XL accepts slots 1–30. Gallery metadata remains literal and the same transparency policy covers the new Studio kinds.
 
 The app reads its private saved library and resolves the current assignment when the link is opened. It does not trust a cached design ID from a widget timeline. If navigation to My Widgets yields, the app rereads the assignment before opening an editor, preventing an outdated design from being opened after an assignment changes during that transition. A shared C#/Swift fixture covers size tokens and both slot boundaries.
 
 If that design already has an editor open, the existing draft and Undo history are reused. If a different widget editor is open, it stays intact and a message asks the user to save or cancel it before tapping the other widget again. No draft, imported photo or history is silently discarded. Counter can switch to Home while the Studio draft remains on its navigation stack. Studio and Settings navigation stacks stay intact. Back from a newly opened editor returns through My Widgets.
 
-The URL parser accepts only bounded local navigation addresses. It rejects unsupported schemes/hosts/sizes, retired iPad XL, slots outside 1–20, queries, fragments, credentials, ports, escaped paths, path traversal and malformed numbers. Opening a link cannot assign, save, delete or import anything. Resolving an unreadable/corrupt library reports an error rather than modifying it or substituting another design.
+The URL parser accepts only bounded local navigation addresses. It rejects unsupported schemes/hosts/sizes, retired iPad XL, numbers outside the requested size's slot range, queries, fragments, credentials, ports, escaped paths, path traversal and malformed numbers. Opening a link cannot assign, save, delete or import anything. Resolving an unreadable/corrupt library reports an error rather than modifying it or substituting another design.
 
 ## iOS lifecycle
 
